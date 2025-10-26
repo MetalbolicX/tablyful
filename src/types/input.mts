@@ -37,42 +37,6 @@ export type InputData =
   | ObjectOfObjects;
 
 /**
- * Type guard to check if data is ArrayOfObjects
- * @param data - Input data to check
- * @returns True if data is ArrayOfObjects, false otherwise
- * @example
- * ```ts
- * const data: InputData = [{ a: 1 }, { b: 2 }];
- * if (isArrayOfObjects(data)) {
- *   // data is now typed as ArrayOfObjects
- * }
- * ```
- */
-export const isArrayOfObjects = (data: InputData): data is ArrayOfObjects =>
-  Array.isArray(data) &&
-  data.every(
-    (row) => typeof row === "object" && row !== null && !Array.isArray(row)
-  );
-
-/**
- * Type guard to check if data is ObjectOfArrays
- * @param data - Input data to check
- * @returns True if data is ObjectOfArrays, false otherwise
- * @example
- * ```ts
- * const data: InputData = { col1: [1, 2], col2: [3, 4] };
- * if (isObjectOfArrays(data)) {
- *   // data is now typed as ObjectOfArrays
- * }
- * ```
- */
-export const isObjectOfArrays = (data: InputData): data is ObjectOfArrays =>
-  typeof data === "object" &&
-  data !== null &&
-  !Array.isArray(data) &&
-  Object.values(data).every((value) => Array.isArray(value));
-
-/**
  * Type guard to check if data is ObjectOfObjects
  * @param data - Input data to check
  * @returns True if data is ObjectOfObjects, false otherwise
