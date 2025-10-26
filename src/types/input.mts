@@ -37,27 +37,6 @@ export type InputData =
   | ObjectOfObjects;
 
 /**
- * Type guard to check if data is ObjectOfObjects
- * @param data - Input data to check
- * @returns True if data is ObjectOfObjects, false otherwise
- * @example
- * ```ts
- * const data: InputData = { row1: { a: 1 }, row2: { b: 2 } };
- * if (isObjectOfObjects(data)) {
- *   // data is now typed as ObjectOfObjects
- * }
- * ```
- */
-export const isObjectOfObjects = (data: InputData): data is ObjectOfObjects =>
-  typeof data === "object" &&
-  data !== null &&
-  !Array.isArray(data) &&
-  Object.values(data).every(
-    (value) =>
-      typeof value === "object" && value !== null && !Array.isArray(value)
-  );
-
-/**
  * Input data with optional metadata
  */
 export interface InputDataWithMetadata {

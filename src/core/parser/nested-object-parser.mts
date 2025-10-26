@@ -4,7 +4,6 @@ import type {
   RowData,
   TablyfulOptions,
 } from "@/types";
-import { isObjectOfObjects } from "@/types";
 import { BaseParserImpl } from "./base-parser.mts";
 
 /**
@@ -31,7 +30,15 @@ export default class NestedObjectParser extends BaseParserImpl {
    * @returns True if the parser can handle the data, false otherwise.
    */
   public canParse(data: InputData): boolean {
-    return isObjectOfObjects(data);
+    return (
+      typeof data === "object" &&
+      data !== null &&
+      !Array.isArray(data) &&
+      Object.values(data).every(
+        (value) =>
+          typeof value === "object" && value !== null && !Array.isArray(value)
+      )
+    );
   }
 
   /**
