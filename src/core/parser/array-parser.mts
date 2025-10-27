@@ -34,7 +34,7 @@ export default class ArrayParser extends BaseParserImpl {
   ): { headers: string[]; dataRows: unknown[][] } {
     const arrayData = data as ArrayOfArrays;
 
-    if (arrayData.length === 0) {
+    if (!arrayData.length) {
       return { headers: [], dataRows: [] };
     }
 

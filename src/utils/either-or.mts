@@ -3,14 +3,14 @@
  * @template L The type of the Left value.
  * @template R The type of the Right value.
  */
-class Either<L, R> {
-  #value: L | R;
+export abstract class Either<L, R> {
+  #value: any;
 
   /**
    * Creates an instance of Either.
    * @param value - The value to store.
    */
-  constructor(value: L | R) {
+  protected constructor(value: L | R) {
     this.#value = value;
   }
 
@@ -33,12 +33,25 @@ class Either<L, R> {
   }
 
   /**
+   * Maps over the Either, applying the function if it's a Right.
+   * @param fn - The mapping function.
+   * @returns A new Either with the mapped value or the current Left.
+   */
+  public map<T>(fn: (value: R) => T): Either<L, T> {
+    return this.isLeft()
+      ? (this as unknown as Either<L, T>)
+      : Either.of(fn((this as any).#value as R));
+  }
+
+  /**
    * Chains the Either, applying the function if it's a Right.
    * @param fn - The function to apply to the Right value.
    * @returns The result of the function or the current Either if Left.
    */
   public chain<T>(fn: (value: R) => Either<L, T>): Either<L, T> {
-    return this.isLeft() ? (this as unknown as Either<L, T>) : fn(this.#value as R);
+    return this.isLeft()
+      ? (this as unknown as Either<L, T>)
+      : fn((this as any).#value as R);
   }
 
   /**
@@ -63,14 +76,35 @@ class Either<L, R> {
    * @returns The Right value or the default.
    */
   getOrElse(defaultValue: R): R {
-    return this.isLeft() ? defaultValue : (this.#value as R);
+    return this.isLeft() ? defaultValue : ((this as any).#value as R);
+  }
+
+  /**
+   * Folds the Either into a single value by applying the appropriate function.
+   * @param onLeft - Function to apply if this is Left.
+   * @param onRight - Function to apply if this is Right.
+   * @returns The result of applying the function.
+   */
+  public fold<T>(onLeft: (value: L) => T, onRight: (value: R) => T): T {
+    return this.isLeft()
+      ? onLeft((this as any).#value as L)
+      : onRight((this as any).#value as R);
+  }
+
+  /**
+   * Returns this Either if it is Right, otherwise returns the alternative Either.
+   * @param alternative - The alternative Either to return if this is Left.
+   * @returns This Either or the alternative.
+   */
+  orElse<R2>(alternative: Either<L, R2>): Either<L, R | R2> {
+    return this.isLeft() ? alternative : (this as unknown as Either<L, R | R2>);
   }
 
   /**
    * Gets the protected value.
    * @returns The stored value.
    */
-  protected get value(): L | R {
+  protected get value(): any {
     return this.#value;
   }
 }
@@ -80,7 +114,7 @@ class Either<L, R> {
  * @template L The type of the Left value.
  * @template R The type of the Right value.
  */
-export class Left<L, R> extends Either<L, R> {
+class Left<L, R> extends Either<L, R> {
   /**
    * Maps over the Either, but does nothing for Left.
    * @param _ - The mapping function (ignored).
@@ -96,13 +130,13 @@ export class Left<L, R> extends Either<L, R> {
  * @template L The type of the Left value.
  * @template R The type of the Right value.
  */
-export class Right<L, R> extends Either<L, R> {
+class Right<L, R> extends Either<L, R> {
   /**
    * Maps over the Right value.
    * @param fn - The mapping function.
    * @returns A new Right with the mapped value.
    */
-  public map<T>(fn: (value: R) => T): Either<L, T> {
+  public override map<T>(fn: (value: R) => T): Either<L, T> {
     return Either.of(fn(this.value as R));
   }
 }

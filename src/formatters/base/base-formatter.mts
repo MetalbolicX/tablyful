@@ -167,13 +167,10 @@ export abstract class BaseFormatterImpl implements BaseFormatter {
    * @returns The sanitized row data.
    */
   protected _sanitizeRow(row: RowData): RowData {
-    const sanitizedRow: RowData = {};
-
-    for (const [key, value] of Object.entries(row)) {
-      sanitizedRow[key] = this._sanitizeValue(value);
-    }
-
-    return sanitizedRow;
+    // Use a functional transformation to keep the logic concise and easy to test.
+    // Rely on `_sanitizeValue` which already uses `match`/`Maybe` to handle nullish values.
+    const entries = Object.entries(row).map(([key, value]) => [key, this._sanitizeValue(value)] as const);
+    return Object.fromEntries(entries) as RowData;
   }
 
   /**
@@ -209,10 +206,11 @@ export abstract class BaseFormatterImpl implements BaseFormatter {
     const widths = data.headers.map((header) => header.length);
 
     for (const row of data.rows) {
-      data.headers.forEach((header, index) => {
+      for (let index = 0; index < data.headers.length; index++) {
+        const header = data.headers[index];
         const value = this._sanitizeValue(row[header]);
         widths[index] = Math.max(widths[index], value.length);
-      });
+      }
     }
 
     return widths;
