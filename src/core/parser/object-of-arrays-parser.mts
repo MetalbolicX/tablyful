@@ -60,11 +60,28 @@ export default class ObjectOfArraysParser extends BaseParserImpl {
       return { headers: [], dataRows: [] };
     }
 
-    // Use custom headers if provided, otherwise use column names
-    const headers =
-      options.headers && options.headers.length > 0
-        ? this._validateAndNormalizeHeaders(options.headers)
-        : this._validateAndNormalizeHeaders(columnNames);
+    // Determine final headers and key mapping
+    let headers: string[];
+    let keyMapping: string[];
+
+    if (options.headers && options.headers.length > 0) {
+      // Custom headers provided
+      const customHeaders = this._validateAndNormalizeHeaders(options.headers);
+
+      if (customHeaders.length !== columnNames.length) {
+        throw new Error(
+          `Custom headers count (${customHeaders.length}) does not match ` +
+          `the number of columns in the data (${columnNames.length})`
+        );
+      }
+
+      headers = customHeaders;
+      keyMapping = columnNames; // Use original keys for data extraction
+    } else {
+      // No custom headers - use column names
+      headers = this._validateAndNormalizeHeaders(columnNames);
+      keyMapping = columnNames;
+    }
 
     // Find the maximum row count across all columns
     const maxRowCount = this.#getMaxRowCount(objectData);
@@ -72,7 +89,7 @@ export default class ObjectOfArraysParser extends BaseParserImpl {
     // Transpose columnar data to row format
     const dataRows = this.#transposeColumnarData(
       objectData,
-      headers,
+      keyMapping,
       maxRowCount
     );
 
@@ -134,18 +151,18 @@ export default class ObjectOfArraysParser extends BaseParserImpl {
    * Converts from { col1: [v1, v2], col2: [v3, v4] }
    * to [[v1, v3], [v2, v4]]
    * @param data - The object of arrays.
-   * @param headers - The column headers in desired order.
+   * @param keyMapping - The original column keys to use for data extraction.
    * @param rowCount - The number of rows to generate.
    * @returns The transposed data rows.
    */
   #transposeColumnarData(
     data: ObjectOfArrays,
-    headers: string[],
+    keyMapping: string[],
     rowCount: number
   ): unknown[][] {
     const dataRows = Array.from({ length: rowCount }, (_, rowIndex) =>
-      headers.map((header) => {
-        const columnArray = data[header];
+      keyMapping.map((key) => {
+        const columnArray = data[key];
         return columnArray && rowIndex < columnArray.length
           ? columnArray[rowIndex]
           : undefined;

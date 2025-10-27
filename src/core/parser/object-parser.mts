@@ -53,15 +53,33 @@ export default class ObjectParser extends BaseParserImpl {
     // Extract all unique keys from all objects to get complete header set
     const allKeys = this._extractAllKeys(objectData);
 
-    // Use custom headers if provided, otherwise use extracted keys
-    const headers =
-      options.headers && options.headers.length > 0
-        ? this._validateAndNormalizeHeaders(options.headers)
-        : this._validateAndNormalizeHeaders(allKeys);
+    // Determine final headers
+    let headers: string[];
+    let keyMapping: string[];
 
-    // Convert objects to arrays using the header order
+    if (options.headers && options.headers.length > 0) {
+      // Custom headers provided - use them as the final headers
+      // but keep the original keys for data extraction
+      const customHeaders = this._validateAndNormalizeHeaders(options.headers);
+
+      if (customHeaders.length !== allKeys.length) {
+        throw new Error(
+          `Custom headers count (${customHeaders.length}) does not match ` +
+          `the number of columns in the data (${allKeys.length})`
+        );
+      }
+
+      headers = customHeaders;
+      keyMapping = allKeys; // Use original keys to extract data
+    } else {
+      // No custom headers - use the extracted keys
+      headers = this._validateAndNormalizeHeaders(allKeys);
+      keyMapping = allKeys;
+    }
+
+    // Convert objects to arrays using the original keys for extraction
     const dataRows = objectData.map((obj) =>
-      headers.map((header) => obj[header])
+      keyMapping.map((key) => obj[key])
     );
 
     return { headers, dataRows };

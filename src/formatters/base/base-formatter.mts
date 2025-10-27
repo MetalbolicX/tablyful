@@ -47,7 +47,8 @@ export abstract class BaseFormatterImpl implements BaseFormatter {
 
   /**
    * Process and prepare table data before formatting.
-   * Handles row numbering, header customization, and data sanitization.
+   * Handles row numbering and data sanitization.
+   * Custom headers are handled by the parsers.
    * @param data - The raw table data.
    * @param options - Optional processing options.
    * @returns The processed table data.
@@ -57,11 +58,6 @@ export abstract class BaseFormatterImpl implements BaseFormatter {
     options?: TablyfulOptions
   ): TableData {
     let processedData = { ...data };
-
-    // Apply custom headers if provided
-    if (options?.headers && options.headers.length > 0) {
-      processedData = this._applyCustomHeaders(processedData, options.headers);
-    }
 
     // Add row numbers if requested
     if (options?.hasRowNumbers) {
@@ -93,6 +89,22 @@ export abstract class BaseFormatterImpl implements BaseFormatter {
       );
     }
 
+    // Create a mapping from old headers to new headers
+    const headerMap = new Map<string, string>();
+    data.headers.forEach((oldHeader, index) => {
+      headerMap.set(oldHeader, customHeaders[index]);
+    });
+
+    // Remap the row data to use new header names
+    const remappedRows = data.rows.map((row) => {
+      const newRow: RowData = {};
+      for (const [oldKey, value] of Object.entries(row)) {
+        const newKey = headerMap.get(oldKey) || oldKey;
+        newRow[newKey] = value;
+      }
+      return newRow;
+    });
+
     return {
       ...data,
       headers: [...customHeaders],
@@ -101,6 +113,7 @@ export abstract class BaseFormatterImpl implements BaseFormatter {
         name: customHeaders[index],
         originalName: column.name,
       })),
+      rows: remappedRows,
     };
   }
 

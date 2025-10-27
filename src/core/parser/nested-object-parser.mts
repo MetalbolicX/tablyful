@@ -72,22 +72,43 @@ export default class NestedObjectParser extends BaseParserImpl {
     // Determine if we should include row IDs as a column
     const includeRowIds = options.hasRowNumbers !== false; // Default to true
 
-    // Build headers: optionally include row ID column + data columns
+    // Build headers and key mapping
     let headers: string[];
+    let dataColumnMapping: string[];
+
     if (options.headers && options.headers.length > 0) {
-      headers = this._validateAndNormalizeHeaders(options.headers);
+      const customHeaders = this._validateAndNormalizeHeaders(options.headers);
+      const expectedCount = includeRowIds
+        ? allColumnNames.length + 1
+        : allColumnNames.length;
+
+      if (customHeaders.length !== expectedCount) {
+        throw new Error(
+          `Custom headers count (${customHeaders.length}) does not match ` +
+          `the expected number of columns (${expectedCount})${
+            includeRowIds ? " including row ID column" : ""
+          }`
+        );
+      }
+
+      headers = customHeaders;
+      // If row IDs are included, skip the first custom header for data mapping
+      dataColumnMapping = includeRowIds
+        ? allColumnNames  // Use original column names for data
+        : allColumnNames;
     } else {
       const rowIdHeader = options.rowNumberHeader || "_rowId";
       headers = includeRowIds
         ? [rowIdHeader, ...allColumnNames]
         : allColumnNames;
+      dataColumnMapping = allColumnNames;
     }
 
     // Convert nested objects to row arrays
     const dataRows = this.#convertToRowArrays(
       objectData,
       rowIds,
-      allColumnNames,
+      dataColumnMapping,
       includeRowIds
     );
 
