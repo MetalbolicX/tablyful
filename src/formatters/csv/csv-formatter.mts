@@ -3,7 +3,7 @@ import type {
   TablyfulOptions,
   CsvFormatterOptions,
 } from "@/types";
-import { BaseFormatterImpl } from "../base/base-formatter.mts";
+import { BaseFormatterImpl } from "@/formatters/base";
 
 /**
  * CSV formatter for converting table data to CSV format.
