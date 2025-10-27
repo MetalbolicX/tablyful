@@ -11,6 +11,7 @@ export {
   createTablyful,
   toCsv,
   toJson,
+  toHtml,
   detectParser,
   createParser,
   createFormatter,
@@ -63,6 +64,13 @@ export {
   JsonStreamFormatter,
   createJsonStreamFormatter,
 } from "@/formatters/json";
+
+export {
+  HtmlFormatter,
+  createHtmlFormatter,
+  HtmlStreamFormatter,
+  createHtmlStreamFormatter,
+} from "@/formatters/html";
 
 // Base classes (for custom implementations)
 export { BaseFormatterImpl } from "@/formatters/base";

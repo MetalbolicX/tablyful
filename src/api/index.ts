@@ -2,7 +2,7 @@
  * Public API exports
  */
 
-export { Tablyful, createTablyful, toCsv, toJson } from "./tablyful.mts";
+export { Tablyful, createTablyful, toCsv, toJson, toHtml } from "./tablyful.mts";
 export {
   detectParser,
   createParser,

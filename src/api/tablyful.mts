@@ -106,6 +106,16 @@ export class Tablyful {
   }
 
   /**
+   * Convert input data to HTML format
+   * @param data - The input data
+   * @param options - Optional formatting options
+   * @returns HTML formatted string
+   */
+  public toHtml(data: InputData, options?: Partial<TablyfulOptions>): string {
+    return this.convert(data, "html", options);
+  }
+
+  /**
    * Update the default options
    * @param options - The options to update
    */
@@ -253,4 +263,18 @@ export const toJson = (
 ): string => {
   const tablyful = new Tablyful(options);
   return tablyful.toJson(data);
+};
+
+/**
+ * Quick function to convert data to HTML
+ * @param data - The input data
+ * @param options - Optional formatting options
+ * @returns HTML formatted string
+ */
+export const toHtml = (
+  data: InputData,
+  options?: Partial<TablyfulOptions>
+): string => {
+  const tablyful = new Tablyful(options);
+  return tablyful.toHtml(data);
 };
