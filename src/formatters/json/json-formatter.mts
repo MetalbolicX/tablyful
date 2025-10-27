@@ -3,7 +3,7 @@ import type {
   TablyfulOptions,
   JsonFormatterOptions,
 } from "@/types";
-import { BaseFormatterImpl } from "../base/base-formatter.mts";
+import { BaseFormatterImpl } from "@/formatters/base";
 
 /**
  * JSON formatter for converting table data to JSON format.
@@ -22,12 +22,12 @@ export class JsonFormatter extends BaseFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const jsonOptions = this._getJsonOptions(options);
+    const jsonOptions = this.#getJsonOptions(options);
 
     // Convert table data to JSON-serializable format
     const jsonData = jsonOptions.asArray
-      ? this._formatAsArray(data)
-      : this._formatAsObjects(data);
+      ? this.#formatAsArray(data)
+      : this.#formatAsObjects(data);
 
     // Serialize to JSON string
     if (jsonOptions.pretty) {
@@ -42,19 +42,9 @@ export class JsonFormatter extends BaseFormatterImpl {
    * @param data - The table data.
    * @returns Array format: [headers, ...rows]
    */
-  private _formatAsArray(data: TableData): unknown[][] {
-    const result: unknown[][] = [];
-
-    // Add headers as first row
-    result.push([...data.headers]);
-
-    // Add data rows
-    for (const row of data.rows) {
-      const rowArray = data.headers.map((header) => row[header]);
-      result.push(rowArray);
-    }
-
-    return result;
+  #formatAsArray(data: TableData): unknown[][] {
+    const rows = data.rows.map((row) => data.headers.map((header) => row[header]));
+    return [[...data.headers], ...rows];
   }
 
   /**
@@ -62,7 +52,7 @@ export class JsonFormatter extends BaseFormatterImpl {
    * @param data - The table data.
    * @returns Array of row objects
    */
-  private _formatAsObjects(data: TableData): Record<string, unknown>[] {
+  #formatAsObjects(data: TableData): Record<string, unknown>[] {
     return data.rows.map((row) => {
       const obj: Record<string, unknown> = {};
 
@@ -79,7 +69,7 @@ export class JsonFormatter extends BaseFormatterImpl {
    * @param options - The general formatting options.
    * @returns The JSON options with defaults applied.
    */
-  private _getJsonOptions(
+  #getJsonOptions(
     options?: TablyfulOptions
   ): Required<JsonFormatterOptions> {
     const jsonOptions = (options?.formatOptions as JsonFormatterOptions) || {};

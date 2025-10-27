@@ -23,19 +23,19 @@ export class CsvFormatter extends BaseFormatterImpl {
     this._validateData(data);
 
     const csvOptions = this._getCsvOptions(options);
-    const lines: string[] = [];
+    let lines: string[] = [];
 
     // Add headers if requested
     if (csvOptions.includeHeaders) {
       const headerLine = this._formatRow(data.headers, csvOptions);
-      lines.push(headerLine);
+      lines = [...lines, headerLine];
     }
 
     // Format each data row
     for (const row of data.rows) {
       const values = data.headers.map((header) => row[header]);
       const rowLine = this._formatRow(values, csvOptions);
-      lines.push(rowLine);
+      lines = [...lines, rowLine];
     }
 
     return lines.join(csvOptions.lineBreak);

@@ -5,7 +5,7 @@ import type {
   CsvFormatterOptions,
   RowData,
 } from "@/types";
-import { StreamFormatterImpl } from "../base/stream-formatter.mts";
+import { StreamFormatterImpl } from "@/formatters/base";
 
 /**
  * Streaming CSV formatter for handling large datasets efficiently.
@@ -26,20 +26,17 @@ export class CsvStreamFormatter extends StreamFormatterImpl {
     this._validateData(data);
 
     const csvOptions = this._getCsvOptions(options);
-    const lines: string[] = [];
 
-    // Add headers if requested
-    if (csvOptions.includeHeaders) {
-      const headerLine = this._formatRow(data.headers, csvOptions);
-      lines.push(headerLine);
-    }
-
-    // Format each data row
-    for (const row of data.rows) {
+    const formattedRows = data.rows.map((row) => {
       const values = data.headers.map((header) => row[header]);
-      const rowLine = this._formatRow(values, csvOptions);
-      lines.push(rowLine);
-    }
+      return this._formatRow(values, csvOptions);
+    });
+
+    const headerLines = csvOptions.includeHeaders
+      ? [this._formatRow(data.headers, csvOptions)]
+      : [];
+
+    const lines = [...headerLines, ...formattedRows];
 
     return lines.join(csvOptions.lineBreak);
   }
@@ -92,12 +89,12 @@ export class CsvStreamFormatter extends StreamFormatterImpl {
     options?: TablyfulOptions
   ): string {
     const csvOptions = this._getCsvOptions(options);
-    const lines: string[] = [];
+    let lines: string[] = [];
 
     for (const row of rows) {
       const values = data.headers.map((header) => row[header]);
       const rowLine = this._formatRow(values, csvOptions);
-      lines.push(rowLine);
+      lines = [...lines, rowLine];
     }
 
     return lines.join(csvOptions.lineBreak) + csvOptions.lineBreak;

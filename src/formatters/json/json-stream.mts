@@ -25,12 +25,12 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const jsonOptions = this._getJsonOptions(options);
+    const jsonOptions = this.#getJsonOptions(options);
 
     // Convert table data to JSON-serializable format
     const jsonData = jsonOptions.asArray
-      ? this._formatAsArray(data)
-      : this._formatAsObjects(data);
+      ? this.#formatAsArray(data)
+      : this.#formatAsObjects(data);
 
     // Serialize to JSON string
     if (jsonOptions.pretty) {
@@ -65,14 +65,12 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
     data: TableData,
     options?: TablyfulOptions
   ): string | null {
-    const jsonOptions = this._getJsonOptions(options);
+    const jsonOptions = this.#getJsonOptions(options);
 
     if (jsonOptions.asArray) {
       // Array format: start with opening bracket and headers
       const headers = JSON.stringify(data.headers);
-      return jsonOptions.pretty
-        ? `[\n  ${headers},\n`
-        : `[${headers},`;
+      return jsonOptions.pretty ? `[\n  ${headers},\n` : `[${headers},`;
     }
 
     // Object format: start with opening bracket
@@ -93,39 +91,32 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
     startIndex: number,
     options?: TablyfulOptions
   ): string {
-    const jsonOptions = this._getJsonOptions(options);
+    const jsonOptions = this.#getJsonOptions(options);
     const isLastBatch = startIndex + rows.length >= data.metadata.rowCount;
-    const parts: string[] = [];
+    const INDENT = "  ";
 
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const isLastRow = isLastBatch && i === rows.length - 1;
+    const parts: string[] = [
+      ...rows.map((row, i) => {
+        const isLastRow = isLastBatch && i === rows.length - 1;
 
-      if (jsonOptions.asArray) {
-        // Array format: [value1, value2, ...]
-        const rowArray = data.headers.map((header) => row[header]);
-        const rowJson = JSON.stringify(rowArray);
-
-        if (jsonOptions.pretty) {
-          parts.push(`  ${rowJson}${isLastRow ? "" : ","}\n`);
-        } else {
-          parts.push(`${rowJson}${isLastRow ? "" : ","}`);
+        if (jsonOptions.asArray) {
+          const rowArray = data.headers.map((header) => row[header]);
+          const rowJson = JSON.stringify(rowArray);
+          return jsonOptions.pretty
+            ? `${INDENT}${rowJson}${isLastRow ? "" : ","}\n`
+            : `${rowJson}${isLastRow ? "" : ","}`;
         }
-      } else {
-        // Object format: {key: value, ...}
+
         const rowObj: Record<string, unknown> = {};
         for (const header of data.headers) {
           rowObj[header] = row[header];
         }
         const rowJson = JSON.stringify(rowObj);
-
-        if (jsonOptions.pretty) {
-          parts.push(`  ${rowJson}${isLastRow ? "" : ","}\n`);
-        } else {
-          parts.push(`${rowJson}${isLastRow ? "" : ","}`);
-        }
-      }
-    }
+        return jsonOptions.pretty
+          ? `${INDENT}${rowJson}${isLastRow ? "" : ","}\n`
+          : `${rowJson}${isLastRow ? "" : ","}`;
+      }),
+    ];
 
     return parts.join("");
   }
@@ -137,10 +128,10 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
    * @returns The closing bracket.
    */
   protected _formatFooter(
-    data: TableData,
+    _data: TableData,
     options?: TablyfulOptions
   ): string | null {
-    const jsonOptions = this._getJsonOptions(options);
+    const jsonOptions = this.#getJsonOptions(options);
     return jsonOptions.pretty ? "\n]" : "]";
   }
 
@@ -163,19 +154,11 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
    * @param data - The table data.
    * @returns Array format: [headers, ...rows]
    */
-  private _formatAsArray(data: TableData): unknown[][] {
-    const result: unknown[][] = [];
-
-    // Add headers as first row
-    result.push([...data.headers]);
-
-    // Add data rows
-    for (const row of data.rows) {
-      const rowArray = data.headers.map((header) => row[header]);
-      result.push(rowArray);
-    }
-
-    return result;
+  #formatAsArray(data: TableData): unknown[][] {
+    return [
+      [...data.headers],
+      ...data.rows.map((row) => data.headers.map((header) => row[header])),
+    ];
   }
 
   /**
@@ -183,7 +166,7 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
    * @param data - The table data.
    * @returns Array of row objects
    */
-  private _formatAsObjects(data: TableData): Record<string, unknown>[] {
+  #formatAsObjects(data: TableData): Record<string, unknown>[] {
     return data.rows.map((row) => {
       const obj: Record<string, unknown> = {};
 
@@ -200,9 +183,7 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
    * @param options - The general formatting options.
    * @returns The JSON options with defaults applied.
    */
-  private _getJsonOptions(
-    options?: TablyfulOptions
-  ): Required<JsonFormatterOptions> {
+  #getJsonOptions(options?: TablyfulOptions): Required<JsonFormatterOptions> {
     const jsonOptions = (options?.formatOptions as JsonFormatterOptions) || {};
 
     return {

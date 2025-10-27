@@ -1,9 +1,5 @@
-import type {
-  TableData,
-  TablyfulOptions,
-  HtmlFormatterOptions,
-} from "@/types";
-import { BaseFormatterImpl } from "../base/base-formatter.mts";
+import type { TableData, TablyfulOptions, HtmlFormatterOptions } from "@/types";
+import { BaseFormatterImpl } from "@/formatters/base";
 
 /**
  * HTML formatter for converting table data to semantic HTML tables.
@@ -22,25 +18,17 @@ export class HtmlFormatter extends BaseFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const htmlOptions = this._getHtmlOptions(options);
-    const parts: string[] = [];
+    const htmlOptions = this.#getHtmlOptions(options);
 
-    // Opening table tag with optional attributes
-    parts.push(this._buildTableOpenTag(htmlOptions));
-
-    // Optional caption
-    if (htmlOptions.caption) {
-      parts.push(`  <caption>${this._escapeHtml(htmlOptions.caption)}</caption>`);
-    }
-
-    // Table header (thead)
-    parts.push(this._formatTableHeader(data, htmlOptions));
-
-    // Table body (tbody)
-    parts.push(this._formatTableBody(data, htmlOptions));
-
-    // Closing table tag
-    parts.push("</table>");
+    const parts: string[] = [
+      this.#buildTableOpenTag(htmlOptions),
+      ...(htmlOptions.caption
+        ? [`  <caption>${this.#escapeHtml(htmlOptions.caption)}</caption>`]
+        : []),
+      this.#formatTableHeader(data, htmlOptions),
+      this.#formatTableBody(data, htmlOptions),
+      "</table>",
+    ];
 
     return parts.join("\n");
   }
@@ -50,16 +38,13 @@ export class HtmlFormatter extends BaseFormatterImpl {
    * @param options - HTML formatting options.
    * @returns The opening table tag.
    */
-  private _buildTableOpenTag(options: Required<HtmlFormatterOptions>): string {
-    const attributes: string[] = [];
-
-    if (options.tableClass) {
-      attributes.push(`class="${this._escapeHtml(options.tableClass)}"`);
-    }
-
-    if (options.id) {
-      attributes.push(`id="${this._escapeHtml(options.id)}"`);
-    }
+  #buildTableOpenTag(options: Required<HtmlFormatterOptions>): string {
+    const attributes = [
+      ...(options.tableClass
+        ? [`class="${this.#escapeHtml(options.tableClass)}"`]
+        : []),
+      ...(options.id ? [`id="${this.#escapeHtml(options.id)}"`] : []),
+    ];
 
     const attrString = attributes.length > 0 ? " " + attributes.join(" ") : "";
     return `<table${attrString}>`;
@@ -71,25 +56,26 @@ export class HtmlFormatter extends BaseFormatterImpl {
    * @param options - HTML formatting options.
    * @returns The formatted thead section.
    */
-  private _formatTableHeader(
+  #formatTableHeader(
     data: TableData,
     options: Required<HtmlFormatterOptions>
   ): string {
-    const parts: string[] = [];
     const theadClass = options.theadClass
-      ? ` class="${this._escapeHtml(options.theadClass)}"`
+      ? ` class="${this.#escapeHtml(options.theadClass)}"`
       : "";
 
-    parts.push(`  <thead${theadClass}>`);
-    parts.push("    <tr>");
+    const headerCells = data.headers.map((header) => {
+      const escapedHeader = this.#escapeHtml(header);
+      return `      <th scope="col">${escapedHeader}</th>`;
+    });
 
-    for (const header of data.headers) {
-      const escapedHeader = this._escapeHtml(header);
-      parts.push(`      <th scope="col">${escapedHeader}</th>`);
-    }
-
-    parts.push("    </tr>");
-    parts.push("  </thead>");
+    const parts: string[] = [
+      `  <thead${theadClass}>`,
+      "    <tr>",
+      ...headerCells,
+      "    </tr>",
+      "  </thead>",
+    ];
 
     return parts.join("\n");
   }
@@ -100,30 +86,29 @@ export class HtmlFormatter extends BaseFormatterImpl {
    * @param options - HTML formatting options.
    * @returns The formatted tbody section.
    */
-  private _formatTableBody(
+  #formatTableBody(
     data: TableData,
     options: Required<HtmlFormatterOptions>
   ): string {
-    const parts: string[] = [];
     const tbodyClass = options.tbodyClass
-      ? ` class="${this._escapeHtml(options.tbodyClass)}"`
+      ? ` class="${this.#escapeHtml(options.tbodyClass)}"`
       : "";
 
-    parts.push(`  <tbody${tbodyClass}>`);
-
-    for (const row of data.rows) {
-      parts.push("    <tr>");
-
-      for (const header of data.headers) {
+    const rowLines = data.rows.flatMap((row) => {
+      const cells = data.headers.map((header) => {
         const value = this._sanitizeValue(row[header]);
-        const escapedValue = this._escapeHtml(value);
-        parts.push(`      <td>${escapedValue}</td>`);
-      }
+        const escapedValue = this.#escapeHtml(value);
+        return `      <td>${escapedValue}</td>`;
+      });
 
-      parts.push("    </tr>");
-    }
+      return ["    <tr>", ...cells, "    </tr>"];
+    });
 
-    parts.push("  </tbody>");
+    const parts: string[] = [
+      `  <tbody${tbodyClass}>`,
+      ...rowLines,
+      "  </tbody>",
+    ];
 
     return parts.join("\n");
   }
@@ -134,7 +119,7 @@ export class HtmlFormatter extends BaseFormatterImpl {
    * @returns The escaped string.
    */
   protected _escapeString(value: string): string {
-    return this._escapeHtml(value);
+    return this.#escapeHtml(value);
   }
 
   /**
@@ -142,7 +127,7 @@ export class HtmlFormatter extends BaseFormatterImpl {
    * @param value - The string to escape.
    * @returns The escaped string.
    */
-  private _escapeHtml(value: string): string {
+  #escapeHtml(value: string): string {
     return value
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
@@ -156,7 +141,7 @@ export class HtmlFormatter extends BaseFormatterImpl {
    * @param options - The general formatting options.
    * @returns The HTML options with defaults applied.
    */
-  private _getHtmlOptions(
+  #getHtmlOptions(
     options?: TablyfulOptions
   ): Required<HtmlFormatterOptions> {
     const htmlOptions = (options?.formatOptions as HtmlFormatterOptions) || {};

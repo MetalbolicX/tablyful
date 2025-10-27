@@ -5,7 +5,7 @@ import type {
   HtmlFormatterOptions,
   RowData,
 } from "@/types";
-import { StreamFormatterImpl } from "../base/stream-formatter.mts";
+import { StreamFormatterImpl } from "@/formatters/base";
 
 /**
  * Streaming HTML formatter for handling large datasets efficiently.
@@ -25,25 +25,17 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const htmlOptions = this._getHtmlOptions(options);
-    const parts: string[] = [];
+    const htmlOptions = this.#getHtmlOptions(options);
 
-    // Opening table tag with optional attributes
-    parts.push(this._buildTableOpenTag(htmlOptions));
-
-    // Optional caption
-    if (htmlOptions.caption) {
-      parts.push(`  <caption>${this._escapeHtml(htmlOptions.caption)}</caption>`);
-    }
-
-    // Table header (thead)
-    parts.push(this._formatTableHeader(data, htmlOptions));
-
-    // Table body (tbody)
-    parts.push(this._formatTableBody(data, htmlOptions));
-
-    // Closing table tag
-    parts.push("</table>");
+    const parts: string[] = [
+      this.#buildTableOpenTag(htmlOptions),
+      ...(htmlOptions.caption
+        ? [`  <caption>${this.#escapeHtml(htmlOptions.caption)}</caption>`]
+        : []),
+      this.#formatTableHeader(data, htmlOptions),
+      this.#formatTableBody(data, htmlOptions),
+      "</table>",
+    ];
 
     return parts.join("\n");
   }
@@ -71,38 +63,40 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
     data: TableData,
     options?: TablyfulOptions
   ): string | null {
-    const htmlOptions = this._getHtmlOptions(options);
-    const parts: string[] = [];
+    const htmlOptions = this.#getHtmlOptions(options);
 
-    // Opening table tag
-    parts.push(this._buildTableOpenTag(htmlOptions));
+    const captionPart = htmlOptions.caption
+      ? [`  <caption>${this.#escapeHtml(htmlOptions.caption)}</caption>`]
+      : [];
 
-    // Optional caption
-    if (htmlOptions.caption) {
-      parts.push(`  <caption>${this._escapeHtml(htmlOptions.caption)}</caption>`);
-    }
-
-    // Table header
     const theadClass = htmlOptions.theadClass
-      ? ` class="${this._escapeHtml(htmlOptions.theadClass)}"`
+      ? ` class="${this.#escapeHtml(htmlOptions.theadClass)}"`
       : "";
 
-    parts.push(`  <thead${theadClass}>`);
-    parts.push("    <tr>");
+    const headerCells = data.headers.map((header) => {
+      const escapedHeader = this.#escapeHtml(header);
+      return `      <th scope="col">${escapedHeader}</th>`;
+    });
 
-    for (const header of data.headers) {
-      const escapedHeader = this._escapeHtml(header);
-      parts.push(`      <th scope="col">${escapedHeader}</th>`);
-    }
+    const theadParts = [
+      `  <thead${theadClass}>`,
+      "    <tr>",
+      ...headerCells,
+      "    </tr>",
+      "  </thead>",
+    ];
 
-    parts.push("    </tr>");
-    parts.push("  </thead>");
-
-    // Opening tbody tag
     const tbodyClass = htmlOptions.tbodyClass
-      ? ` class="${this._escapeHtml(htmlOptions.tbodyClass)}"`
+      ? ` class="${this.#escapeHtml(htmlOptions.tbodyClass)}"`
       : "";
-    parts.push(`  <tbody${tbodyClass}>`);
+    const tbodyOpen = `  <tbody${tbodyClass}>`;
+
+    const parts: string[] = [
+      this.#buildTableOpenTag(htmlOptions),
+      ...captionPart,
+      ...theadParts,
+      tbodyOpen,
+    ];
 
     return parts.join("\n") + "\n";
   }
@@ -121,18 +115,16 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
     startIndex: number,
     options?: TablyfulOptions
   ): string {
-    const parts: string[] = [];
+    let parts: string[] = [];
 
     for (const row of rows) {
-      parts.push("    <tr>");
-
-      for (const header of data.headers) {
+      const cellParts = data.headers.map((header) => {
         const value = this._sanitizeValue(row[header]);
-        const escapedValue = this._escapeHtml(value);
-        parts.push(`      <td>${escapedValue}</td>`);
-      }
+        const escapedValue = this.#escapeHtml(value);
+        return `      <td>${escapedValue}</td>`;
+      });
 
-      parts.push("    </tr>");
+      parts = [...parts, "    <tr>", ...cellParts, "    </tr>"];
     }
 
     return parts.join("\n") + "\n";
@@ -162,7 +154,7 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
     values: string[],
     options?: TablyfulOptions
   ): string {
-    return values.map((v) => `<td>${this._escapeHtml(v)}</td>`).join("");
+    return values.map((v) => `<td>${this.#escapeHtml(v)}</td>`).join("");
   }
 
   /**
@@ -170,18 +162,15 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
    * @param options - HTML formatting options.
    * @returns The opening table tag.
    */
-  private _buildTableOpenTag(options: Required<HtmlFormatterOptions>): string {
-    const attributes: string[] = [];
+  #buildTableOpenTag(options: Required<HtmlFormatterOptions>): string {
+    const attributes = [
+      ...(options.tableClass
+        ? [`class="${this.#escapeHtml(options.tableClass)}"`]
+        : []),
+      ...(options.id ? [`id="${this.#escapeHtml(options.id)}"`] : []),
+    ];
 
-    if (options.tableClass) {
-      attributes.push(`class="${this._escapeHtml(options.tableClass)}"`);
-    }
-
-    if (options.id) {
-      attributes.push(`id="${this._escapeHtml(options.id)}"`);
-    }
-
-    const attrString = attributes.length > 0 ? " " + attributes.join(" ") : "";
+    const attrString = attributes.length > 0 ? ` ${attributes.join(" ")}` : "";
     return `<table${attrString}>`;
   }
 
@@ -191,25 +180,26 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
    * @param options - HTML formatting options.
    * @returns The formatted thead section.
    */
-  private _formatTableHeader(
+  #formatTableHeader(
     data: TableData,
     options: Required<HtmlFormatterOptions>
   ): string {
-    const parts: string[] = [];
     const theadClass = options.theadClass
-      ? ` class="${this._escapeHtml(options.theadClass)}"`
+      ? ` class="${this.#escapeHtml(options.theadClass)}"`
       : "";
 
-    parts.push(`  <thead${theadClass}>`);
-    parts.push("    <tr>");
+    const headerCells = data.headers.map((header) => {
+      const escapedHeader = this.#escapeHtml(header);
+      return `      <th scope="col">${escapedHeader}</th>`;
+    });
 
-    for (const header of data.headers) {
-      const escapedHeader = this._escapeHtml(header);
-      parts.push(`      <th scope="col">${escapedHeader}</th>`);
-    }
-
-    parts.push("    </tr>");
-    parts.push("  </thead>");
+    const parts: string[] = [
+      `  <thead${theadClass}>`,
+      "    <tr>",
+      ...headerCells,
+      "    </tr>",
+      "  </thead>",
+    ];
 
     return parts.join("\n");
   }
@@ -220,30 +210,29 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
    * @param options - HTML formatting options.
    * @returns The formatted tbody section.
    */
-  private _formatTableBody(
+  #formatTableBody(
     data: TableData,
     options: Required<HtmlFormatterOptions>
   ): string {
-    const parts: string[] = [];
     const tbodyClass = options.tbodyClass
-      ? ` class="${this._escapeHtml(options.tbodyClass)}"`
+      ? ` class="${this.#escapeHtml(options.tbodyClass)}"`
       : "";
 
-    parts.push(`  <tbody${tbodyClass}>`);
-
-    for (const row of data.rows) {
-      parts.push("    <tr>");
-
-      for (const header of data.headers) {
+    const rowsParts = data.rows.flatMap((row) => {
+      const cellParts = data.headers.map((header) => {
         const value = this._sanitizeValue(row[header]);
-        const escapedValue = this._escapeHtml(value);
-        parts.push(`      <td>${escapedValue}</td>`);
-      }
+        const escapedValue = this.#escapeHtml(value);
+        return `      <td>${escapedValue}</td>`;
+      });
 
-      parts.push("    </tr>");
-    }
+      return ["    <tr>", ...cellParts, "    </tr>"];
+    });
 
-    parts.push("  </tbody>");
+    const parts: string[] = [
+      `  <tbody${tbodyClass}>`,
+      ...rowsParts,
+      "  </tbody>",
+    ];
 
     return parts.join("\n");
   }
@@ -253,7 +242,7 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
    * @param value - The string to escape.
    * @returns The escaped string.
    */
-  private _escapeHtml(value: string): string {
+  #escapeHtml(value: string): string {
     return value
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
@@ -267,9 +256,7 @@ export class HtmlStreamFormatter extends StreamFormatterImpl {
    * @param options - The general formatting options.
    * @returns The HTML options with defaults applied.
    */
-  private _getHtmlOptions(
-    options?: TablyfulOptions
-  ): Required<HtmlFormatterOptions> {
+  #getHtmlOptions(options?: TablyfulOptions): Required<HtmlFormatterOptions> {
     const htmlOptions = (options?.formatOptions as HtmlFormatterOptions) || {};
 
     return {
