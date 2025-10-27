@@ -1,5 +1,9 @@
-import type { TableData, TablyfulOptions, CsvFormatterOptions } from "@/types";
-import { BaseFormatterImpl } from "@/formatters/base";
+import type {
+  TableData,
+  TablyfulOptions,
+  CsvFormatterOptions,
+} from "@/types";
+import { BaseFormatterImpl } from "../base/base-formatter.mts";
 
 /**
  * CSV formatter for converting table data to CSV format.
@@ -19,18 +23,22 @@ export class CsvFormatter extends BaseFormatterImpl {
     this._validateData(data);
 
     const csvOptions = this._getCsvOptions(options);
+    const lines: string[] = [];
 
-    const rowsLines = data.rows.map((row) => {
-      const values = data.headers.map((header) => row[header]);
-      return this._formatRow(values, csvOptions);
-    });
-
+    // Add headers if requested
     if (csvOptions.includeHeaders) {
       const headerLine = this._formatRow(data.headers, csvOptions);
-      return [headerLine, ...rowsLines].join(csvOptions.lineBreak);
+      lines.push(headerLine);
     }
 
-    return rowsLines.join(csvOptions.lineBreak);
+    // Format each data row
+    for (const row of data.rows) {
+      const values = data.headers.map((header) => row[header]);
+      const rowLine = this._formatRow(values, csvOptions);
+      lines.push(rowLine);
+    }
+
+    return lines.join(csvOptions.lineBreak);
   }
 
   /**
@@ -75,7 +83,10 @@ export class CsvFormatter extends BaseFormatterImpl {
     }
 
     // Escape quote characters in the value
-    const escapedValue = value.replace(new RegExp(quote, "g"), escape + quote);
+    const escapedValue = value.replace(
+      new RegExp(quote, "g"),
+      escape + quote
+    );
 
     // Wrap in quotes
     return `${quote}${escapedValue}${quote}`;
