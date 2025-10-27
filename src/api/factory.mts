@@ -10,6 +10,7 @@ import {
   createNestedObjectParser,
 } from "@/core/parser";
 import { createCsvFormatter } from "@/formatters/csv";
+import { createJsonFormatter } from "@/formatters/json";
 
 /**
  * Available parser types
@@ -91,9 +92,9 @@ export const createFormatter = (type: string): BaseFormatter | null => {
   switch (type) {
     case FORMATTER_TYPES.CSV:
       return createCsvFormatter();
+    case FORMATTER_TYPES.JSON:
+      return createJsonFormatter();
     // TODO: Add other formatters as they are implemented
-    // case FORMATTER_TYPES.JSON:
-    //   return createJsonFormatter();
     // case FORMATTER_TYPES.MARKDOWN:
     //   return createMarkdownFormatter();
     // case FORMATTER_TYPES.HTML:
@@ -112,8 +113,8 @@ export const createFormatter = (type: string): BaseFormatter | null => {
 export const getAvailableFormatters = (): string[] => {
   return [
     FORMATTER_TYPES.CSV,
+    FORMATTER_TYPES.JSON,
     // TODO: Add as implemented
-    // FORMATTER_TYPES.JSON,
     // FORMATTER_TYPES.MARKDOWN,
     // FORMATTER_TYPES.HTML,
     // FORMATTER_TYPES.LATEX,

@@ -10,6 +10,7 @@ export {
   Tablyful,
   createTablyful,
   toCsv,
+  toJson,
   detectParser,
   createParser,
   createFormatter,
@@ -55,6 +56,13 @@ export {
   CsvStreamFormatter,
   createCsvStreamFormatter,
 } from "@/formatters/csv";
+
+export {
+  JsonFormatter,
+  createJsonFormatter,
+  JsonStreamFormatter,
+  createJsonStreamFormatter,
+} from "@/formatters/json";
 
 // Base classes (for custom implementations)
 export { BaseFormatterImpl } from "@/formatters/base";
