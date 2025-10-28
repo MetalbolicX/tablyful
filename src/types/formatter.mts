@@ -117,6 +117,12 @@ export interface MarkdownFormatterOptions {
 }
 
 export interface LatexFormatterOptions {
+  align?: "left" | "center" | "right";
+  borders?: boolean;
+  boldHeaders?: boolean;
+  includeHeader?: boolean;
+  useTableEnvironment?: boolean;
+  centering?: boolean;
   tableEnvironment?: string;
   columnSpec?: string;
   booktabs?: boolean;

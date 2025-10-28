@@ -126,6 +126,16 @@ export class Tablyful {
   }
 
   /**
+   * Convert input data to LaTeX format
+   * @param data - The input data
+   * @param options - Optional formatting options
+   * @returns LaTeX formatted string
+   */
+  public toLatex(data: InputData, options?: Partial<TablyfulOptions>): string {
+    return this.convert(data, "latex", options);
+  }
+
+  /**
    * Update the default options
    * @param options - The options to update
    */
@@ -301,4 +311,18 @@ export const toMarkdown = (
 ): string => {
   const tablyful = new Tablyful(options);
   return tablyful.toMarkdown(data);
+};
+
+/**
+ * Quick function to convert data to LaTeX
+ * @param data - The input data
+ * @param options - Optional formatting options
+ * @returns LaTeX formatted string
+ */
+export const toLatex = (
+  data: InputData,
+  options?: Partial<TablyfulOptions>
+): string => {
+  const tablyful = new Tablyful(options);
+  return tablyful.toLatex(data);
 };

@@ -9,6 +9,7 @@ export {
   toJson,
   toHtml,
   toMarkdown,
+  toLatex,
 } from "./tablyful.mts";
 export {
   detectParser,

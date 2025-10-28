@@ -13,6 +13,7 @@ export {
   toJson,
   toHtml,
   toMarkdown,
+  toLatex,
   detectParser,
   createParser,
   createFormatter,
@@ -79,6 +80,13 @@ export {
   MarkdownStreamFormatter,
   createMarkdownStreamFormatter,
 } from "@/formatters/markdown";
+
+export {
+  LatexFormatter,
+  createLatexFormatter,
+  LatexStreamFormatter,
+  createLatexStreamFormatter,
+} from "@/formatters/latex";
 
 // Base classes (for custom implementations)
 export { BaseFormatterImpl } from "@/formatters/base";

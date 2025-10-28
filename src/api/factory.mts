@@ -13,6 +13,7 @@ import { createCsvFormatter } from "@/formatters/csv";
 import { createJsonFormatter } from "@/formatters/json";
 import { createHtmlFormatter } from "@/formatters/html";
 import { createMarkdownFormatter } from "@/formatters/markdown";
+import { createLatexFormatter } from "@/formatters/latex";
 
 /**
  * Available parser types
@@ -100,9 +101,8 @@ export const createFormatter = (type: string): BaseFormatter | null => {
       return createHtmlFormatter();
     case FORMATTER_TYPES.MARKDOWN:
       return createMarkdownFormatter();
-    // TODO: Add other formatters as they are implemented
-    // case FORMATTER_TYPES.LATEX:
-    //   return createLatexFormatter();
+    case FORMATTER_TYPES.LATEX:
+      return createLatexFormatter();
     default:
       return null;
   }
@@ -118,8 +118,7 @@ export const getAvailableFormatters = (): string[] => {
     FORMATTER_TYPES.JSON,
     FORMATTER_TYPES.HTML,
     FORMATTER_TYPES.MARKDOWN,
-    // TODO: Add as implemented
-    // FORMATTER_TYPES.LATEX,
+    FORMATTER_TYPES.LATEX,
   ];
 };
 
@@ -128,6 +127,5 @@ export const getAvailableFormatters = (): string[] => {
  * @param type - The formatter type to check
  * @returns True if the formatter is available
  */
-export const isFormatterAvailable = (type: string): boolean => {
-  return getAvailableFormatters().includes(type);
-};
+export const isFormatterAvailable = (type: string): boolean =>
+  getAvailableFormatters().includes(type);
