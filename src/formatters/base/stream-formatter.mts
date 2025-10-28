@@ -1,4 +1,4 @@
-import { Transform, type TransformCallback } from "stream";
+import { Transform, Readable, type TransformCallback } from "node:stream";
 import type {
   StreamFormatter,
   TableData,
@@ -72,11 +72,14 @@ export abstract class StreamFormatterImpl
         callback: TransformCallback
       ) => {
         try {
+          // Collect outputs using spread operator instead of calling transform.push
+          let outputs: string[] = [];
+
           // Write header on first chunk
           if (!headerWritten) {
             const header = this._formatHeader(data, options);
             if (header) {
-              transform.push(header);
+              outputs = [...outputs, header];
             }
             headerWritten = true;
           }
@@ -93,19 +96,26 @@ export abstract class StreamFormatterImpl
               options
             );
             if (formattedBatch) {
-              transform.push(formattedBatch);
+              outputs = [...outputs, formattedBatch];
             }
             rowIndex += currentBatch.length;
             currentBatch = [];
           }
 
-          callback();
+          if (outputs.length > 0) {
+            callback(null, outputs.join(""));
+          } else {
+            callback();
+          }
         } catch (error) {
           callback(error as Error);
         }
       },
       flush: (callback: TransformCallback) => {
         try {
+          // Collect outputs using spread operator
+          let outputs: string[] = [];
+
           // Process remaining rows in the batch
           if (currentBatch.length > 0) {
             const formattedBatch = this._formatRowBatch(
@@ -115,7 +125,7 @@ export abstract class StreamFormatterImpl
               options
             );
             if (formattedBatch) {
-              transform.push(formattedBatch);
+              outputs = [...outputs, formattedBatch];
             }
           }
 
@@ -123,11 +133,15 @@ export abstract class StreamFormatterImpl
           if (footerNeeded) {
             const footer = this._formatFooter(data, options);
             if (footer) {
-              transform.push(footer);
+              outputs = [...outputs, footer];
             }
           }
 
-          callback();
+          if (outputs.length > 0) {
+            callback(null, outputs.join(""));
+          } else {
+            callback();
+          }
         } catch (error) {
           callback(error as Error);
         }
@@ -247,8 +261,6 @@ export abstract class StreamFormatterImpl
     options?: TablyfulOptions
   ): ReadableStream {
     const formattedData = this._formatData(data, options);
-
-    const { Readable } = require("stream");
 
     return new Readable({
       read() {
