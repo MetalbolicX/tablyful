@@ -12,6 +12,7 @@ export {
   toCsv,
   toJson,
   toHtml,
+  toMarkdown,
   detectParser,
   createParser,
   createFormatter,
@@ -71,6 +72,13 @@ export {
   HtmlStreamFormatter,
   createHtmlStreamFormatter,
 } from "@/formatters/html";
+
+export {
+  MarkdownFormatter,
+  createMarkdownFormatter,
+  MarkdownStreamFormatter,
+  createMarkdownStreamFormatter,
+} from "@/formatters/markdown";
 
 // Base classes (for custom implementations)
 export { BaseFormatterImpl } from "@/formatters/base";

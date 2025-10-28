@@ -116,6 +116,16 @@ export class Tablyful {
   }
 
   /**
+   * Convert input data to Markdown format
+   * @param data - The input data
+   * @param options - Optional formatting options
+   * @returns Markdown formatted string
+   */
+  public toMarkdown(data: InputData, options?: Partial<TablyfulOptions>): string {
+    return this.convert(data, "markdown", options);
+  }
+
+  /**
    * Update the default options
    * @param options - The options to update
    */
@@ -277,4 +287,18 @@ export const toHtml = (
 ): string => {
   const tablyful = new Tablyful(options);
   return tablyful.toHtml(data);
+};
+
+/**
+ * Quick function to convert data to Markdown
+ * @param data - The input data
+ * @param options - Optional formatting options
+ * @returns Markdown formatted string
+ */
+export const toMarkdown = (
+  data: InputData,
+  options?: Partial<TablyfulOptions>
+): string => {
+  const tablyful = new Tablyful(options);
+  return tablyful.toMarkdown(data);
 };
