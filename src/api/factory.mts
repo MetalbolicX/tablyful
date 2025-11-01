@@ -19,10 +19,10 @@ import { createLatexFormatter } from "@/formatters/latex";
  * Available parser types
  */
 export const PARSER_TYPES = {
-  ARRAY: "array",
-  OBJECT: "object",
-  OBJECT_OF_ARRAYS: "object-of-arrays",
-  NESTED_OBJECT: "nested-object",
+  ARRAY: "array-parser",
+  OBJECT: "object-parser",
+  OBJECT_OF_ARRAYS: "object-of-arrays-parser",
+  NESTED_OBJECT: "nested-object-parser",
 } as const;
 
 /**

@@ -14,6 +14,28 @@ export class JsonFormatter extends BaseFormatterImpl {
   public readonly fileExtensions = [".json"];
 
   /**
+   * Process data without sanitization to preserve types.
+   * JSON should keep numbers, booleans, etc. as their original types.
+   * @param data - The raw table data.
+   * @param options - Optional processing options.
+   * @returns The processed table data.
+   */
+  protected _processData(
+    data: TableData,
+    options?: TablyfulOptions
+  ): TableData {
+    let processedData = { ...data };
+
+    // Add row numbers if requested
+    if (options?.hasRowNumbers) {
+      processedData = this._addRowNumbers(processedData, options);
+    }
+
+    // Skip sanitization to preserve types for JSON
+    return processedData;
+  }
+
+  /**
    * Format the processed data into JSON format.
    * @param data - The processed table data.
    * @param options - Optional formatting options.

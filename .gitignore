@@ -158,3 +158,6 @@ dist
 
 # For elm language
 /elm-stuff
+
+/coverage
+/test-results

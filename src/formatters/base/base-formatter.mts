@@ -19,6 +19,11 @@ export abstract class BaseFormatterImpl implements BaseFormatter {
    * @returns The formatted string output.
    */
   public format(data: TableData, options?: TablyfulOptions): string {
+    // Handle empty data gracefully
+    if (!data.headers || data.headers.length === 0 || !data.rows || data.rows.length === 0) {
+      return "";
+    }
+
     const processedData = this._processData(data, options);
     return this._formatData(processedData, options);
   }
