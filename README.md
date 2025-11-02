@@ -1,79 +1,23 @@
 # tablyful
 
-<div align="center">
-  <img src="./images/logo.png" alt="tablyful Logo" width="200" height="200" />
-</div>
-
-> `tablyful` small slogan.
+> `tablyful` Converts semi-structured data into common table formats.
 
 **Supported Versions:**
 
-![Something](https://img.shields.io/badge/something->=1.5.5-blue)
-
+![Node.js version](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-blue)
 
 ## Features
 
-1.
-2.
+1. Support for multiple input data formats (arrays, objects, etc.)
+2. Conversion to popular table formats (CSV, JSON, Markdown)
+3. Customizable formatting options
+4. Streaming API for large datasets
 
 ## 🚀 Quick Installation
 
-### 1. Create a ReScript Application
-
-First, create a new ReScript application using one of the following commands:
-
-```sh
-npm create rescript-app@latest
+```bash
+npm install tablyful
 ```
-
-> 📝**Note:** For more information on setting up a ReScript project, refer to the [official ReScript documentation](https://rescript-lang.org/docs/manual/latest/installation).
-
-### 2. Install Dependencies
-
-Add the required dependencies to your project:
-
-```sh
-npm i vanjs-core tablyful
-```
-
-### 3. Update Configuration `rescript.json` file
-
-In your `rescript.json` file, add the following dependency:
-
-```json
-{
-  "bs-dependencies": ["tablyful"]
-}
-```
-
-## 🙌 Hello World Example
-
-Here's a simple example of how to use `tablyful` to create a reactive UI component:
-
-1. Create a file named `Main.res` in your `src` folder.
-2. Add the following code to `Main.res`:
-
-```rescript
-@val @scope("document") @return(nullable)
-external getElementById: string => option<Dom.element> = "getElementById"
-
-let root = switch getElementById("root") {
-| Some(el) => el
-| None => Exn.raiseError("Root element not found")
-}
-
-let hello: unit => Dom.element = () => {
-  Van.Tag.make("div")
-  ->Van.Tags.addChild(Text("Hello, World!"))
-  ->Van.Tags.build
-}
-
-Van.add(root, [Dom(hello())])->ignore
-```
-
-## 🛠 Build and Run
-
-To build and run your ReScript application, see the [Compile and Run](https://metalbolicx.github.io/tablyful/#/compile-run) section.
 
 ## 📚 Documentation
 
@@ -82,11 +26,6 @@ To build and run your ReScript application, see the [Compile and Run](https://me
   [![view - Documentation](https://img.shields.io/badge/view-Documentation-blue?style=for-the-badge)](https://metalbolicx.github.io/tablyful/#/api-reference)
 
 </div>
-
-## ✍ Do you want to learn more?
-
-1.
-2.
 
 ## Contributing
 
@@ -97,15 +36,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 <table>
   <tr>
     <td align="center">
-      <a href="https://vanjs.org/" target="_blank">
-        <img src="./images/vanjs-logo.png" alt="VanJS" width="42" height="42" /><br/>
-        <b>VanJS</b><br/>
-      </a>
-    </td>
-    <td align="center">
-      <a href="https://rescript-lang.org/" target="_blank">
-        <img src="./images/rescript-logo.png" alt="ReScript" width="42" height="42" /><br/>
-        <b>ReScript</b><br/>
+      <a href="https://nodejs.org/" target="_blank">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/d/d9/Node.js_logo.svg" alt="Node.js" width="42" height="42" /><br/>
+        <b>Node.js</b><br/>
       </a>
     </td>
   </tr>
