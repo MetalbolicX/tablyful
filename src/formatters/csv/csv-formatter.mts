@@ -27,14 +27,14 @@ export class CsvFormatter extends BaseFormatterImpl {
 
     // Add headers if requested
     if (csvOptions.includeHeaders) {
-      const headerLine = this._formatRow(data.headers, csvOptions);
+      const headerLine = this.#formatRow(data.headers, csvOptions);
       lines = [...lines, headerLine];
     }
 
     // Format each data row
     for (const row of data.rows) {
       const values = data.headers.map((header) => row[header]);
-      const rowLine = this._formatRow(values, csvOptions);
+      const rowLine = this.#formatRow(values, csvOptions);
       lines = [...lines, rowLine];
     }
 
@@ -47,7 +47,7 @@ export class CsvFormatter extends BaseFormatterImpl {
    * @param options - The CSV options.
    * @returns The formatted CSV line.
    */
-  private _formatRow(
+  #formatRow(
     values: unknown[],
     options: Required<CsvFormatterOptions>
   ): string {

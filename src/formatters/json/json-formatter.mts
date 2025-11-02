@@ -1,7 +1,6 @@
 import type {
   TableData,
   TablyfulOptions,
-  JsonFormatterOptions,
 } from "@/types";
 import { BaseFormatterImpl, getJsonOptions } from "@/formatters/base";
 

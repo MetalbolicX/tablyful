@@ -1,4 +1,4 @@
-import type { TableData, TablyfulOptions, HtmlFormatterOptions } from "@/types";
+import type { TableData, TablyfulOptions } from "@/types";
 import {
   BaseFormatterImpl,
   escapeHtml,
@@ -33,7 +33,12 @@ export class HtmlFormatter extends BaseFormatterImpl {
         ? [`  <caption>${escapeHtml(htmlOptions.caption)}</caption>`]
         : []),
       formatTableHeader(data.headers, htmlOptions),
-      formatTableBody(data.headers, data.rows, htmlOptions, this._sanitizeValue.bind(this)),
+      formatTableBody(
+        data.headers,
+        data.rows,
+        htmlOptions,
+        this._sanitizeValue.bind(this)
+      ),
       "</table>",
     ];
 

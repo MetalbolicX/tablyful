@@ -1,7 +1,6 @@
 import type {
   TableData,
   TablyfulOptions,
-  MarkdownFormatterOptions,
 } from "@/types";
 import {
   BaseFormatterImpl,
@@ -33,7 +32,7 @@ export class MarkdownFormatter extends BaseFormatterImpl {
     // Header and separator rows
     const escapedHeaders = data.headers.map((h) => escapeMarkdown(h));
     const headerLine = joinMarkdownCells(escapedHeaders, mdOptions.padding);
-    
+
     const separators = [...Array(data.headers.length)].map(() =>
       createMarkdownSeparator(mdOptions.align)
     );

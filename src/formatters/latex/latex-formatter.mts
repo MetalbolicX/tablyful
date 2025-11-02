@@ -1,13 +1,11 @@
 import type {
   TableData,
   TablyfulOptions,
-  LatexFormatterOptions,
 } from "@/types";
 import {
   BaseFormatterImpl,
   escapeLatex,
   getLatexOptions,
-  getLatexAlignmentChar,
   createLatexColumnSpec,
 } from "@/formatters/base";
 

@@ -2,7 +2,6 @@ import type {
   TableData,
   TablyfulOptions,
   ReadableStream,
-  MarkdownFormatterOptions,
   RowData,
 } from "@/types";
 import {
@@ -35,7 +34,7 @@ export class MarkdownStreamFormatter extends StreamFormatterImpl {
 
     const escapedHeaders = data.headers.map((h) => escapeMarkdown(h));
     const headerLine = joinMarkdownCells(escapedHeaders, mdOptions.padding);
-    
+
     const separators = [...Array(data.headers.length)].map(() =>
       createMarkdownSeparator(mdOptions.align)
     );
@@ -81,7 +80,7 @@ export class MarkdownStreamFormatter extends StreamFormatterImpl {
 
     const escapedHeaders = data.headers.map((h) => escapeMarkdown(h));
     const headerLine = joinMarkdownCells(escapedHeaders, mdOptions.padding);
-    
+
     const separators = [...Array(data.headers.length)].map(() =>
       createMarkdownSeparator(mdOptions.align)
     );

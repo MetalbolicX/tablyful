@@ -29,11 +29,11 @@ export class CsvStreamFormatter extends StreamFormatterImpl {
 
     const formattedRows = data.rows.map((row) => {
       const values = data.headers.map((header) => row[header]);
-      return this._formatRow(values, csvOptions);
+      return this.#formatRow(values, csvOptions);
     });
 
     const headerLines = csvOptions.includeHeaders
-      ? [this._formatRow(data.headers, csvOptions)]
+      ? [this.#formatRow(data.headers, csvOptions)]
       : [];
 
     const lines = [...headerLines, ...formattedRows];
@@ -70,7 +70,7 @@ export class CsvStreamFormatter extends StreamFormatterImpl {
       return null;
     }
 
-    const headerLine = this._formatRow(data.headers, csvOptions);
+    const headerLine = this.#formatRow(data.headers, csvOptions);
     return headerLine + csvOptions.lineBreak;
   }
 
@@ -93,7 +93,7 @@ export class CsvStreamFormatter extends StreamFormatterImpl {
 
     for (const row of rows) {
       const values = data.headers.map((header) => row[header]);
-      const rowLine = this._formatRow(values, csvOptions);
+      const rowLine = this.#formatRow(values, csvOptions);
       lines = [...lines, rowLine];
     }
 
@@ -120,7 +120,7 @@ export class CsvStreamFormatter extends StreamFormatterImpl {
    * @param options - The CSV options.
    * @returns The formatted CSV line.
    */
-  private _formatRow(
+  #formatRow(
     values: unknown[],
     options: Required<CsvFormatterOptions>
   ): string {

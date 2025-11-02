@@ -2,7 +2,6 @@ import type {
   TableData,
   TablyfulOptions,
   ReadableStream,
-  LatexFormatterOptions,
   RowData,
 } from "@/types";
 import {

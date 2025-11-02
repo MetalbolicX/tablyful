@@ -2,7 +2,6 @@ import type {
   TableData,
   TablyfulOptions,
   ReadableStream,
-  HtmlFormatterOptions,
   RowData,
 } from "@/types";
 import {

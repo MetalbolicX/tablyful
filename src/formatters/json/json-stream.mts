@@ -2,7 +2,6 @@ import type {
   TableData,
   TablyfulOptions,
   ReadableStream,
-  JsonFormatterOptions,
   RowData,
 } from "@/types";
 import { StreamFormatterImpl, getJsonOptions } from "../base";
