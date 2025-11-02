@@ -32,115 +32,166 @@ This page documents advanced usage patterns, streaming capabilities, and low-lev
 
 ### The Tablyful Class
 
-For more control over formatting, use the `Tablyful` class instead of the quick functions it has the next methods:
+For more control over formatting, use the `Tablyful` class instead of the quick functions. The diagram below shows the common public properties and methods available on the `Tablyful` instance.
 
 ```mermaid
 classDiagram
-class BankAccount{
-    +String owner
-    +BigDecimal balance
-    +deposit(amount) bool
-    +withdrawal(amount) int
+class Tablyful {
+  +String outputFormat
+  +Boolean hasRowNumbers
+  +String rowNumberHeader
+  +Object formatOptions
+  +constructor(options)
+  +convert(data, format?) string
+  +parse(data) TableData
+  +format(tableData, format) string
+  +toCsv(data, options?) string
+  +toJson(data, options?) string
+  +toMarkdown(data, options?) string
+  +toHtml(data, options?) string
+  +toLatex(data, options?) string
+  +formatStream(tableData, options?) Readable
+  +setOptions(options) void
+  +getOptions() TablyfulOptions
 }
 ```
 
-```ts
-import { Tablyful } from "tablyful";
+Public method descriptions (with example options):
 
-const tablyful = new Tablyful({
+- `constructor(options)` — Create a new `Tablyful` instance with optional default options. Accepts global options (e.g., `hasRowNumbers`) and `formatOptions` for format-specific defaults.
+
+Example:
+
+```ts
+// Constructor options (TablyfulOptions)
+const options = {
+  // Input / parsing
+  headers: ["name", "age"],
+  hasHeaders: true,
+
+  // Row numbers
+  hasRowNumbers: true,
+  rowNumberHeader: "#",
+
+  // Processing / streaming
+  batchSize: 1000,
+  maxMemory: 100 * 1024 * 1024, // 100MB
+  useStreams: false,
+  highWaterMark: 16384,
+
+  // Output
   outputFormat: "markdown",
-  hasRowNumbers: true,
-});
-
-// Convert data
-const markdown = tablyful.convert(data, "markdown");
-const csv = tablyful.convert(data, "csv");
-```
-
-### Custom Options
-
-Set default options when creating a Tablyful instance:
-
-```ts
-import { Tablyful } from "tablyful";
-
-const tablyful = new Tablyful({
-  // Global options
-  hasRowNumbers: true,
-  rowNumberHeader: "Row",
-
-  // Format-specific options
   formatOptions: {
-    align: "center", // For Markdown
-    pretty: true,   // For JSON
+    // format-specific options (see below)
   },
-});
+};
 
-// All conversions will use these defaults
-const result = tablyful.convert(data);
+const tablyful = new Tablyful(options);
 ```
 
-### Data Parsing
+- `convert(data, format?)` — High-level convenience method that parses the input (auto-detecting format) and returns the formatted output string. If `format` is omitted it uses the instance `outputFormat`.
 
-Parse data without formatting to inspect or manipulate it:
+Example:
 
 ```ts
-import { Tablyful } from "tablyful";
+// Quick convert with per-call options (QuickFormatOptions)
+const csv = tablyful.convert(data, "csv");
 
-const tablyful = new Tablyful();
+// Override options for this call
+const csvWithOptions = tablyful.convert(data, "csv", {
+  hasRowNumbers: true,
+  formatOptions: { delimiter: "," },
+});
+```
+
+- `parse(data)` — Parse raw input (array/object forms) into the internal `TableData` shape (headers, rows, columns, metadata) without formatting to inspect or manipulate the data.
+
+Example:
+
+```ts
 const tableData = tablyful.parse(data);
-
 // Inspect the parsed data
 console.log(tableData.headers); // ["name", "age", "city"]
-console.log(tableData.rows);    // Array of row objects
+console.log(tableData.rows); // Array of row objects
 console.log(tableData.metadata); // Row count, column count, etc.
 ```
 
-### Custom Headers
+- `format(tableData, format)` — Low-level formatter that takes already-parsed `TableData` and returns a string in the requested `format`. You can pass the same `TablyfulOptions` to control formatting.
 
-Override column headers:
+Example:
 
 ```ts
-import { toMarkdown } from "tablyful";
-
-const data = [
-  { firstName: "Alice", lastName: "Smith", age: 30 },
-  { firstName: "Bob", lastName: "Jones", age: 25 },
-];
-
-const markdown = toMarkdown(data, {
-  headers: ["First Name", "Last Name", "Age"],
+const csvString = tablyful.format(tableData, "csv", {
+  formatOptions: { delimiter: ",", includeHeaders: true },
 });
 ```
 
-Output:
-
-```txt
-| First Name | Last Name | Age |
-|------------|-----------|-----|
-| Alice      | Smith     | 30  |
-| Bob        | Jones     | 25  |
-```
-
-### Row Numbers
-
-Add row numbers to your tables:
+- `toCsv/toJson/toMarkdown/toHtml/toLatex` — Convenience helpers equivalent to calling `convert` with the respective format; accept the same options as `convert` (see `QuickFormatOptions`).
 
 ```ts
-import { toCsv } from "tablyful";
+// Quick helpers (QuickFormatOptions) — identical to calling convert(..., "csv")
+const csv = tablyful.toCsv(data, { hasRowNumbers: true });
+const json = tablyful.toJson(data, { formatOptions: { pretty: true } });
+```
 
-const csv = toCsv(data, {
+- `formatStream(tableData, options?)` — Create a Node.js readable stream from `TableData` for streaming output (useful for large datasets). Supports batching, `highWaterMark`, and format-specific stream options.
+
+```ts
+const stream = tablyful.formatStream(tableData, {
+  useStreams: true,
+  batchSize: 5000,
+  highWaterMark: 64 * 1024, // 64KB
+  formatOptions: { pretty: true }, // JSON stream pretty printing
+});
+
+// Pipe to file or HTTP response
+stream.pipe(fs.createWriteStream("output.json"));
+```
+
+- `setOptions(options)` — Update instance defaults (merged with existing options).
+
+```ts
+tablyful.setOptions({
   hasRowNumbers: true,
-  rowNumberHeader: "#", // Default is "#"
+  formatOptions: { align: "center" },
 });
 ```
 
-Output:
+- `getOptions()` — Retrieve the current instance options.
 
-```txt
-#,name,age
-1,Alice,30
-2,Bob,25
+```ts
+const current = tablyful.getOptions();
+```
+
+Format-specific options (examples)
+
+```ts
+// CSV options (CsvFormatterOptions)
+const csvOpts = {
+  delimiter: ",",
+  quote: '"',
+  escape: '"',
+  includeHeaders: true,
+};
+
+// JSON options (JsonFormatterOptions)
+const jsonOpts = { pretty: true, indentSize: 2, asArray: false };
+
+// Markdown options (MarkdownFormatterOptions)
+const mdOpts = { align: "center", padding: true, githubFlavor: false };
+
+// HTML options (HtmlFormatterOptions)
+const htmlOpts = { tableClass: "my-table", id: "table-1", caption: "Report" };
+
+// LaTeX options (LatexFormatterOptions)
+const latexOpts = {
+  align: "center",
+  borders: true,
+  boldHeaders: true,
+  booktabs: false,
+  caption: "My table",
+  label: "tab:mytable",
+};
 ```
 
 ---
@@ -183,9 +234,9 @@ Configure streaming behavior:
 
 ```ts
 const options = {
-  batchSize: 1000,        // Process 1000 rows at a time
-  highWaterMark: 64,      // 64KB buffer
-  useStreams: true,       // Enable streaming mode
+  batchSize: 1000, // Process 1000 rows at a time
+  highWaterMark: 64, // 64KB buffer
+  useStreams: true, // Enable streaming mode
   maxMemory: 50 * 1024 * 1024, // 50MB limit
 };
 ```
@@ -200,7 +251,7 @@ import { createCsvStreamFormatter } from "tablyful";
 const streamer = createCsvStreamFormatter();
 const stream = streamer.formatStream(largeData, {
   batchSize: 500,
-  formatOptions: { delimiter: ";" }
+  formatOptions: { delimiter: ";" },
 });
 
 // Pipe to file
@@ -215,7 +266,7 @@ import { pipeline } from "node:stream/promises";
 
 const streamer = createMarkdownStreamFormatter();
 const stream = streamer.formatStream(data, {
-  formatOptions: { align: "center" }
+  formatOptions: { align: "center" },
 });
 
 // Stream to HTTP response
@@ -233,14 +284,14 @@ import { Transform } from "node:stream";
 
 const streamer = createJsonStreamFormatter();
 const jsonStream = streamer.formatStream(data, {
-  formatOptions: { pretty: true }
+  formatOptions: { pretty: true },
 });
 
 // Add custom processing
 const upperCaseStream = new Transform({
   transform(chunk, encoding, callback) {
     callback(null, chunk.toString().toUpperCase());
-  }
+  },
 });
 
 // Chain streams: JSON -> uppercase -> file
@@ -263,12 +314,12 @@ const processLargeFile = async () => {
   const tableData = await parseCsvStream(inputStream);
   const outputStream = streamer.formatStream(tableData, {
     batchSize: 10_000, // Process in 10k row batches
-    formatOptions: { delimiter: "|" }
+    formatOptions: { delimiter: "|" },
   });
 
   // Write to output file
   await pipeline(outputStream, fs.createWriteStream("large-output.csv"));
-}
+};
 ```
 
 ---
@@ -284,7 +335,7 @@ import {
   createParser,
   detectParser,
   getAllParsers,
-  PARSER_TYPES
+  PARSER_TYPES,
 } from "tablyful";
 
 // Create specific parser
@@ -298,7 +349,7 @@ if (parser) {
 
 // Get all available parsers
 const parsers = getAllParsers();
-parsers.forEach(p => console.log(p.parserName));
+parsers.forEach((p) => console.log(p.parserName));
 ```
 
 ### Formatter Factory
@@ -310,7 +361,7 @@ import {
   createFormatter,
   getAvailableFormatters,
   isFormatterAvailable,
-  FORMATTER_TYPES
+  FORMATTER_TYPES,
 } from "tablyful";
 
 // Create specific formatter
@@ -338,9 +389,9 @@ class CustomFormatter extends BaseFormatterImpl {
 
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     // Your custom formatting logic
-    return data.rows.map(row =>
-      data.headers.map(h => row[h]).join(" | ")
-    ).join("\n");
+    return data.rows
+      .map((row) => data.headers.map((h) => row[h]).join(" | "))
+      .join("\n");
   }
 }
 
@@ -360,8 +411,8 @@ For large datasets, use streaming and adjust memory settings:
 ```ts
 const options = {
   maxMemory: 100 * 1024 * 1024, // 100MB
-  batchSize: 1000,              // Process 1000 rows at a time
-  useStreams: true,             // Enable streaming
+  batchSize: 1000, // Process 1000 rows at a time
+  useStreams: true, // Enable streaming
 };
 ```
 
@@ -389,10 +440,10 @@ Optimize stream performance:
 
 ```ts
 const streamOptions = {
-  highWaterMark: 64,        // Buffer size in KB
-  batchSize: 1000,          // Rows per batch
-  encoding: "utf8",         // Character encoding
-  objectMode: false,        // String mode for text formats
+  highWaterMark: 64, // Buffer size in KB
+  batchSize: 1000, // Rows per batch
+  encoding: "utf8", // Character encoding
+  objectMode: false, // String mode for text formats
 };
 ```
 
