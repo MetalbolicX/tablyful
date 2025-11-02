@@ -1,6 +1,6 @@
 # Test Suite Summary
 
-## ✅ All Tests Passing!
+## ✅ All Tests Passing
 
 **Current Status**: 112/112 tests passing (100%)
 
@@ -17,6 +17,7 @@ Time:        ~3.5s
 During test development, the following issues were identified and fixed:
 
 ### 1. Parser Naming Consistency ✅
+
 **Issue**: Parser names had `-parser` suffix (e.g., `"array-parser"`) but factory constants didn't match.
 
 **Fix**: Updated `PARSER_TYPES` constants in `src/api/factory.mts` to include the `-parser` suffix.
@@ -31,6 +32,7 @@ export const PARSER_TYPES = {
 ```
 
 ### 2. JSON Type Preservation ✅
+
 **Issue**: JSON formatter was converting all values to strings, including numbers and booleans.
 
 **Fix**: Overrode `_processData()` in `JsonFormatter` to skip sanitization:
@@ -50,6 +52,7 @@ protected _processData(data: TableData, options?: TablyfulOptions): TableData {
 ```
 
 ### 3. Empty Data Handling ✅
+
 **Issue**: Formatters threw errors when given empty data instead of handling gracefully.
 
 **Fix**: Added empty data check in base formatter's `format()` method:
@@ -67,16 +70,19 @@ public format(data: TableData, options?: TablyfulOptions): string {
 ```
 
 ### 4. CSV Escaping Clarification ✅
+
 **Issue**: Test expected ampersands to be quoted in CSV, but this isn't required by CSV standards.
 
 **Fix**: Updated test expectations to match correct CSV behavior (ampersands don't need quoting).
 
 ### 5. Test Fixture Imports ✅
+
 **Issue**: Module import path was incorrect in `basic-api.test.ts`.
 
 **Fix**: Changed from `'../fixtures/test-data'` to `'../../fixtures/test-data'`.
 
 ### 6. Streaming Column Definitions ✅
+
 **Issue**: JSON streaming tests passed empty `columns` array, triggering validation errors.
 
 **Fix**: Added proper column definitions to test data:
