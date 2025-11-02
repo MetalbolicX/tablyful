@@ -32,7 +32,17 @@ This page documents advanced usage patterns, streaming capabilities, and low-lev
 
 ### The Tablyful Class
 
-For more control over formatting, use the `Tablyful` class instead of the quick functions:
+For more control over formatting, use the `Tablyful` class instead of the quick functions it has the next methods:
+
+```mermaid
+classDiagram
+class BankAccount{
+    +String owner
+    +BigDecimal balance
+    +deposit(amount) bool
+    +withdrawal(amount) int
+}
+```
 
 ```ts
 import { Tablyful } from "tablyful";
