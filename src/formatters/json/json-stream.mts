@@ -5,7 +5,7 @@ import type {
   JsonFormatterOptions,
   RowData,
 } from "@/types";
-import { StreamFormatterImpl } from "../base/stream-formatter.mts";
+import { StreamFormatterImpl, getJsonOptions } from "../base";
 
 /**
  * Streaming JSON formatter for handling large datasets efficiently.
@@ -25,7 +25,7 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const jsonOptions = this.#getJsonOptions(options);
+    const jsonOptions = getJsonOptions(options);
 
     // Convert table data to JSON-serializable format
     const jsonData = jsonOptions.asArray
@@ -65,7 +65,7 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
     data: TableData,
     options?: TablyfulOptions
   ): string | null {
-    const jsonOptions = this.#getJsonOptions(options);
+    const jsonOptions = getJsonOptions(options);
 
     if (jsonOptions.asArray) {
       // Array format: start with opening bracket and headers
@@ -91,7 +91,7 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
     startIndex: number,
     options?: TablyfulOptions
   ): string {
-    const jsonOptions = this.#getJsonOptions(options);
+    const jsonOptions = getJsonOptions(options);
     const isLastBatch = startIndex + rows.length >= data.metadata.rowCount;
     const INDENT = "  ";
 
@@ -131,7 +131,7 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
     _data: TableData,
     options?: TablyfulOptions
   ): string | null {
-    const jsonOptions = this.#getJsonOptions(options);
+    const jsonOptions = getJsonOptions(options);
     return jsonOptions.pretty ? "\n]" : "]";
   }
 
@@ -176,21 +176,6 @@ export class JsonStreamFormatter extends StreamFormatterImpl {
 
       return obj;
     });
-  }
-
-  /**
-   * Get JSON-specific options with defaults.
-   * @param options - The general formatting options.
-   * @returns The JSON options with defaults applied.
-   */
-  #getJsonOptions(options?: TablyfulOptions): Required<JsonFormatterOptions> {
-    const jsonOptions = (options?.formatOptions as JsonFormatterOptions) || {};
-
-    return {
-      pretty: jsonOptions.pretty !== false, // Default to true
-      indentSize: jsonOptions.indentSize || 2,
-      asArray: jsonOptions.asArray || false, // Default to objects
-    };
   }
 }
 

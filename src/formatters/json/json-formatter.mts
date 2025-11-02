@@ -3,7 +3,7 @@ import type {
   TablyfulOptions,
   JsonFormatterOptions,
 } from "@/types";
-import { BaseFormatterImpl } from "@/formatters/base";
+import { BaseFormatterImpl, getJsonOptions } from "@/formatters/base";
 
 /**
  * JSON formatter for converting table data to JSON format.
@@ -44,7 +44,7 @@ export class JsonFormatter extends BaseFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const jsonOptions = this.#getJsonOptions(options);
+    const jsonOptions = getJsonOptions(options);
 
     // Convert table data to JSON-serializable format
     const jsonData = jsonOptions.asArray
@@ -84,23 +84,6 @@ export class JsonFormatter extends BaseFormatterImpl {
 
       return obj;
     });
-  }
-
-  /**
-   * Get JSON-specific options with defaults.
-   * @param options - The general formatting options.
-   * @returns The JSON options with defaults applied.
-   */
-  #getJsonOptions(
-    options?: TablyfulOptions
-  ): Required<JsonFormatterOptions> {
-    const jsonOptions = (options?.formatOptions as JsonFormatterOptions) || {};
-
-    return {
-      pretty: jsonOptions.pretty !== false, // Default to true
-      indentSize: jsonOptions.indentSize || 2,
-      asArray: jsonOptions.asArray || false, // Default to objects
-    };
   }
 }
 

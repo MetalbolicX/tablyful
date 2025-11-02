@@ -5,7 +5,13 @@ import type {
   MarkdownFormatterOptions,
   RowData,
 } from "@/types";
-import { StreamFormatterImpl } from "@/formatters/base";
+import {
+  StreamFormatterImpl,
+  escapeMarkdown,
+  getMarkdownOptions,
+  createMarkdownSeparator,
+  joinMarkdownCells,
+} from "@/formatters/base";
 
 /**
  * Streaming Markdown formatter for handling large datasets efficiently.
@@ -25,20 +31,22 @@ export class MarkdownStreamFormatter extends StreamFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const mdOptions = this.#getMarkdownOptions(options);
+    const mdOptions = getMarkdownOptions(options);
 
-    const headerLine = this.#formatHeaderRow(data.headers, mdOptions);
-    const separatorLine = this.#formatSeparatorRow(
-      data.headers.length,
-      mdOptions
+    const escapedHeaders = data.headers.map((h) => escapeMarkdown(h));
+    const headerLine = joinMarkdownCells(escapedHeaders, mdOptions.padding);
+    
+    const separators = [...Array(data.headers.length)].map(() =>
+      createMarkdownSeparator(mdOptions.align)
     );
+    const separatorLine = joinMarkdownCells(separators, mdOptions.padding);
 
     const rowLines = data.rows.map((row) => {
       const values = data.headers.map((header) => {
         const value = this._sanitizeValue(row[header]);
-        return this.#escapeMarkdown(value);
+        return escapeMarkdown(value);
       });
-      return this.#formatDataRow(values, mdOptions);
+      return joinMarkdownCells(values, mdOptions.padding);
     });
 
     const lines = [headerLine, separatorLine, ...rowLines];
@@ -69,13 +77,15 @@ export class MarkdownStreamFormatter extends StreamFormatterImpl {
     data: TableData,
     options?: TablyfulOptions
   ): string | null {
-    const mdOptions = this.#getMarkdownOptions(options);
+    const mdOptions = getMarkdownOptions(options);
 
-    const headerLine = this.#formatHeaderRow(data.headers, mdOptions);
-    const separatorLine = this.#formatSeparatorRow(
-      data.headers.length,
-      mdOptions
+    const escapedHeaders = data.headers.map((h) => escapeMarkdown(h));
+    const headerLine = joinMarkdownCells(escapedHeaders, mdOptions.padding);
+    
+    const separators = [...Array(data.headers.length)].map(() =>
+      createMarkdownSeparator(mdOptions.align)
     );
+    const separatorLine = joinMarkdownCells(separators, mdOptions.padding);
 
     const lines: string[] = [...[headerLine, separatorLine]];
 
@@ -96,14 +106,14 @@ export class MarkdownStreamFormatter extends StreamFormatterImpl {
     startIndex: number,
     options?: TablyfulOptions
   ): string {
-    const mdOptions = this.#getMarkdownOptions(options);
+    const mdOptions = getMarkdownOptions(options);
 
     const lines = rows.map((row) => {
       const values = data.headers.map((header) => {
         const value = this._sanitizeValue(row[header]);
-        return this.#escapeMarkdown(value);
+        return escapeMarkdown(value);
       });
-      return this.#formatDataRow(values, mdOptions);
+      return joinMarkdownCells(values, mdOptions.padding);
     });
 
     return lines.join("\n") + "\n";
@@ -133,127 +143,8 @@ export class MarkdownStreamFormatter extends StreamFormatterImpl {
     values: string[],
     options?: TablyfulOptions
   ): string {
-    const mdOptions = this.#getMarkdownOptions(options);
-    return this.#joinCells(values, mdOptions);
-  }
-
-  /**
-   * Format the header row.
-   * @param headers - The column headers.
-   * @param options - Markdown formatting options.
-   * @returns The formatted header row.
-   */
-  #formatHeaderRow(
-    headers: string[],
-    options: Required<MarkdownFormatterOptions>
-  ): string {
-    const escapedHeaders = headers.map((h) => this.#escapeMarkdown(h));
-    return this.#joinCells(escapedHeaders, options);
-  }
-
-  /**
-   * Format the separator row that defines column alignment.
-   * @param columnCount - The number of columns.
-   * @param options - Markdown formatting options.
-   * @returns The formatted separator row.
-   */
-  #formatSeparatorRow(
-    columnCount: number,
-    options: Required<MarkdownFormatterOptions>
-  ): string {
-    const separators = [...Array(columnCount)].map(() =>
-      this._createSeparator(options.align)
-    );
-
-    return this.#joinCells(separators, options);
-  }
-
-  /**
-   * Create a column separator with alignment markers.
-   * @param align - The alignment type.
-   * @returns The separator string.
-   */
-  private _createSeparator(align: "left" | "center" | "right"): string {
-    switch (align) {
-      case "left":
-        return ":---";
-      case "center":
-        return ":---:";
-      case "right":
-        return "---:";
-      default:
-        return "---";
-    }
-  }
-
-  /**
-   * Format a data row.
-   * @param values - The cell values.
-   * @param options - Markdown formatting options.
-   * @returns The formatted data row.
-   */
-  #formatDataRow(
-    values: string[],
-    options: Required<MarkdownFormatterOptions>
-  ): string {
-    return this.#joinCells(values, options);
-  }
-
-  /**
-   * Join cell values into a markdown table row.
-   * @param cells - The cell values.
-   * @param options - Markdown formatting options.
-   * @returns The joined row string.
-   */
-  #joinCells(
-    cells: string[],
-    options: Required<MarkdownFormatterOptions>
-  ): string {
-    if (options.padding) {
-      // Add padding around cell content
-      const paddedCells = cells.map((cell) => ` ${cell} `);
-      return `|${paddedCells.join("|")}|`;
-    }
-
-    return `|${cells.join("|")}|`;
-  }
-
-  /**
-   * Escape Markdown special characters.
-   * Specifically handles pipe characters which break table structure.
-   * @param value - The string to escape.
-   * @returns The escaped string.
-   */
-  #escapeMarkdown(value: string): string {
-    // Escape pipe characters as they break table structure
-    let escaped = value.replace(/\|/g, "\\|");
-
-    // Escape backslashes before pipes
-    escaped = escaped.replace(/\\\|/g, "\\\\|");
-
-    // Replace newlines with <br> for inline content
-    escaped = escaped.replace(/\n/g, "<br>");
-    escaped = escaped.replace(/\r/g, "");
-
-    return escaped;
-  }
-
-  /**
-   * Get Markdown-specific options with defaults.
-   * @param options - The general formatting options.
-   * @returns The Markdown options with defaults applied.
-   */
-  #getMarkdownOptions(
-    options?: TablyfulOptions
-  ): Required<MarkdownFormatterOptions> {
-    const mdOptions =
-      (options?.formatOptions as MarkdownFormatterOptions) || {};
-
-    return {
-      align: mdOptions.align || "left",
-      padding: mdOptions.padding !== false, // Default to true
-      githubFlavor: mdOptions.githubFlavor !== false, // Default to true
-    };
+    const mdOptions = getMarkdownOptions(options);
+    return joinMarkdownCells(values, mdOptions.padding);
   }
 }
 

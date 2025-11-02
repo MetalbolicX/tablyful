@@ -5,7 +5,12 @@ import type {
   LatexFormatterOptions,
   RowData,
 } from "@/types";
-import { StreamFormatterImpl } from "@/formatters/base";
+import {
+  StreamFormatterImpl,
+  escapeLatex,
+  getLatexOptions,
+  createLatexColumnSpec,
+} from "@/formatters/base";
 
 /**
  * Streaming LaTeX formatter for handling large datasets efficiently.
@@ -25,7 +30,7 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const latexOptions = this.#getLatexOptions(options);
+    const latexOptions = getLatexOptions(options);
     let lines: string[] = [];
 
     // Add table environment if requested
@@ -37,7 +42,12 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     }
 
     // Begin tabular environment
-    const columnSpec = this.#createColumnSpec(data.headers.length, latexOptions);
+    const columnSpec = createLatexColumnSpec(
+      data.headers.length,
+      latexOptions.align,
+      latexOptions.borders,
+      latexOptions.columnSpec
+    );
     const indent = latexOptions.useTableEnvironment ? "  " : "";
     lines = [...lines, `${indent}\\begin{tabular}{${columnSpec}}`];
 
@@ -48,7 +58,11 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
 
     // Header row
     if (latexOptions.includeHeader) {
-      const headerLine = this.#formatHeaderRow(data.headers, latexOptions);
+      const escapedHeaders = data.headers.map((h) => {
+        const escaped = escapeLatex(h);
+        return latexOptions.boldHeaders ? `\\textbf{${escaped}}` : escaped;
+      });
+      const headerLine = escapedHeaders.join(" & ") + " \\\\";
       lines = [...lines, `${indent}  ${headerLine}`];
 
       if (latexOptions.borders) {
@@ -60,9 +74,9 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     for (const row of data.rows) {
       const values = data.headers.map((header) => {
         const value = this._sanitizeValue(row[header]);
-        return this.#escapeLaTeX(value);
+        return escapeLatex(value);
       });
-      const rowLine = this.#formatDataRow(values, latexOptions);
+      const rowLine = values.join(" & ") + " \\\\";
       lines = [...lines, `${indent}  ${rowLine}`];
     }
 
@@ -77,7 +91,7 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     // Add caption and label if provided
     if (latexOptions.useTableEnvironment) {
       if (latexOptions.caption) {
-        lines = [...lines, `  \\caption{${this.#escapeLaTeX(latexOptions.caption)}}`];
+        lines = [...lines, `  \\caption{${escapeLatex(latexOptions.caption)}}`];
       }
       if (latexOptions.label) {
         lines = [...lines, `  \\label{${latexOptions.label}}`];
@@ -111,7 +125,7 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     data: TableData,
     options?: TablyfulOptions
   ): string | null {
-    const latexOptions = this.#getLatexOptions(options);
+    const latexOptions = getLatexOptions(options);
     let lines: string[] = [];
 
     // Add table environment if requested
@@ -123,7 +137,12 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     }
 
     // Begin tabular environment
-    const columnSpec = this.#createColumnSpec(data.headers.length, latexOptions);
+    const columnSpec = createLatexColumnSpec(
+      data.headers.length,
+      latexOptions.align,
+      latexOptions.borders,
+      latexOptions.columnSpec
+    );
     const indent = latexOptions.useTableEnvironment ? "  " : "";
     lines = [...lines, `${indent}\\begin{tabular}{${columnSpec}}`];
 
@@ -134,7 +153,11 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
 
     // Header row
     if (latexOptions.includeHeader) {
-      const headerLine = this.#formatHeaderRow(data.headers, latexOptions);
+      const escapedHeaders = data.headers.map((h) => {
+        const escaped = escapeLatex(h);
+        return latexOptions.boldHeaders ? `\\textbf{${escaped}}` : escaped;
+      });
+      const headerLine = escapedHeaders.join(" & ") + " \\\\";
       lines = [...lines, `${indent}  ${headerLine}`];
 
       if (latexOptions.borders) {
@@ -159,16 +182,16 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     startIndex: number,
     options?: TablyfulOptions
   ): string {
-    const latexOptions = this.#getLatexOptions(options);
+    const latexOptions = getLatexOptions(options);
     let lines: string[] = [];
     const indent = latexOptions.useTableEnvironment ? "    " : "  ";
 
     for (const row of rows) {
       const values = data.headers.map((header) => {
         const value = this._sanitizeValue(row[header]);
-        return this.#escapeLaTeX(value);
+        return escapeLatex(value);
       });
-      const rowLine = this.#formatDataRow(values, latexOptions);
+      const rowLine = values.join(" & ") + " \\\\";
       lines = [...lines, `${indent}${rowLine}`];
     }
 
@@ -185,7 +208,7 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     data: TableData,
     options?: TablyfulOptions
   ): string | null {
-    const latexOptions = this.#getLatexOptions(options);
+    const latexOptions = getLatexOptions(options);
     let lines: string[] = [];
     const indent = latexOptions.useTableEnvironment ? "  " : "";
 
@@ -200,7 +223,7 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     // Add caption and label if provided
     if (latexOptions.useTableEnvironment) {
       if (latexOptions.caption) {
-        lines = [...lines, `  \\caption{${this.#escapeLaTeX(latexOptions.caption)}}`];
+        lines = [...lines, `  \\caption{${escapeLatex(latexOptions.caption)}}`];
       }
       if (latexOptions.label) {
         lines = [...lines, `  \\label{${latexOptions.label}}`];
@@ -222,151 +245,6 @@ export class LatexStreamFormatter extends StreamFormatterImpl {
     options?: TablyfulOptions
   ): string {
     return values.join(" & ") + " \\\\";
-  }
-
-  /**
-   * Create column specification for tabular environment.
-   * @param columnCount - The number of columns.
-   * @param options - LaTeX formatting options.
-   * @returns The column specification string.
-   */
-  #createColumnSpec(
-    columnCount: number,
-    options: Required<LatexFormatterOptions>
-  ): string {
-    // Use custom column spec if provided
-    if (options.columnSpec) {
-      return options.columnSpec;
-    }
-
-    const alignChar = this.#getAlignmentChar(options.align);
-    let columnSpecs: string[] = [];
-
-    // Add left border if requested
-    if (options.borders) {
-      columnSpecs = [...columnSpecs, "|"];
-    }
-
-    // Add column specifications
-    for (let i = 0; i < columnCount; i++) {
-      if (options.borders) {
-        columnSpecs = [...columnSpecs, alignChar, "|"];
-      } else {
-        columnSpecs = [...columnSpecs, alignChar];
-      }
-    }
-
-    return columnSpecs.join("");
-  }
-
-  /**
-   * Get LaTeX alignment character.
-   * @param align - The alignment type.
-   * @returns The LaTeX alignment character.
-   */
-  #getAlignmentChar(align: "left" | "center" | "right"): string {
-    switch (align) {
-      case "left":
-        return "l";
-      case "center":
-        return "c";
-      case "right":
-        return "r";
-      default:
-        return "l";
-    }
-  }
-
-  /**
-   * Format the header row.
-   * @param headers - The column headers.
-   * @param options - LaTeX formatting options.
-   * @returns The formatted header row.
-   */
-  #formatHeaderRow(
-    headers: string[],
-    options: Required<LatexFormatterOptions>
-  ): string {
-    const escapedHeaders = headers.map((h) => {
-      const escaped = this.#escapeLaTeX(h);
-      return options.boldHeaders ? `\\textbf{${escaped}}` : escaped;
-    });
-    return escapedHeaders.join(" & ") + " \\\\";
-  }
-
-  /**
-   * Format a data row.
-   * @param values - The cell values.
-   * @param options - LaTeX formatting options.
-   * @returns The formatted data row.
-   */
-  #formatDataRow(
-    values: string[],
-    options: Required<LatexFormatterOptions>
-  ): string {
-    return values.join(" & ") + " \\\\";
-  }
-
-  /**
-   * Escape LaTeX special characters.
-   * @param value - The string to escape.
-   * @returns The escaped string.
-   */
-  #escapeLaTeX(value: string): string {
-    // LaTeX special characters: # $ % & ~ _ ^ \ { }
-    const escapeMap: Record<string, string> = {
-      "\\": "\\textbackslash{}",
-      "#": "\\#",
-      "$": "\\$",
-      "%": "\\%",
-      "&": "\\&",
-      "~": "\\textasciitilde{}",
-      "_": "\\_",
-      "^": "\\textasciicircum{}",
-      "{": "\\{",
-      "}": "\\}",
-    };
-
-    // First handle backslash specially to avoid double-escaping
-    let escaped = value.replace(/\\/g, "\\textbackslash{}");
-
-    // Then handle other special characters
-    for (const [char, replacement] of Object.entries(escapeMap)) {
-      if (char !== "\\") {
-        escaped = escaped.replace(new RegExp("\\" + char, "g"), replacement);
-      }
-    }
-
-    // Handle newlines
-    escaped = escaped.replace(/\n/g, " \\\\ ");
-    escaped = escaped.replace(/\r/g, "");
-
-    return escaped;
-  }
-
-  /**
-   * Get LaTeX-specific options with defaults.
-   * @param options - The general formatting options.
-   * @returns The LaTeX options with defaults applied.
-   */
-  #getLatexOptions(
-    options?: TablyfulOptions
-  ): Required<LatexFormatterOptions> {
-    const latexOptions = (options?.formatOptions as LatexFormatterOptions) || {};
-
-    return {
-      align: latexOptions.align || "left",
-      borders: latexOptions.borders !== false, // Default to true
-      boldHeaders: latexOptions.boldHeaders !== false, // Default to true
-      includeHeader: latexOptions.includeHeader !== false, // Default to true
-      useTableEnvironment: latexOptions.useTableEnvironment !== false, // Default to true
-      centering: latexOptions.centering !== false, // Default to true
-      tableEnvironment: latexOptions.tableEnvironment || "table",
-      columnSpec: latexOptions.columnSpec || "",
-      booktabs: latexOptions.booktabs || false,
-      caption: latexOptions.caption || "",
-      label: latexOptions.label || "",
-    };
   }
 }
 

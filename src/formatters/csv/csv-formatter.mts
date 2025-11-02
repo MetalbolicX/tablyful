@@ -3,7 +3,7 @@ import type {
   TablyfulOptions,
   CsvFormatterOptions,
 } from "@/types";
-import { BaseFormatterImpl } from "@/formatters/base";
+import { BaseFormatterImpl, getCsvOptions, formatCsvValue } from "@/formatters/base";
 
 /**
  * CSV formatter for converting table data to CSV format.
@@ -22,7 +22,7 @@ export class CsvFormatter extends BaseFormatterImpl {
   protected _formatData(data: TableData, options?: TablyfulOptions): string {
     this._validateData(data);
 
-    const csvOptions = this._getCsvOptions(options);
+    const csvOptions = getCsvOptions(options);
     let lines: string[] = [];
 
     // Add headers if requested
@@ -53,62 +53,10 @@ export class CsvFormatter extends BaseFormatterImpl {
   ): string {
     const formattedValues = values.map((value) => {
       const stringValue = this._sanitizeValue(value);
-      return this._formatCsvValue(stringValue, options);
+      return formatCsvValue(stringValue, options.delimiter, options.quote, options.escape);
     });
 
     return formattedValues.join(options.delimiter);
-  }
-
-  /**
-   * Format a single CSV value with proper quoting and escaping.
-   * @param value - The string value to format.
-   * @param options - The CSV options.
-   * @returns The formatted and escaped CSV value.
-   */
-  private _formatCsvValue(
-    value: string,
-    options: Required<CsvFormatterOptions>
-  ): string {
-    const { delimiter, quote, escape } = options;
-
-    // Check if value needs quoting
-    const needsQuoting =
-      value.includes(delimiter) ||
-      value.includes(quote) ||
-      value.includes("\n") ||
-      value.includes("\r");
-
-    if (!needsQuoting) {
-      return value;
-    }
-
-    // Escape quote characters in the value
-    const escapedValue = value.replace(
-      new RegExp(quote, "g"),
-      escape + quote
-    );
-
-    // Wrap in quotes
-    return `${quote}${escapedValue}${quote}`;
-  }
-
-  /**
-   * Get CSV-specific options with defaults.
-   * @param options - The general formatting options.
-   * @returns The CSV options with defaults applied.
-   */
-  private _getCsvOptions(
-    options?: TablyfulOptions
-  ): Required<CsvFormatterOptions> {
-    const csvOptions = (options?.formatOptions as CsvFormatterOptions) || {};
-
-    return {
-      delimiter: csvOptions.delimiter || ",",
-      quote: csvOptions.quote || '"',
-      escape: csvOptions.escape || '"',
-      lineBreak: csvOptions.lineBreak || "\n",
-      includeHeaders: csvOptions.includeHeaders !== false, // Default to true
-    };
   }
 
   /**
@@ -117,7 +65,7 @@ export class CsvFormatter extends BaseFormatterImpl {
    * @returns The escaped string.
    */
   protected _escapeString(value: string): string {
-    // CSV escaping is handled in _formatCsvValue
+    // CSV escaping is handled in formatCsvValue helper
     // This method is kept for compatibility with base class
     return value;
   }
