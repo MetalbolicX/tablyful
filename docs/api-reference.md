@@ -21,21 +21,32 @@ Converts your data to a CSV string.
 
 **Options** (CsvFormatterOptions):
 
-- delimiter (string, default: `,`)
-- quote (string, default: `"`
-- escape (string, default: `"`
-- lineBreak (string, default: `\n`)
-- includeHeaders (boolean, default: true)
+```ts
+interface CsvFormatterOptions {
+  delimiter?: string; // default: ','
+  quote?: string; // default: '"'
+  escape?: string; // default: '"'
+  lineBreak?: string; // default: '\n'
+  includeHeaders?: boolean; // default: true
+}
+```
 
 Example:
 
-```javascript
+```js
 import { toCsv } from "tablyful";
 const data = [
   { name: "Alice", age: 30 },
   { name: "Bob", age: 25 },
 ];
-const csv = toCsv(data);
+// CSV options (CsvFormatterOptions)
+const csvOpts = {
+  delimiter: ",",
+  quote: '"',
+  escape: '"',
+  includeHeaders: true,
+};
+const csv = toCsv(data, csvOpts);
 ```
 
 Outputs:
@@ -52,9 +63,13 @@ Converts your data to a JSON string.
 
 **Options** (JsonFormatterOptions):
 
-- pretty (boolean, default: false)
-- indentSize (number, default: 2)
-- asArray (boolean, default: true)
+```ts
+interface JsonFormatterOptions {
+  pretty?: boolean; // default: false
+  indentSize?: number; // default: 2
+  asArray?: boolean; // default: true
+}
+```
 
 Example:
 
@@ -64,7 +79,9 @@ const data = [
   { name: "Alice", age: 30 },
   { name: "Bob", age: 25 },
 ];
-const json = toJson(data);
+// JSON options (JsonFormatterOptions)
+const jsonOpts = { pretty: true, indentSize: 2, asArray: false };
+const json = toJson(data, jsonOpts);
 ```
 
 Outputs:
@@ -88,19 +105,25 @@ Converts your data to a Markdown table string.
 
 **Options** (MarkdownFormatterOptions):
 
-- align (`left` | `center` | `right`, default: `left`)
-- padding (boolean, default: true)
-- githubFlavor (boolean, default: true)
+```ts
+interface MarkdownFormatterOptions {
+  align?: "left" | "center" | "right"; // default: "left"
+  padding?: boolean; // default: true
+  githubFlavor?: boolean; // default: true
+}
+```
 
 Example:
 
-```javascript
+```js
 import { toMarkdown } from "tablyful";
 const data = [
   { name: "Alice", age: 30 },
   { name: "Bob", age: 25 },
 ];
-const markdown = toMarkdown(data);
+// Markdown options (MarkdownFormatterOptions)
+const mdOpts = { align: "center", padding: true, githubFlavor: false };
+const markdown = toMarkdown(data, mdOpts);
 ```
 
 Outputs:
@@ -118,27 +141,34 @@ Converts your data to an HTML table string.
 
 **Options** (HtmlFormatterOptions):
 
-- tableClass (string)
-- theadClass (string)
-- tbodyClass (string)
-- id (string)
-- caption (string)
+```ts
+interface HtmlFormatterOptions {
+  tableClass?: string;
+  theadClass?: string;
+  tbodyClass?: string;
+  id?: string;
+  caption?: string;
+}
+```
 
 Example:
 
-```javascript
+```js
 import { toHtml } from "tablyful";
 const data = [
   { name: "Alice", age: 30 },
   { name: "Bob", age: 25 },
 ];
-const html = toHtml(data);
+// HTML options (HtmlFormatterOptions)
+const htmlOpts = { tableClass: "my-table", id: "table-1", caption: "Report" };
+const html = toHtml(data, htmlOpts);
 ```
 
 Outputs:
 
 ```html
-<table>
+<table class="my-table" id="table-1">
+  <caption>Report</caption>
   <thead>
     <tr>
       <th>name</th>
@@ -164,27 +194,40 @@ Converts your data to a LaTeX table string.
 
 **Options** (LatexFormatterOptions):
 
-- align (`left` | `center` | `right`, default: `left`)
-- borders (boolean, default: true)
-- boldHeaders (boolean, default: true)
-- includeHeader (boolean, default: true)
-- useTableEnvironment (boolean, default: true)
-- centering (boolean, default: true)
-- tableEnvironment (string, default: `"table"`)
-- columnSpec (string, custom column specification)
-- booktabs (boolean)
-- caption (string)
-- label (string)
+```ts
+interface LatexFormatterOptions {
+  align?: "left" | "center" | "right"; // default: "left"
+  borders?: boolean; // default: true
+  boldHeaders?: boolean; // default: true
+  includeHeader?: boolean; // default: true
+  useTableEnvironment?: boolean; // default: true
+  centering?: boolean; // default: true
+  tableEnvironment?: string; // default: "table"
+  columnSpec?: string; // custom column specification
+  booktabs?: boolean; // default: false
+  caption?: string;
+  label?: string;
+}
+```
 
 Example:
 
-```javascript
+```js
 import { toLatex } from "tablyful";
 const data = [
   { name: "Alice", age: 30 },
   { name: "Bob", age: 25 },
 ];
-const latex = toLatex(data);
+// LaTeX options (LatexFormatterOptions)
+const latexOpts = {
+  align: "center",
+  borders: true,
+  boldHeaders: true,
+  booktabs: false,
+  caption: "My table",
+  label: "tab:mytable",
+};
+const latex = toLatex(data, latexOpts);
 ```
 
 Outputs:

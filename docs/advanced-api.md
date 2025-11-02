@@ -163,37 +163,6 @@ tablyful.setOptions({
 const current = tablyful.getOptions();
 ```
 
-Format-specific options (examples)
-
-```ts
-// CSV options (CsvFormatterOptions)
-const csvOpts = {
-  delimiter: ",",
-  quote: '"',
-  escape: '"',
-  includeHeaders: true,
-};
-
-// JSON options (JsonFormatterOptions)
-const jsonOpts = { pretty: true, indentSize: 2, asArray: false };
-
-// Markdown options (MarkdownFormatterOptions)
-const mdOpts = { align: "center", padding: true, githubFlavor: false };
-
-// HTML options (HtmlFormatterOptions)
-const htmlOpts = { tableClass: "my-table", id: "table-1", caption: "Report" };
-
-// LaTeX options (LatexFormatterOptions)
-const latexOpts = {
-  align: "center",
-  borders: true,
-  boldHeaders: true,
-  booktabs: false,
-  caption: "My table",
-  label: "tab:mytable",
-};
-```
-
 ---
 
 ## Streaming API
