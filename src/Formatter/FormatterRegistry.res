@@ -55,17 +55,7 @@ let format = (name: string, data: TableData.t, options: Types.t): TablyfulError.
   }
 }
 
-// Check if formatter exists
-let exists = (name: string): bool => {
-  get(name)->Option.isSome
-}
-
 // Get all formatter names
 let getNames = (): array<string> => {
   all->Array.map(formatter => formatter.name)
-}
-
-// Get extension for format
-let getExtension = (name: string): option<string> => {
-  get(name)->Option.map(formatter => formatter.extension)
 }

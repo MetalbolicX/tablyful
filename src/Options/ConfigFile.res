@@ -20,12 +20,6 @@ external cwd: unit => string = "cwd"
 @module("node:os")
 external homedir: unit => string = "homedir"
 
-// Config file path type
-type configSource =
-  | CliArg(string)
-  | CurrentDirectory
-  | HomeDirectory
-
 // Load config file from path
 let loadFile = (path: string): Common.result<option<dict<JSON.t>>> => {
   try {
@@ -259,34 +253,3 @@ let load = (~path: option<string>=?, ()): Common.result<t> => {
   | Error(err) => Error(err)
   }
 }
-
-// Example config file content
-let exampleConfig: string = `{
-  "input": {
-    "hasHeaders": true,
-    "encoding": "utf8",
-    "delimiter": ","
-  },
-  "output": {
-    "defaultFormat": "csv",
-    "includeRowNumbers": false,
-    "rowNumberHeader": "#"
-  },
-  "csv": {
-    "delimiter": ",",
-    "quote": "\\\"",
-    "escape": "\\\\",
-    "lineBreak": "\\n",
-    "includeHeaders": true
-  },
-  "json": {
-    "pretty": true,
-    "indentSize": 2,
-    "asArray": false
-  },
-  "markdown": {
-    "align": "left",
-    "padding": true,
-    "githubFlavor": true
-  }
-}`

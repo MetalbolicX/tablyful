@@ -1,9 +1,8 @@
-/* TypeScript file generated from Types.res by genType. */
+/* TypeScript file generated from Types.resi by genType. */
 
 /* eslint-disable */
 /* tslint:disable */
 
-/** * Configuration options types */
 export type format = "Csv" | "Json" | "Markdown" | "Html" | "Latex";
 
 export type csvOptions = {

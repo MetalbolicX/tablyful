@@ -1,4 +1,4 @@
-/* TypeScript file generated from Tablyful.res by genType. */
+/* TypeScript file generated from Tablyful.resi by genType. */
 
 /* eslint-disable */
 /* tslint:disable */
@@ -11,8 +11,6 @@ import type {t as TablyfulError_t} from '../src/Core/TablyfulError.gen';
 
 import type {t as Types_t} from '../src/Options/Types.gen';
 
-/** * Main Tablyful API
- * Provides high-level functions for converting data between formats */
 export type result<a> = 
     { TAG: "Ok"; _0: a }
   | { TAG: "Error"; _0: TablyfulError_t };
@@ -21,7 +19,7 @@ export type tableData = TableData_t;
 
 export type options = Types_t;
 
-export const defaultOptions: Types_t = TablyfulJS.defaultOptions as any;
+export const defaultOptions: options = TablyfulJS.defaultOptions as any;
 
 export const convert: (input:unknown, format:string, options:(undefined | options)) => result<string> = TablyfulJS.convert as any;
 
@@ -43,4 +41,4 @@ export const availableParsers: () => string[] = TablyfulJS.availableParsers as a
 
 export const availableFormatters: () => string[] = TablyfulJS.availableFormatters as any;
 
-export const detectFormat: (input:unknown) => string = TablyfulJS.detectFormat as any;
+export const detectFormat: (_1:unknown) => string = TablyfulJS.detectFormat as any;

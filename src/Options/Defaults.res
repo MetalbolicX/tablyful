@@ -54,32 +54,6 @@ let t: t = {
   formatOptions: CsvOptions(defaultCsvOptions),
 }
 
-// Merge options with overrides
-let merge = (base: t, overrides: t): t => {
-  {
-    headers: overrides.headers->Option.orElse(base.headers),
-    hasHeaders: overrides.hasHeaders,
-    rowNumberHeader: overrides.rowNumberHeader,
-    hasRowNumbers: overrides.hasRowNumbers,
-    batchSize: overrides.batchSize,
-    encoding: overrides.encoding,
-    outputFormat: overrides.outputFormat,
-    formatOptions: overrides.formatOptions,
-  }
-}
-
-// Create options with specific format
-let withFormat = (base: t, format: format): t => {
-  let formatOptions = switch format {
-  | Csv => CsvOptions(defaultCsvOptions)
-  | Json => JsonOptions(defaultJsonOptions)
-  | Markdown => MarkdownOptions(defaultMarkdownOptions)
-  | Html => HtmlOptions(defaultHtmlOptions)
-  | Latex => LatexOptions(defaultLatexOptions)
-  }
-  {...base, outputFormat: format, formatOptions}
-}
-
 // Get CSV options from format options
 let getCsvOptions = (opts: t): csvOptions => {
   switch opts.formatOptions {

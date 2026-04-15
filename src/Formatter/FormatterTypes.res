@@ -15,10 +15,3 @@ module type S = {
   // Format table data to string
   let format: (TableData.t, t) => TablyfulError.result<string>
 }
-
-// Formatter registry entry
-type formatterEntry = {
-  name: string,
-  extension: string,
-  format: (TableData.t, t) => TablyfulError.result<string>,
-}

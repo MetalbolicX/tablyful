@@ -84,11 +84,6 @@ let detect = (json: JSON.t): option<parserEntry> => {
   all->Array.find(parser => parser.canParse(json))
 }
 
-// Get parser by name
-let getByName = (name: string): option<parserEntry> => {
-  all->Array.find(parser => parser.name === name)
-}
-
 // Parse with auto-detection
 let parse = (json: JSON.t, options: Types.t): TablyfulError.result<TableData.t> => {
   switch detect(json) {
@@ -97,21 +92,6 @@ let parse = (json: JSON.t, options: Types.t): TablyfulError.result<TableData.t> 
     TablyfulError.parseError(
       "No suitable parser found for the provided data format. Supported formats: arrays of arrays, arrays of objects, objects of arrays, and objects of objects.",
     )->TablyfulError.toResult
-  }
-}
-
-// Parse with specific parser
-let parseWith = (name: string, json: JSON.t, options: Types.t): TablyfulError.result<
-  TableData.t,
-> => {
-  switch getByName(name) {
-  | Some(parser) => parser.parse(json, options)
-  | None =>
-    TablyfulError.parseError(`Unknown parser: ${name}`)
-    ->TablyfulError.withSuggestion(
-      `Available parsers: ${all->Array.map(p => p.name)->Array.join(", ")}`,
-    )
-    ->TablyfulError.toResult
   }
 }
 

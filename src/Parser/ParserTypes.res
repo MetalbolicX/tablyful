@@ -18,10 +18,3 @@ module type S = {
   // Parse input data into table format
   let parse: (input, t) => TablyfulError.result<TableData.t>
 }
-
-// Parser registry entry
-type parserEntry = {
-  name: string,
-  canParse: JSON.t => bool,
-  parse: (JSON.t, t) => TablyfulError.result<TableData.t>,
-}
