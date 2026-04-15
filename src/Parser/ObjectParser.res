@@ -26,12 +26,7 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
   } else {
     // Collect all unique keys from all objects
     let headerSet = data->Array.reduce(Belt.Set.String.empty, (acc, obj) => {
-      obj
-      ->Dict.keysToArray
-      ->Array.forEach(key => {
-        acc->Belt.Set.String.add(key)->ignore
-      })
-      acc
+      obj->Dict.keysToArray->Array.reduce(acc, (acc, key) => acc->Belt.Set.String.add(key))
     })
 
     let headers = headerSet->Belt.Set.String.toArray

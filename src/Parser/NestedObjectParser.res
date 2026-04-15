@@ -40,18 +40,11 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
   } else {
     // Collect all column names from all inner objects
     let columnSet = rowIds->Array.reduce(Belt.Set.String.empty, (acc, rowId) => {
-      data
-      ->Dict.get(rowId)
-      ->Option.forEach(innerObj => {
-        innerObj
-        ->Dict.keysToArray
-        ->Array.forEach(
-          key => {
-            acc->Belt.Set.String.add(key)->ignore
-          },
-        )
-      })
-      acc
+      switch data->Dict.get(rowId) {
+      | Some(innerObj) =>
+        innerObj->Dict.keysToArray->Array.reduce(acc, (acc, key) => acc->Belt.Set.String.add(key))
+      | None => acc
+      }
     })
 
     let columns = columnSet->Belt.Set.String.toArray

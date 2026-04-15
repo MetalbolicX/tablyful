@@ -44,18 +44,6 @@ let make = (
   }
 }
 
-let empty = (): t => {
-  headers: [],
-  rows: [],
-  columns: [],
-  metadata: {
-    rowCount: 0,
-    columnCount: 0,
-    hasRowNumbers: false,
-    sourceFormat: "empty",
-  },
-}
-
 let isEmpty = (table: t): bool => table.rows->Array.length === 0
 
 let addRowNumbers = (table: t, ~header="#", ()): t => {

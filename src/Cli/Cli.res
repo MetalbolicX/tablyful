@@ -13,20 +13,24 @@ let writeStderr = (text: string): unit => {
 
 let showHelp = (): unit => {
   writeStdout(`
-    Usage: tablyful [options] [file]
-    Convert tabular data between formats.
-    Options:
-    -f, --format <format>   Output format (csv|json|markdown|html|latex)
-    -i, --input <format>    Input format (json)
-    -c, --config <path>     Path to config JSON file
-    -d, --delimiter <char>  CSV delimiter override
-        --no-headers        Omit CSV headers in output
-    -h, --help              Show this help message
-    -v, --version           Show version
-    Input is read from [file] when provided, otherwise from stdin when piped.
-    Examples:
-    cat data.json | tablyful --input json --format csv
-    cat data.json | tablyful --format csv --delimiter ';' --config conf.json`
+Usage: tablyful [options] [file]
+Convert tabular data between formats.
+
+Options:
+  -f, --format <format>   Output format (csv|json|markdown|html|latex)
+  -i, --input <format>    Input format (array-of-arrays|array-of-objects|object-of-arrays|object-of-objects)
+  -c, --config <path>     Path to config JSON file
+  -d, --delimiter <char>  CSV delimiter override
+      --no-headers        Omit CSV headers in output
+  -h, --help              Show this help message
+  -v, --version           Show version
+
+Input is read from [file] when provided, otherwise from stdin when piped.
+
+Examples:
+  cat data.json | tablyful --input array-of-objects --format csv
+  cat data.json | tablyful --format csv --delimiter ';' --config conf.json
+`
   )
 }
 
@@ -138,44 +142,34 @@ let overrideWithCliFlags = (options: t, flags: cliFlags): Common.result<t> => {
 }
 
 let runConversion = (inputText: string, flags: cliFlags): unit => {
-  switch flags.inputArg {
-  | Some(inputFormat) if inputFormat->String.toLowerCase !== "json" =>
-    printError(
-      TablyfulError.validationError(
-        `Invalid input format: ${inputFormat}. Only json is currently supported.`,
-      ),
-    )
-    Bindings.Process.exit(2)
-  | _ =>
-    switch parseJsonInput(inputText) {
+  switch parseJsonInput(inputText) {
+  | Error(error) =>
+    printError(error)
+    Bindings.Process.exit(1)
+  | Ok(jsonInput) =>
+    switch mergeConfig(~configPath=flags.configPath) {
     | Error(error) =>
       printError(error)
-      Bindings.Process.exit(1)
-    | Ok(jsonInput) =>
-      switch mergeConfig(~configPath=flags.configPath) {
+      Bindings.Process.exit(2)
+    | Ok(configOptions) =>
+      switch overrideWithCliFlags(configOptions, flags) {
       | Error(error) =>
         printError(error)
         Bindings.Process.exit(2)
-      | Ok(configOptions) =>
-        switch overrideWithCliFlags(configOptions, flags) {
+      | Ok(options) =>
+        switch ParserRegistry.parse(~format=?flags.inputArg, jsonInput, options) {
         | Error(error) =>
           printError(error)
-          Bindings.Process.exit(2)
-        | Ok(options) =>
-          switch ParserRegistry.parse(jsonInput, options) {
+          Bindings.Process.exit(1)
+        | Ok(tableData) =>
+          let formatName = options.outputFormat->Types.formatToString
+          switch FormatterRegistry.format(formatName, tableData, options) {
           | Error(error) =>
             printError(error)
             Bindings.Process.exit(1)
-          | Ok(tableData) =>
-            let formatName = options.outputFormat->Types.formatToString
-            switch FormatterRegistry.format(formatName, tableData, options) {
-            | Error(error) =>
-              printError(error)
-              Bindings.Process.exit(1)
-            | Ok(output) =>
-              writeStdout(output ++ "\n")
-              Bindings.Process.exit(0)
-            }
+          | Ok(output) =>
+            writeStdout(output ++ "\n")
+            Bindings.Process.exit(0)
           }
         }
       }

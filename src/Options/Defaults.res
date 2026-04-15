@@ -48,8 +48,6 @@ let t: t = {
   hasHeaders: true,
   rowNumberHeader: "#",
   hasRowNumbers: false,
-  batchSize: 1000,
-  encoding: "utf8",
   outputFormat: Csv,
   formatOptions: CsvOptions(defaultCsvOptions),
 }

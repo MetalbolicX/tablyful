@@ -31,7 +31,7 @@ module Make = (
         let metadata: TableData.metadata = {
           rowCount: rows->Array.length,
           columnCount: headers->Array.length,
-          hasRowNumbers: options.hasRowNumbers,
+          hasRowNumbers: false,
           sourceFormat: Config.name,
         }
 

@@ -55,8 +55,6 @@ export type t = {
   readonly hasHeaders: boolean; 
   readonly rowNumberHeader: string; 
   readonly hasRowNumbers: boolean; 
-  readonly batchSize: number; 
-  readonly encoding: string; 
   readonly outputFormat: format; 
   readonly formatOptions: formatOptions
 };

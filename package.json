@@ -24,7 +24,10 @@
     "res:dev": "rescript watch",
     "res:clean": "rescript clean",
     "res:test": "retest \"./test/res/**/*.res.mjs\"",
-    "bundle": "rolldown -c"
+    "test:cli": "node --test test/cli.test.mjs",
+    "test": "pnpm res:test && pnpm test:cli",
+    "bundle": "rolldown -c",
+    "build": "pnpm res:build && pnpm bundle"
   },
   "author": {
     "name": "José Martínez Santana"

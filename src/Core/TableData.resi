@@ -30,7 +30,6 @@ let make: (
   ~columns: array<column>,
   ~metadata: metadata,
 ) => Common.result<t>
-let empty: unit => t
 let isEmpty: t => bool
 let addRowNumbers: (t, ~header: string=?, unit) => t
 let applyHeaders: (t, array<string>) => Common.result<t>

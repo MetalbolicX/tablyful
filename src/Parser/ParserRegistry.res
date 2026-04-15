@@ -84,10 +84,19 @@ let detect = (json: JSON.t): option<parserEntry> => {
   all->Array.find(parser => parser.canParse(json))
 }
 
-// Parse with auto-detection
-let parse = (json: JSON.t, options: Types.t): TablyfulError.result<TableData.t> => {
-  switch detect(json) {
-  | Some(parser) => parser.parse(json, options)
+// Get parser by name
+let getByName = (name: string): option<parserEntry> => {
+  all->Array.find(parser => parser.name === name->String.toLowerCase)
+}
+
+// Parse with optional format override (auto-detects when no format given)
+let parse = (~format=?, json: JSON.t, options: Types.t): TablyfulError.result<TableData.t> => {
+  let parser = switch format {
+  | Some(name) => getByName(name)
+  | None => detect(json)
+  }
+  switch parser {
+  | Some(p) => p.parse(json, options)
   | None =>
     TablyfulError.parseError(
       "No suitable parser found for the provided data format. Supported formats: arrays of arrays, arrays of objects, objects of arrays, and objects of objects.",

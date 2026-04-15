@@ -76,9 +76,6 @@ type t = {
   hasHeaders: bool,
   rowNumberHeader: string,
   hasRowNumbers: bool,
-  // Processing
-  batchSize: int,
-  encoding: string,
   // Output
   outputFormat: format,
   formatOptions: formatOptions,

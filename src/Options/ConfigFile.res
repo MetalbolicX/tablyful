@@ -109,6 +109,78 @@ let parseMarkdownOptions = (dict: dict<JSON.t>): markdownOptions => {
   }
 }
 
+// Parse HTML options from JSON
+let parseHtmlOptions = (dict: dict<JSON.t>): htmlOptions => {
+  let getString = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.string)
+    ->Option.getOr(default)
+
+  {
+    tableClass: getString("tableClass", defaultHtmlOptions.tableClass),
+    theadClass: getString("theadClass", defaultHtmlOptions.theadClass),
+    tbodyClass: getString("tbodyClass", defaultHtmlOptions.tbodyClass),
+    id: getString("id", defaultHtmlOptions.id),
+    caption: getString("caption", defaultHtmlOptions.caption),
+  }
+}
+
+// Parse LaTeX options from JSON
+let parseLatexOptions = (dict: dict<JSON.t>): latexOptions => {
+  let getString = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.string)
+    ->Option.getOr(default)
+
+  let getBool = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.bool)
+    ->Option.getOr(default)
+
+  {
+    tableEnvironment: getString("tableEnvironment", defaultLatexOptions.tableEnvironment),
+    columnSpec: getString("columnSpec", defaultLatexOptions.columnSpec),
+    booktabs: getBool("booktabs", defaultLatexOptions.booktabs),
+    caption: getString("caption", defaultLatexOptions.caption),
+    label: getString("label", defaultLatexOptions.label),
+    centering: getBool("centering", defaultLatexOptions.centering),
+    useTableEnvironment: getBool("useTableEnvironment", defaultLatexOptions.useTableEnvironment),
+  }
+}
+
+// Recursively merge two dicts (override values win; sub-objects merge recursively)
+let rec mergeDicts = (base: dict<JSON.t>, override: dict<JSON.t>): dict<JSON.t> => {
+  let merged = Dict.make()
+
+  base
+  ->Dict.keysToArray
+  ->Array.forEach(key => {
+    base->Dict.get(key)->Option.forEach(value => merged->Dict.set(key, value))
+  })
+
+  override
+  ->Dict.keysToArray
+  ->Array.forEach(key => {
+    switch (base->Dict.get(key), override->Dict.get(key)) {
+    | (Some(baseJson), Some(overJson)) =>
+      switch (JSON.Decode.object(baseJson), JSON.Decode.object(overJson)) {
+      | (Some(baseObj), Some(overObj)) =>
+        merged->Dict.set(key, mergeDicts(baseObj, overObj)->JSON.Encode.object)
+      | _ =>
+        merged->Dict.set(key, overJson)
+      }
+    | (_, Some(overJson)) =>
+      merged->Dict.set(key, overJson)
+    | _ => ()
+    }
+  })
+
+  merged
+}
+
 // Parse options from config dict
 let parseOptions = (dict: dict<JSON.t>): t => {
   let getBool = (key, default) =>
@@ -128,13 +200,6 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get(key)
     ->Option.flatMap(JSON.Decode.array)
     ->Option.map(arr => arr->Belt.Array.keepMap(JSON.Decode.string))
-
-  let getInt = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.float)
-    ->Option.map(Float.toInt)
-    ->Option.getOr(default)
 
   // Determine output format
   let format =
@@ -166,7 +231,20 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Option.map(parseMarkdownOptions)
     ->Option.map(md => MarkdownOptions(md))
     ->Option.getOr(MarkdownOptions(defaultMarkdownOptions))
-  | _ => CsvOptions(defaultCsvOptions)
+  | Html =>
+    dict
+    ->Dict.get("html")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.map(parseHtmlOptions)
+    ->Option.map(html => HtmlOptions(html))
+    ->Option.getOr(HtmlOptions(defaultHtmlOptions))
+  | Latex =>
+    dict
+    ->Dict.get("latex")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.map(parseLatexOptions)
+    ->Option.map(latex => LatexOptions(latex))
+    ->Option.getOr(LatexOptions(defaultLatexOptions))
   }
 
   {
@@ -174,8 +252,6 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     hasHeaders: getBool("hasHeaders", defaultCsvOptions.includeHeaders),
     rowNumberHeader: getString("rowNumberHeader", t.rowNumberHeader),
     hasRowNumbers: getBool("includeRowNumbers", t.hasRowNumbers),
-    batchSize: getInt("batchSize", t.batchSize),
-    encoding: getString("encoding", t.encoding),
     outputFormat: format,
     formatOptions,
   }
@@ -203,32 +279,9 @@ let load = (~path=?, ()): Common.result<t> => {
       switch loadFile(path) {
       | Ok(None) => loadConfigs(paths->Array.slice(~start=1), acc)
       | Ok(Some(config)) =>
-        // Merge with accumulated config (later files override earlier)
         let merged = switch acc {
         | None => config
-        | Some(existing) => {
-            // Simple merge: new values override old
-            let merged = Dict.make()
-            existing
-            ->Dict.keysToArray
-            ->Array.forEach(key => {
-              existing
-              ->Dict.get(key)
-              ->Option.forEach(value => {
-                merged->Dict.set(key, value)
-              })
-            })
-            config
-            ->Dict.keysToArray
-            ->Array.forEach(key => {
-              config
-              ->Dict.get(key)
-              ->Option.forEach(value => {
-                merged->Dict.set(key, value)
-              })
-            })
-            merged
-          }
+        | Some(existing) => mergeDicts(existing, config)
         }
         loadConfigs(paths->Array.slice(~start=1), Some(merged))
       | Error(err) => Error(err)
