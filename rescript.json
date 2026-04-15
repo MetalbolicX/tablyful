@@ -13,5 +13,10 @@
     "rescript-test"
   ],
   "dependencies": [],
-  "compiler-flags": []
+  "compiler-flags": [],
+  "gentypeconfig": {
+    "language": "typescript",
+    "module": "es6",
+    "shims": []
+  }
 }
