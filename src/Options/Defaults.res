@@ -1,0 +1,121 @@
+/**
+ * Default options and option merging
+ */
+open Types
+
+// Default format options
+let defaultCsvOptions: csvOptions = {
+  delimiter: ",",
+  quote: "\"",
+  escape: "\\",
+  lineBreak: "\\n",
+  includeHeaders: true,
+}
+
+let defaultJsonOptions: jsonOptions = {
+  pretty: true,
+  indentSize: 2,
+  asArray: false,
+}
+
+let defaultMarkdownOptions: markdownOptions = {
+  align: "left",
+  padding: true,
+  githubFlavor: true,
+}
+
+let defaultHtmlOptions: htmlOptions = {
+  tableClass: "tablyful-table",
+  theadClass: "",
+  tbodyClass: "",
+  id: "",
+  caption: "",
+}
+
+let defaultLatexOptions: latexOptions = {
+  tableEnvironment: "tabular",
+  columnSpec: "",
+  booktabs: true,
+  caption: "",
+  label: "",
+  centering: true,
+  useTableEnvironment: false,
+}
+
+// Main default options
+let t: t = {
+  headers: None,
+  hasHeaders: true,
+  rowNumberHeader: "#",
+  hasRowNumbers: false,
+  batchSize: 1000,
+  encoding: "utf8",
+  outputFormat: Csv,
+  formatOptions: CsvOptions(defaultCsvOptions),
+}
+
+// Merge options with overrides
+let merge = (base: t, overrides: t): t => {
+  {
+    headers: overrides.headers->Option.orElse(base.headers),
+    hasHeaders: overrides.hasHeaders,
+    rowNumberHeader: overrides.rowNumberHeader,
+    hasRowNumbers: overrides.hasRowNumbers,
+    batchSize: overrides.batchSize,
+    encoding: overrides.encoding,
+    outputFormat: overrides.outputFormat,
+    formatOptions: overrides.formatOptions,
+  }
+}
+
+// Create options with specific format
+let withFormat = (base: t, format: format): t => {
+  let formatOptions = switch format {
+  | Csv => CsvOptions(defaultCsvOptions)
+  | Json => JsonOptions(defaultJsonOptions)
+  | Markdown => MarkdownOptions(defaultMarkdownOptions)
+  | Html => HtmlOptions(defaultHtmlOptions)
+  | Latex => LatexOptions(defaultLatexOptions)
+  }
+  {...base, outputFormat: format, formatOptions}
+}
+
+// Get CSV options from format options
+let getCsvOptions = (opts: t): csvOptions => {
+  switch opts.formatOptions {
+  | CsvOptions(csv) => csv
+  | _ => defaultCsvOptions
+  }
+}
+
+// Get JSON options from format options
+let getJsonOptions = (opts: t): jsonOptions => {
+  switch opts.formatOptions {
+  | JsonOptions(json) => json
+  | _ => defaultJsonOptions
+  }
+}
+
+// Get Markdown options from format options
+let getMarkdownOptions = (opts: t): markdownOptions => {
+  switch opts.formatOptions {
+  | MarkdownOptions(md) => md
+  | _ => defaultMarkdownOptions
+  }
+}
+
+// Get HTML options from format options
+let getHtmlOptions = (opts: t): htmlOptions => {
+  switch opts.formatOptions {
+  | HtmlOptions(html) => html
+  | _ => defaultHtmlOptions
+  }
+}
+
+// Get LaTeX options from format options
+let getLatexOptions = (opts: t): latexOptions => {
+  switch opts.formatOptions {
+  | LatexOptions(latex) => latex
+  | _ => defaultLatexOptions
+  }
+}

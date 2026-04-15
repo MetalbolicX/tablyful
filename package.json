@@ -1,28 +1,30 @@
 {
   "name": "tablyful",
-  "version": "0.1.0",
-  "description": "Convert your data to a common table format",
+  "version": "1.0.0",
+  "description": "Convert data between table formats - ReScript v12 edition",
   "module": "dist/index.mjs",
   "types": "dist/index.d.mts",
   "main": "dist/index.mjs",
   "exports": {
-    "imports": {
+    ".": {
       "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
+      "import": "./dist/index.mjs"
     },
-    "require": {
-      "types": "./dist/index.d.cts",
-      "default": "./dist/index.cjs"
+    "./cli": {
+      "import": "./dist/cli.mjs"
     }
   },
   "type": "module",
+  "bin": {
+    "tablyful": "./dist/cli.mjs"
+  },
   "scripts": {
-    "docs": "docsify serve docs",
-    "start": "echo \"Hello world\"",
-    "build": "tsdown",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "node --experimental-vm-modules node_modules/jest/bin/jest.js --watch",
-    "test:coverage": "node --experimental-vm-modules node_modules/jest/bin/jest.js --coverage"
+    "build": "rescript build",
+    "build:watch": "rescript watch",
+    "clean": "rescript clean",
+    "test": "retest \"./test/res/**/*.res.mjs\"",
+    "test:watch": "retest \"./test/res/**/*.res.mjs\" --watch",
+    "cli": "node ./src/Cli/Main.res.mjs"
   },
   "author": {
     "name": "José Martínez Santana"
@@ -35,16 +37,14 @@
     "url": "https://github.com/MetalbolicX/tablyful/issues"
   },
   "files": [
-    "dist"
+    "dist",
+    "src/**/*.res.mjs",
+    "src/**/*.res"
   ],
   "license": "MIT",
   "devDependencies": {
-    "@types/jest": "^30.0.0",
-    "@types/node": "^24.9.1",
-    "jest": "^30.2.0",
-    "ts-jest": "^29.4.5",
-    "tsdown": "^0.15.10",
-    "typescript": "^5.9.3"
+    "@types/node": "^25.6.0",
+    "rescript-test": "^8.0.0"
   },
   "packageManager": "pnpm@10.19.0+sha512.c9fc7236e92adf5c8af42fd5bf1612df99c2ceb62f27047032f4720b33f8eacdde311865e91c411f2774f618d82f320808ecb51718bfa82c060c4ba7c76a32b8",
   "keywords": [
@@ -52,9 +52,19 @@
     "data",
     "tabular",
     "format",
-    "convert"
+    "convert",
+    "csv",
+    "json",
+    "markdown",
+    "html",
+    "latex",
+    "rescript"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@rescript/runtime": "^12.2.0",
+    "rescript": "^12.2.0"
   }
 }

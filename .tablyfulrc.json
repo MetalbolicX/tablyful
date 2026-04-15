@@ -1,0 +1,44 @@
+{
+  "input": {
+    "hasHeaders": true,
+    "encoding": "utf8"
+  },
+  "output": {
+    "defaultFormat": "csv",
+    "includeRowNumbers": false,
+    "rowNumberHeader": "#"
+  },
+  "csv": {
+    "delimiter": ",",
+    "quote": "\"",
+    "escape": "\\",
+    "lineBreak": "\n",
+    "includeHeaders": true
+  },
+  "json": {
+    "pretty": true,
+    "indentSize": 2,
+    "asArray": false
+  },
+  "markdown": {
+    "align": "left",
+    "padding": true,
+    "githubFlavor": true
+  },
+  "html": {
+    "tableClass": "tablyful-table",
+    "theadClass": "",
+    "tbodyClass": "",
+    "id": "",
+    "caption": ""
+  },
+  "latex": {
+    "tableEnvironment": "tabular",
+    "columnSpec": "",
+    "booktabs": true,
+    "caption": "",
+    "label": "",
+    "centering": true,
+    "useTableEnvironment": false
+  }
+}

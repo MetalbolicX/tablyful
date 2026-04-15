@@ -1,0 +1,100 @@
+/**
+ * HTML Formatter
+ * Converts table data to HTML table format
+ */
+open Types
+
+// Escape HTML special characters
+let escapeHtml = (str: string): string => {
+  str
+  ->String.replaceAll("&", "&amp;")
+  ->String.replaceAll("<", "&lt;")
+  ->String.replaceAll(">", "&gt;")
+  ->String.replaceAll("\"", "&quot;")
+}
+
+// Convert JSON value to string
+let jsonToString = (json: JSON.t): string => {
+  if json === JSON.Encode.null {
+    ""
+  } else {
+    switch JSON.Decode.string(json) {
+    | Some(str) => str->escapeHtml
+    | None =>
+      switch JSON.Decode.float(json) {
+      | Some(n) => n->Float.toString
+      | None =>
+        switch JSON.Decode.bool(json) {
+        | Some(b) => b->Bool.toString
+        | None => JSON.stringify(json)->escapeHtml
+        }
+      }
+    }
+  }
+}
+
+// Format implementation
+let formatImpl = (data: TableData.t, options: t): string => {
+  let opts = Defaults.getHtmlOptions(options)
+
+  let lines = []
+
+  // Table tag with classes
+  let tableAttrs = switch opts.tableClass {
+  | "" => "<table>"
+  | cls => `<table class="${cls}">`
+  }
+  if opts.id !== "" {
+    lines->Array.push(`<table id="${opts.id}" class="${opts.tableClass}">`)
+  } else {
+    lines->Array.push(tableAttrs)
+  }
+
+  // Caption if provided
+  if opts.caption !== "" {
+    lines->Array.push(`  <caption>${opts.caption->escapeHtml}</caption>`)
+  }
+
+  // Table header
+  let theadAttrs = switch opts.theadClass {
+  | "" => "  <thead>"
+  | cls => `  <thead class="${cls}">`
+  }
+  lines->Array.push(theadAttrs)
+  lines->Array.push("    <tr>")
+
+  data.headers->Array.forEach(header => {
+    lines->Array.push(`      <th>${header->escapeHtml}</th>`)
+  })
+
+  lines->Array.push("    </tr>")
+  lines->Array.push("  </thead>")
+
+  // Table body
+  let tbodyAttrs = switch opts.tbodyClass {
+  | "" => "  <tbody>"
+  | cls => `  <tbody class="${cls}">`
+  }
+  lines->Array.push(tbodyAttrs)
+
+  data.rows->Array.forEach(row => {
+    lines->Array.push("    <tr>")
+    data.headers->Array.forEach(header => {
+      let value = row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToString
+      lines->Array.push(`      <td>${value}</td>`)
+    })
+    lines->Array.push("    </tr>")
+  })
+
+  lines->Array.push("  </tbody>")
+  lines->Array.push("</table>")
+
+  lines->Array.join("\\n")
+}
+
+// Create formatter using functor
+include FormatterMake.Make({
+  let name = "html"
+  let extension = ".html"
+  let formatImpl = formatImpl
+})
