@@ -2,20 +2,42 @@
 import { defineConfig } from "rolldown";
 import { join } from "node:path";
 import { minify } from "rollup-plugin-esbuild";
+import pkg from "./package.json" with { type: "json" };
 
 const dirname = import.meta.dirname ?? ".";
 
-export default defineConfig({
-  input: join(dirname, "src", "Tablyful.res.mjs"),
-  output: {
-    format: "es",
-    file: join(dirname, "dist", "main.mjs"),
-    banner: "#!/usr/bin/env node",
-  },
+const shared = {
   platform: "node",
   plugins: [minify()],
   external: [
     /^node:.*/, // all node: built-ins (node:fs, node:url, etc.)
     /^@rescript\/runtime$/, // ReScript runtime
   ],
-});
+  transform: {
+    define: {
+      __VERSION__: JSON.stringify(pkg.version),
+    },
+  },
+};
+
+export default defineConfig([
+  {
+    ...shared,
+    input: join(dirname, "src", "Tablyful.res.mjs"),
+    output: {
+      format: "es",
+      file: join(dirname, "dist", "main.mjs"),
+    },
+  },
+  {
+    ...shared,
+    input: join(dirname, "src", "Cli", "CliMain.res.mjs"),
+    output: {
+      format: "es",
+      file: join(dirname, "dist", "cli.mjs"),
+      banner: "#!/usr/bin/env node",
+      footer: "\nmain();",
+    },
+    plugins: [],
+  },
+]);

@@ -3,20 +3,20 @@
  * Provides contextual information about where errors occur
  */
 type t = {
-  row: option<int>,
-  column: option<int>,
+  row?: int,
+  column?: int,
   path: array<string>,
 }
 
 let make = (~row=?, ~column=?, ~path=[], ()) => {
-  row,
-  column,
+  ?row,
+  ?column,
   path,
 }
 
-let atRow = (pos, row) => {...pos, row: Some(row)}
+let atRow = (pos, row) => {...pos, row}
 
-let atColumn = (pos, column) => {...pos, column: Some(column)}
+let atColumn = (pos, column) => {...pos, column}
 
 let addPath = (pos, segment) => {...pos, path: pos.path->Array.concat([segment])}
 

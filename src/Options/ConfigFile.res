@@ -5,26 +5,11 @@
 open Types
 open Defaults
 
-@module("node:fs")
-external existsSync: string => bool = "existsSync"
-
-@module("node:fs")
-external readFileSyncUtf8: (string, {"encoding": string}) => string = "readFileSync"
-
-@module("node:path")
-external joinPath: array<string> => string = "join"
-
-@module("node:process") @val
-external cwd: unit => string = "cwd"
-
-@module("node:os")
-external homedir: unit => string = "homedir"
-
 // Load config file from path
 let loadFile = (path: string): Common.result<option<dict<JSON.t>>> => {
   try {
-    if existsSync(path) {
-      let content = readFileSyncUtf8(path, {"encoding": "utf8"})
+    if Bindings.Fs.existsSync(path) {
+      let content = Bindings.Fs.readFileSyncUtf8(path)
       switch Common.parseJson(content) {
       | Ok(json) =>
         switch JSON.Decode.object(json) {
@@ -197,11 +182,15 @@ let parseOptions = (dict: dict<JSON.t>): t => {
 }
 
 // Load configuration with cascading
-let load = (~path: option<string>=?, ()): Common.result<t> => {
+let load = (~path=?, ()): Common.result<t> => {
   // Load order: specified path -> ./.tablyfulrc.json -> ~/.tablyfulrc.json
   let paths = switch path {
   | Some(p) => [p]
-  | None => [joinPath([cwd(), ".tablyfulrc.json"]), joinPath([homedir(), ".tablyfulrc.json"])]
+  | None =>
+    [
+      Bindings.Path.join([Bindings.Process.cwd(), ".tablyfulrc.json"]),
+      Bindings.Path.join([Bindings.Os.homedir(), ".tablyfulrc.json"]),
+    ]
   }
 
   // Try to load config files in order

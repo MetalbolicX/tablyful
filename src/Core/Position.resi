@@ -1,7 +1,7 @@
 @genType
 type t = {
-  row: option<int>,
-  column: option<int>,
+  row?: int,
+  column?: int,
   path: array<string>,
 }
 

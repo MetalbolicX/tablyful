@@ -4,7 +4,7 @@
 /* tslint:disable */
 
 export type t = {
-  readonly row: (undefined | number); 
-  readonly column: (undefined | number); 
+  readonly row?: number; 
+  readonly column?: number; 
   readonly path: string[]
 };

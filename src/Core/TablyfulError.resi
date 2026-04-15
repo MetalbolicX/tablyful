@@ -12,9 +12,9 @@ type t = {
   category: category,
   message: string,
   position: Position.t,
-  suggestion: option<string>,
-  cause: option<string>,
-  code: option<string>,
+  suggestion?: string,
+  cause?: string,
+  code?: string,
 }
 
 type result<'a> = result<'a, t>

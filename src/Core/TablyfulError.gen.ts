@@ -17,7 +17,7 @@ export type t = {
   readonly category: category; 
   readonly message: string; 
   readonly position: Position_t; 
-  readonly suggestion: (undefined | string); 
-  readonly cause: (undefined | string); 
-  readonly code: (undefined | string)
+  readonly suggestion?: string; 
+  readonly cause?: string; 
+  readonly code?: string
 };

@@ -14,9 +14,9 @@ type t = {
   category: category,
   message: string,
   position: Position.t,
-  suggestion: option<string>,
-  cause: option<string>,
-  code: option<string>,
+  suggestion?: string,
+  cause?: string,
+  code?: string,
 }
 
 // Smart constructors
@@ -24,17 +24,18 @@ let make = (
   ~category: category,
   ~message: string,
   ~position: Position.t=Position.make(),
-  ~suggestion: option<string>=?,
-  ~cause: option<string>=?,
-  ~code: option<string>=?,
+  ~suggestion=?,
+  ~cause=?,
+  ~code=?,
+
   (),
 ) => {
   category,
   message,
   position,
-  suggestion,
-  cause,
-  code,
+  ?suggestion,
+  ?cause,
+  ?code,
 }
 
 let parseError = (~row=?, ~column=?, ~path=[], message) =>
@@ -59,11 +60,11 @@ let atColumn = (error, column) => {...error, position: error.position->Position.
 
 let atPath = (error, path) => {...error, position: error.position->Position.addPath(path)}
 
-let withSuggestion = (error, suggestion) => {...error, suggestion: Some(suggestion)}
+let withSuggestion = (error, suggestion) => {...error, suggestion}
 
-let withCause = (error, cause) => {...error, cause: Some(cause)}
+let withCause = (error, cause) => {...error, cause}
 
-let withCode = (error, code) => {...error, code: Some(code)}
+let withCode = (error, code) => {...error, code}
 
 // Category to string
 let categoryToString = (cat: category): string => {
