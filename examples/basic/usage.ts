@@ -3,7 +3,8 @@
  * Demonstrates converting various data formats to CSV
  */
 
-import { toCsv, Tablyful, createTablyful } from "../../dist/index.mjs";
+// import { toCsv, Tablyful, createTablyful } from "../../dist/index.mjs";
+import { toCsv } from "../../dist/main.mjs";
 
 // Example 1: Array of arrays (simple table data)
 const arrayData = [
@@ -50,47 +51,47 @@ console.log("=== Example 4: Object of Objects (Nested) ===");
 console.log(toCsv(nestedData));
 console.log();
 
-// Example 5: Using the Tablyful class with options
-const tablyful = createTablyful({
-  hasRowNumbers: true,
-  rowNumberHeader: "ID",
-});
+// // Example 5: Using the Tablyful class with options
+// const tablyful = createTablyful({
+//   hasRowNumbers: true,
+//   rowNumberHeader: "ID",
+// });
 
-console.log("=== Example 5: With Row Numbers ===");
-console.log(tablyful.toCsv(objectData));
-console.log();
+// console.log("=== Example 5: With Row Numbers ===");
+// console.log(tablyful.toCsv(objectData));
+// console.log();
 
-// Example 6: Custom headers
-const tablyfulWithHeaders = new Tablyful({
-  headers: ["Full Name", "Years", "Location"],
-});
+// // Example 6: Custom headers
+// const tablyfulWithHeaders = new Tablyful({
+//   headers: ["Full Name", "Years", "Location"],
+// });
 
-console.log("=== Example 6: Custom Headers ===");
-console.log(tablyfulWithHeaders.toCsv(objectData));
-console.log();
+// console.log("=== Example 6: Custom Headers ===");
+// console.log(tablyfulWithHeaders.toCsv(objectData));
+// console.log();
 
-// Example 7: Custom CSV options
-const customCsv = toCsv(objectData, {
-  formatOptions: {
-    delimiter: ";",
-    includeHeaders: true,
-  },
-});
+// // Example 7: Custom CSV options
+// const customCsv = toCsv(objectData, {
+//   formatOptions: {
+//     delimiter: ";",
+//     includeHeaders: true,
+//   },
+// });
 
-console.log("=== Example 7: Custom CSV Delimiter (semicolon) ===");
-console.log(customCsv);
-console.log();
+// console.log("=== Example 7: Custom CSV Delimiter (semicolon) ===");
+// console.log(customCsv);
+// console.log();
 
-// Example 8: Parse and format separately
-const tablyfulInstance = createTablyful();
-const tableData = tablyfulInstance.parse(objectData);
+// // Example 8: Parse and format separately
+// const tablyfulInstance = createTablyful();
+// const tableData = tablyfulInstance.parse(objectData);
 
-console.log("=== Example 8: Parsed Table Data ===");
-console.log("Headers:", tableData.headers);
-console.log("Row count:", tableData.metadata.rowCount);
-console.log("Column count:", tableData.metadata.columnCount);
-console.log();
+// console.log("=== Example 8: Parsed Table Data ===");
+// console.log("Headers:", tableData.headers);
+// console.log("Row count:", tableData.metadata.rowCount);
+// console.log("Column count:", tableData.metadata.columnCount);
+// console.log();
 
-const formatted = tablyfulInstance.format(tableData, "csv");
-console.log("Formatted CSV:");
-console.log(formatted);
+// const formatted = tablyfulInstance.format(tableData, "csv");
+// console.log("Formatted CSV:");
+// console.log(formatted);

@@ -6,12 +6,16 @@ import { minify } from "rollup-plugin-esbuild";
 const dirname = import.meta.dirname ?? ".";
 
 export default defineConfig({
-  input: join(dirname, "src", "Main.res.mjs"),
+  input: join(dirname, "src", "Tablyful.res.mjs"),
   output: {
     format: "es",
     file: join(dirname, "dist", "main.mjs"),
+    banner: "#!/usr/bin/env node",
   },
-  platform: "browser",
+  platform: "node",
   plugins: [minify()],
-  external: [/^@rescript\/runtime$/],
+  external: [
+    /^node:.*/, // all node: built-ins (node:fs, node:url, etc.)
+    /^@rescript\/runtime$/, // ReScript runtime
+  ],
 });
