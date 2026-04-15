@@ -19,7 +19,8 @@
     "tablyful": "./dist/cli.mjs"
   },
   "scripts": {
-    "res:build": "rescript",
+    "res:typefix": "node ./scripts/rename-gentype-files.mjs",
+    "res:build": "rescript && pnpm run res:typefix",
     "res:dev": "rescript watch",
     "res:clean": "rescript clean",
     "res:test": "retest \"./test/res/**/*.res.mjs\"",
@@ -37,6 +38,8 @@
   },
   "files": [
     "dist",
+    "scripts",
+    "src/**/*.gen.ts",
     "src/**/*.res.mjs",
     "src/**/*.res"
   ],

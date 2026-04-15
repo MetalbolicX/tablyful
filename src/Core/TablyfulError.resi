@@ -1,3 +1,4 @@
+@genType
 type category =
   | ParseError
   | FormatError
@@ -6,6 +7,7 @@ type category =
   | ConfigError
   | StreamError
 
+@genType
 type t = {
   category: category,
   message: string,

@@ -1,97 +1,42 @@
 /**
- * Basic usage example for Tablyful
- * Demonstrates converting various data formats to CSV
+ * TypeScript usage example for Tablyful.
+ * This example imports the generated TypeScript wrapper and handles ReScript result values.
  */
 
-// import { toCsv, Tablyful, createTablyful } from "../../dist/index.mjs";
-import { toCsv } from "../../dist/main.mjs";
+import {
+  availableFormatters,
+  availableParsers,
+  detectFormat,
+  toCsv,
+  toJson,
+  type result,
+} from "../../src/Tablyful.gen.ts";
 
-// Example 1: Array of arrays (simple table data)
-const arrayData = [
-  ["Name", "Age", "City"],
+const logResult = <T>(label: string, value: result<T>): void => {
+  if (value.TAG === "Ok") {
+    console.log(`${label}\n${value._0}\n`);
+    return;
+  }
+
+  console.error(`${label} failed: ${value._0.message}`);
+};
+
+const arrayData: unknown = [
+  ["name", "age", "city"],
   ["Alice", 30, "New York"],
   ["Bob", 25, "Los Angeles"],
   ["Charlie", 35, "Chicago"],
 ];
 
-console.log("=== Example 1: Array of Arrays ===");
-console.log(toCsv(arrayData));
+const csvResult = toCsv(arrayData, undefined);
+const jsonResult = toJson(arrayData, undefined);
+
+console.log(`Detected input format: ${detectFormat(arrayData)}`);
+const parserNames = availableParsers();
+const formatterNames = availableFormatters();
+console.log("Available parsers:", parserNames);
+console.log("Available formatters:", formatterNames);
 console.log();
 
-// Example 2: Array of objects (common JSON format)
-const objectData = [
-  { name: "Alice", age: 30, city: "New York" },
-  { name: "Bob", age: 25, city: "Los Angeles" },
-  { name: "Charlie", age: 35, city: "Chicago" },
-];
-
-console.log("=== Example 2: Array of Objects ===");
-console.log(toCsv(objectData));
-console.log();
-
-// Example 3: Object of arrays (columnar data)
-const columnarData = {
-  name: ["Alice", "Bob", "Charlie"],
-  age: [30, 25, 35],
-  city: ["New York", "Los Angeles", "Chicago"],
-};
-
-console.log("=== Example 3: Object of Arrays (Columnar) ===");
-console.log(toCsv(columnarData));
-console.log();
-
-// Example 4: Object of objects (nested records)
-const nestedData = {
-  user_001: { name: "Alice", age: 30, city: "New York" },
-  user_002: { name: "Bob", age: 25, city: "Los Angeles" },
-  user_003: { name: "Charlie", age: 35, city: "Chicago" },
-};
-
-console.log("=== Example 4: Object of Objects (Nested) ===");
-console.log(toCsv(nestedData));
-console.log();
-
-// // Example 5: Using the Tablyful class with options
-// const tablyful = createTablyful({
-//   hasRowNumbers: true,
-//   rowNumberHeader: "ID",
-// });
-
-// console.log("=== Example 5: With Row Numbers ===");
-// console.log(tablyful.toCsv(objectData));
-// console.log();
-
-// // Example 6: Custom headers
-// const tablyfulWithHeaders = new Tablyful({
-//   headers: ["Full Name", "Years", "Location"],
-// });
-
-// console.log("=== Example 6: Custom Headers ===");
-// console.log(tablyfulWithHeaders.toCsv(objectData));
-// console.log();
-
-// // Example 7: Custom CSV options
-// const customCsv = toCsv(objectData, {
-//   formatOptions: {
-//     delimiter: ";",
-//     includeHeaders: true,
-//   },
-// });
-
-// console.log("=== Example 7: Custom CSV Delimiter (semicolon) ===");
-// console.log(customCsv);
-// console.log();
-
-// // Example 8: Parse and format separately
-// const tablyfulInstance = createTablyful();
-// const tableData = tablyfulInstance.parse(objectData);
-
-// console.log("=== Example 8: Parsed Table Data ===");
-// console.log("Headers:", tableData.headers);
-// console.log("Row count:", tableData.metadata.rowCount);
-// console.log("Column count:", tableData.metadata.columnCount);
-// console.log();
-
-// const formatted = tablyfulInstance.format(tableData, "csv");
-// console.log("Formatted CSV:");
-// console.log(formatted);
+logResult("CSV output", csvResult);
+logResult("JSON output", jsonResult);

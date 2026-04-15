@@ -1,3 +1,4 @@
+@genType
 type t = {
   row: option<int>,
   column: option<int>,
