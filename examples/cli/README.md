@@ -19,6 +19,15 @@ node dist/cli.mjs examples/cli/sample.json --config examples/cli/.tablyfulrc.jso
 # override delimiter inline
 node dist/cli.mjs examples/cli/sample.json --format csv --set csv.delimiter=';'
 
+# filter + select columns
+node dist/cli.mjs examples/cli/sample.json --format yaml --filter "name LIKE ali%" --columns name,age
+
+# sql placeholders + create table
+node dist/cli.mjs examples/cli/sample.json --format sql --set sql.tableName=users --set sql.includeCreateTable=true
+
+# print conversion stats
+node dist/cli.mjs examples/cli/sample.json --format csv --stats
+
 # show available --set keys
 node dist/cli.mjs --list-set-keys
 node dist/cli.mjs --list-set-keys-format json

@@ -16,6 +16,16 @@ let all: array<formatterEntry> = [
     format: Csv.format,
   },
   {
+    name: Tsv.name,
+    extension: Tsv.extension,
+    format: Tsv.format,
+  },
+  {
+    name: Psv.name,
+    extension: Psv.extension,
+    format: Psv.format,
+  },
+  {
     name: Json.name,
     extension: Json.extension,
     format: Json.format,
@@ -34,6 +44,16 @@ let all: array<formatterEntry> = [
     name: Latex.name,
     extension: Latex.extension,
     format: Latex.format,
+  },
+  {
+    name: Sql.name,
+    extension: Sql.extension,
+    format: Sql.format,
+  },
+  {
+    name: Yaml.name,
+    extension: Yaml.extension,
+    format: Yaml.format,
   },
 ]
 

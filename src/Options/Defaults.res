@@ -12,6 +12,14 @@ let defaultCsvOptions: csvOptions = {
   includeHeaders: true,
 }
 
+let defaultTsvOptions: tsvOptions = {
+  includeHeaders: true,
+}
+
+let defaultPsvOptions: psvOptions = {
+  includeHeaders: true,
+}
+
 let defaultJsonOptions: jsonOptions = {
   pretty: true,
   indentSize: 2,
@@ -42,6 +50,18 @@ let defaultLatexOptions: latexOptions = {
   useTableEnvironment: false,
 }
 
+let defaultSqlOptions: sqlOptions = {
+  tableName: "table",
+  identifierQuote: "\"",
+  includeCreateTable: false,
+}
+
+let defaultYamlOptions: yamlOptions = {
+  indent: 2,
+  quoteStrings: false,
+  lineBreak: "\n",
+}
+
 // Main default options
 let t: t = {
   headers: None,
@@ -57,6 +77,22 @@ let getCsvOptions = (opts: t): csvOptions => {
   switch opts.formatOptions {
   | CsvOptions(csv) => csv
   | _ => defaultCsvOptions
+  }
+}
+
+// Get TSV options from format options
+let getTsvOptions = (opts: t): tsvOptions => {
+  switch opts.formatOptions {
+  | TsvOptions(tsv) => tsv
+  | _ => defaultTsvOptions
+  }
+}
+
+// Get PSV options from format options
+let getPsvOptions = (opts: t): psvOptions => {
+  switch opts.formatOptions {
+  | PsvOptions(psv) => psv
+  | _ => defaultPsvOptions
   }
 }
 
@@ -89,5 +125,21 @@ let getLatexOptions = (opts: t): latexOptions => {
   switch opts.formatOptions {
   | LatexOptions(latex) => latex
   | _ => defaultLatexOptions
+  }
+}
+
+// Get SQL options from format options
+let getSqlOptions = (opts: t): sqlOptions => {
+  switch opts.formatOptions {
+  | SqlOptions(sql) => sql
+  | _ => defaultSqlOptions
+  }
+}
+
+// Get YAML options from format options
+let getYamlOptions = (opts: t): yamlOptions => {
+  switch opts.formatOptions {
+  | YamlOptions(yaml) => yaml
+  | _ => defaultYamlOptions
   }
 }

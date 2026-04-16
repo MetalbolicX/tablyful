@@ -58,6 +58,28 @@ test("cli stdin to csv", () => {
   assert.match(result.stdout, /Alice,30/);
 });
 
+test("cli stdin to tsv", () => {
+  const result = runCli({
+    args: ["--format", "tsv"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /name\tage/);
+  assert.match(result.stdout, /Alice\t30/);
+});
+
+test("cli stdin to psv", () => {
+  const result = runCli({
+    args: ["--format", "psv"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /name\|age/);
+  assert.match(result.stdout, /Alice\|30/);
+});
+
 test("cli stdin to json", () => {
   const result = runCli({
     args: ["--format", "json"],
@@ -101,6 +123,30 @@ test("cli stdin to latex", () => {
   assert.equal(result.code, 0);
   assert.match(result.stdout, /\\begin\{tabular\}/);
   assert.match(result.stdout, /Alice\s*&\s*30/);
+});
+
+test("cli stdin to sql", () => {
+  const result = runCli({
+    args: ["--format", "sql", "--set", "sql.tableName=users", "--set", "sql.includeCreateTable=true"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /CREATE TABLE "users"/);
+  assert.match(result.stdout, /INSERT INTO "users"/);
+  assert.match(result.stdout, /VALUES \(\?, \?\)/);
+  assert.match(result.stdout, /-- VALUES: \('Alice', 30\)/);
+});
+
+test("cli stdin to yaml", () => {
+  const result = runCli({
+    args: ["--format", "yaml"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /- name: Alice/);
+  assert.match(result.stdout, /  age: 30/);
 });
 
 test("cli --input forces array-of-objects parser", () => {
@@ -194,6 +240,51 @@ test("cli --no-headers removes header row", () => {
   assert.match(result.stdout, /Alice,30/);
 });
 
+test("cli --columns selects only requested columns", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--columns", "name"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /^name/m);
+  assert.equal(result.stdout.includes("age"), false);
+  assert.match(result.stdout, /Alice/);
+});
+
+test("cli --filter supports numeric predicates", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--filter", "age>25"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /Alice,30/);
+  assert.equal(result.stdout.includes("Bob,25"), false);
+});
+
+test("cli --filter LIKE is case-insensitive", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--filter", "name LIKE ali%"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /Alice,30/);
+  assert.equal(result.stdout.includes("Bob,25"), false);
+});
+
+test("cli --stats prints conversion summary to stderr", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--stats"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stderr, /\[tablyful\] rows: 2, columns: 2/);
+  assert.match(result.stderr, /format: csv/);
+});
+
 test("cli reads positional file input", () => {
   const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-"));
   const filePath = join(tempDir, "input.json");
@@ -259,6 +350,26 @@ test("cli invalid output format exits 2", () => {
 
   assert.equal(result.code, 2);
   assert.match(result.stderr, /Invalid format: xml/);
+});
+
+test("cli invalid --filter expression exits 1", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--filter", "age~~20"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Invalid filter expression/);
+});
+
+test("cli unknown --columns field exits 1", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--columns", "name,missing"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /Unknown column\(s\) in --columns/);
 });
 
 test("cli invalid --set option exits 2", () => {

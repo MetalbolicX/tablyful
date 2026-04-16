@@ -1,15 +1,27 @@
 type format =
   | Csv
+  | Tsv
+  | Psv
   | Json
   | Markdown
   | Html
   | Latex
+  | Sql
+  | Yaml
 
 type csvOptions = {
   delimiter: string,
   quote: string,
   escape: string,
   lineBreak: string,
+  includeHeaders: bool,
+}
+
+type tsvOptions = {
+  includeHeaders: bool,
+}
+
+type psvOptions = {
   includeHeaders: bool,
 }
 
@@ -43,12 +55,28 @@ type latexOptions = {
   useTableEnvironment: bool,
 }
 
+type sqlOptions = {
+  tableName: string,
+  identifierQuote: string,
+  includeCreateTable: bool,
+}
+
+type yamlOptions = {
+  indent: int,
+  quoteStrings: bool,
+  lineBreak: string,
+}
+
 type formatOptions =
   | CsvOptions(csvOptions)
+  | TsvOptions(tsvOptions)
+  | PsvOptions(psvOptions)
   | JsonOptions(jsonOptions)
   | MarkdownOptions(markdownOptions)
   | HtmlOptions(htmlOptions)
   | LatexOptions(latexOptions)
+  | SqlOptions(sqlOptions)
+  | YamlOptions(yamlOptions)
 
 type t = {
   headers: option<array<string>>,

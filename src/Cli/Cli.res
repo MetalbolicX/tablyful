@@ -17,23 +17,28 @@ Usage: tablyful [options] [file]
 Convert tabular data between formats.
 
 Options:
-  -f, --format <format>   Output format (csv|json|markdown|html|latex)
-  -i, --input <format>    Input format (array-of-arrays|array-of-objects|object-of-arrays|object-of-objects)
+  -f, --format <format>   Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
+  -i, --input <format>    Input format (optional; auto-detected when omitted)
       --set <key=value>   Override format option (repeatable, e.g. --set json.pretty=false)
       --list-set-keys      Print allowed --set keys and defaults
       --list-set-keys-format <format>
                            Print allowed --set keys for one format
+  -C, --columns <names>   Comma-separated output columns (e.g. name,age)
+      --filter <expr>     Filter rows (repeatable; supports = != > < >= <= LIKE)
+      --stats             Print conversion stats to stderr
   -c, --config <path>     Path to config JSON file
   -d, --delimiter <char>  CSV delimiter override
-      --no-headers        Omit CSV headers in output
+      --no-headers        Omit headers in CSV/TSV/PSV output
   -h, --help              Show this help message
   -v, --version           Show version
 
 Input is read from [file] when provided, otherwise from stdin when piped.
 
 Examples:
-  cat data.json | tablyful --input array-of-objects --format csv --set csv.delimiter=';'
+  cat data.json | tablyful --format csv --set csv.delimiter=';'
   cat data.json | tablyful --format json --set json.pretty=false --set json.indentSize=4
+  cat data.json | tablyful --format yaml --filter 'name LIKE ali%' --columns name,age
+  cat data.json | tablyful --format sql --set sql.tableName=users --stats
   tablyful --list-set-keys
   tablyful --list-set-keys-format csv
   cat data.json | tablyful --format csv --delimiter ';' --config conf.json
@@ -63,17 +68,24 @@ let showVersion = (): unit => {
 
 let printSetKeys = (filter: option<Types.format>): unit => {
   let csv = Defaults.defaultCsvOptions
+  let tsv = Defaults.defaultTsvOptions
+  let psv = Defaults.defaultPsvOptions
   let json = Defaults.defaultJsonOptions
   let markdown = Defaults.defaultMarkdownOptions
   let html = Defaults.defaultHtmlOptions
   let latex = Defaults.defaultLatexOptions
+  let sql = Defaults.defaultSqlOptions
+  let yaml = Defaults.defaultYamlOptions
+  let displayLiteral = (value: string): string => {
+    value->String.replaceAll("\n", "\\n")->String.replaceAll("\t", "\\t")
+  }
 
   let printCsv = () => {
     writeStdout("csv options:\n")
     writeStdout(`  csv.delimiter (string) - field delimiter (default: ${csv.delimiter})\n`)
     writeStdout(`  csv.quote (string) - quote char (default: ${csv.quote})\n`)
     writeStdout(`  csv.escape (string) - escape char (default: ${csv.escape})\n`)
-    writeStdout(`  csv.lineBreak (string) - line break (default: ${csv.lineBreak})\n`)
+    writeStdout(`  csv.lineBreak (string) - line break (default: ${csv.lineBreak->displayLiteral})\n`)
     writeStdout(
       `  csv.includeHeaders (boolean) - include headers (default: ${csv.includeHeaders->Bool.toString})\n\n`,
     )
@@ -86,6 +98,20 @@ let printSetKeys = (filter: option<Types.format>): unit => {
     )
     writeStdout(`  json.indentSize (int) - indent size (default: ${json.indentSize->Int.toString})\n`)
     writeStdout(`  json.asArray (boolean) - output arrays (default: ${json.asArray->Bool.toString})\n\n`)
+  }
+
+  let printTsv = () => {
+    writeStdout("tsv options:\n")
+    writeStdout(
+      `  tsv.includeHeaders (boolean) - include headers (default: ${tsv.includeHeaders->Bool.toString})\n\n`,
+    )
+  }
+
+  let printPsv = () => {
+    writeStdout("psv options:\n")
+    writeStdout(
+      `  psv.includeHeaders (boolean) - include headers (default: ${psv.includeHeaders->Bool.toString})\n\n`,
+    )
   }
 
   let printMarkdown = () => {
@@ -123,19 +149,47 @@ let printSetKeys = (filter: option<Types.format>): unit => {
     )
   }
 
+  let printSql = () => {
+    writeStdout("sql options:\n")
+    writeStdout(`  sql.tableName (string) - table name (default: ${sql.tableName})\n`)
+    writeStdout(
+      `  sql.identifierQuote (string) - identifier quote (default: ${sql.identifierQuote})\n`,
+    )
+    writeStdout(
+      `  sql.includeCreateTable (boolean) - include CREATE TABLE (default: ${sql.includeCreateTable->Bool.toString})\n\n`,
+    )
+  }
+
+  let printYaml = () => {
+    writeStdout("yaml options:\n")
+    writeStdout(`  yaml.indent (int) - indentation spaces (default: ${yaml.indent->Int.toString})\n`)
+    writeStdout(
+      `  yaml.quoteStrings (boolean) - quote all strings (default: ${yaml.quoteStrings->Bool.toString})\n`,
+    )
+    writeStdout(`  yaml.lineBreak (string) - line break (default: ${yaml.lineBreak->displayLiteral})\n\n`)
+  }
+
   switch filter {
   | None => {
       printCsv()
+      printTsv()
+      printPsv()
       printJson()
       printMarkdown()
       printHtml()
       printLatex()
+      printSql()
+      printYaml()
     }
   | Some(Csv) => printCsv()
+  | Some(Tsv) => printTsv()
+  | Some(Psv) => printPsv()
   | Some(Json) => printJson()
   | Some(Markdown) => printMarkdown()
   | Some(Html) => printHtml()
   | Some(Latex) => printLatex()
+  | Some(Sql) => printSql()
+  | Some(Yaml) => printYaml()
   }
 }
 
@@ -144,6 +198,9 @@ let makeParseOptions = (): dict<Bindings.Util.flatConfig> => {
     ("format", makeStringOption(~short="f")),
     ("input", makeStringOption(~short="i")),
     ("set", makeStringOption(~multiple=true)),
+    ("columns", makeStringOption(~short="C")),
+    ("filter", makeStringOption(~multiple=true)),
+    ("stats", makeBoolOption()),
     ("list-set-keys", makeBoolOption()),
     ("list-set-keys-format", makeStringOption()),
     ("config", makeStringOption(~short="c")),
@@ -158,9 +215,12 @@ type cliFlags = {
   formatArg: option<string>,
   inputArg: option<string>,
   setPairs: array<(string, string)>,
+  columnsArg: option<array<string>>,
+  filterExprs: array<string>,
   delimiterArg: option<string>,
   configPath: option<string>,
   noHeaders: bool,
+  stats: bool,
 }
 
 let printError = (error: TablyfulError.t): unit => {
@@ -219,6 +279,43 @@ let parseSetPairs = (raw: option<array<string>>): Common.result<array<(string, s
   }
 }
 
+let parseColumnsArg = (raw: option<string>): Common.result<option<array<string>>> => {
+  switch raw {
+  | None => Ok(None)
+  | Some(value) => {
+      let columns =
+        value
+        ->String.split(",")
+        ->Array.map(column => column->String.trim)
+        ->Array.filter(column => column !== "")
+
+      if columns->Array.length === 0 {
+        invalidSet("Invalid --columns value. Provide one or more comma-separated column names.")
+      } else {
+        Ok(Some(columns))
+      }
+    }
+  }
+}
+
+let parseFilterExprs = (raw: option<array<string>>): Common.result<array<string>> => {
+  switch raw {
+  | None => Ok([])
+  | Some(entries) => {
+      let filters =
+        entries
+        ->Array.map(entry => entry->String.trim)
+        ->Array.filter(entry => entry !== "")
+
+      if filters->Array.length !== entries->Array.length {
+        invalidSet("Invalid --filter value. Expressions cannot be empty.")
+      } else {
+        Ok(filters)
+      }
+    }
+  }
+}
+
 let parseBoolValue = (value: string): option<bool> => {
   switch value->String.toLowerCase {
   | "true" => Some(true)
@@ -268,6 +365,26 @@ let applySetOverride = (options: t, ((key, value): (string, string))): Common.re
           invalidSet(
             `Unknown --set option: ${fullKey}. Allowed csv options: delimiter, quote, escape, lineBreak, includeHeaders.`,
           )
+        }
+      }
+    | "tsv" => {
+        switch field {
+        | "includeHeaders" =>
+          parseBoolSet(~key=fullKey, value)->Result.map(includeHeaders => {
+            {...options, formatOptions: TsvOptions({includeHeaders: includeHeaders})}
+          })
+        | _ =>
+          invalidSet(`Unknown --set option: ${fullKey}. Allowed tsv options: includeHeaders.`)
+        }
+      }
+    | "psv" => {
+        switch field {
+        | "includeHeaders" =>
+          parseBoolSet(~key=fullKey, value)->Result.map(includeHeaders => {
+            {...options, formatOptions: PsvOptions({includeHeaders: includeHeaders})}
+          })
+        | _ =>
+          invalidSet(`Unknown --set option: ${fullKey}. Allowed psv options: includeHeaders.`)
         }
       }
     | "json" => {
@@ -349,9 +466,43 @@ let applySetOverride = (options: t, ((key, value): (string, string))): Common.re
           )
         }
       }
+    | "sql" => {
+        let sql = Defaults.getSqlOptions(options)
+        switch field {
+        | "tableName" => Ok({...options, formatOptions: SqlOptions({...sql, tableName: value})})
+        | "identifierQuote" =>
+          Ok({...options, formatOptions: SqlOptions({...sql, identifierQuote: value})})
+        | "includeCreateTable" =>
+          parseBoolSet(~key=fullKey, value)->Result.map(includeCreateTable => {
+            {...options, formatOptions: SqlOptions({...sql, includeCreateTable})}
+          })
+        | _ =>
+          invalidSet(
+            `Unknown --set option: ${fullKey}. Allowed sql options: tableName, identifierQuote, includeCreateTable.`,
+          )
+        }
+      }
+    | "yaml" => {
+        let yaml = Defaults.getYamlOptions(options)
+        switch field {
+        | "indent" =>
+          parseIntSet(~key=fullKey, value)->Result.map(indent => {
+            {...options, formatOptions: YamlOptions({...yaml, indent})}
+          })
+        | "quoteStrings" =>
+          parseBoolSet(~key=fullKey, value)->Result.map(quoteStrings => {
+            {...options, formatOptions: YamlOptions({...yaml, quoteStrings})}
+          })
+        | "lineBreak" => Ok({...options, formatOptions: YamlOptions({...yaml, lineBreak: value})})
+        | _ =>
+          invalidSet(
+            `Unknown --set option: ${fullKey}. Allowed yaml options: indent, quoteStrings, lineBreak.`,
+          )
+        }
+      }
     | _ =>
       invalidSet(
-        `Unknown --set format: ${section}. Allowed formats: csv, json, markdown, html, latex.`,
+        `Unknown --set format: ${section}. Allowed formats: csv, tsv, psv, json, markdown, html, latex, sql, yaml.`,
       )
     }
   }
@@ -370,7 +521,7 @@ let overrideWithCliFlags = (options: t, flags: cliFlags): Common.result<t> => {
     | Some(format) => Ok(format)
     | None =>
       TablyfulError.validationError(
-        `Invalid format: ${value}. Expected one of: csv, json, markdown, html, latex.`,
+        `Invalid format: ${value}. Expected one of: csv, tsv, psv, json, markdown, html, latex, sql, yaml.`,
       )->TablyfulError.toResult
     }
   | None => Ok(options.outputFormat)
@@ -381,27 +532,65 @@ let overrideWithCliFlags = (options: t, flags: cliFlags): Common.result<t> => {
 
     let withDelimiter = switch flags.delimiterArg {
     | Some(delimiter) =>
-      switch withFormat.formatOptions {
-      | CsvOptions(csv) =>
-        {
-          ...withFormat,
-          formatOptions: CsvOptions({...csv, delimiter}),
+      switch withFormat.outputFormat {
+      | Csv =>
+        switch withFormat.formatOptions {
+        | CsvOptions(csv) =>
+          {
+            ...withFormat,
+            formatOptions: CsvOptions({...csv, delimiter}),
+          }
+        | _ =>
+          {
+            ...withFormat,
+            formatOptions: CsvOptions({...Defaults.defaultCsvOptions, delimiter}),
+          }
         }
-      | _ =>
-        {
-          ...withFormat,
-          formatOptions: CsvOptions({...Defaults.defaultCsvOptions, delimiter}),
-        }
+      | _ => withFormat
       }
     | None => withFormat
     }
 
     if flags.noHeaders {
-      switch withDelimiter.formatOptions {
-      | CsvOptions(csv) =>
-        {
-          ...withDelimiter,
-          formatOptions: CsvOptions({...csv, includeHeaders: false}),
+      switch withDelimiter.outputFormat {
+      | Csv =>
+        switch withDelimiter.formatOptions {
+        | CsvOptions(csv) =>
+          {
+            ...withDelimiter,
+            formatOptions: CsvOptions({...csv, includeHeaders: false}),
+          }
+        | _ =>
+          {
+            ...withDelimiter,
+            formatOptions: CsvOptions({...Defaults.defaultCsvOptions, includeHeaders: false}),
+          }
+        }
+      | Tsv =>
+        switch withDelimiter.formatOptions {
+        | TsvOptions(_) =>
+          {
+            ...withDelimiter,
+            formatOptions: TsvOptions({includeHeaders: false}),
+          }
+        | _ =>
+          {
+            ...withDelimiter,
+            formatOptions: TsvOptions({includeHeaders: false}),
+          }
+        }
+      | Psv =>
+        switch withDelimiter.formatOptions {
+        | PsvOptions(_) =>
+          {
+            ...withDelimiter,
+            formatOptions: PsvOptions({includeHeaders: false}),
+          }
+        | _ =>
+          {
+            ...withDelimiter,
+            formatOptions: PsvOptions({includeHeaders: false}),
+          }
         }
       | _ => withDelimiter
       }
@@ -437,14 +626,39 @@ let runConversion = (inputText: string, flags: cliFlags): unit => {
             printError(error)
             Bindings.Process.exit(1)
           | Ok(tableData) =>
-            let formatName = options.outputFormat->Types.formatToString
-            switch FormatterRegistry.format(formatName, tableData, options) {
+            switch TableTransform.applyFilters(tableData, flags.filterExprs) {
             | Error(error) =>
               printError(error)
               Bindings.Process.exit(1)
-            | Ok(output) =>
-              writeStdout(output ++ "\n")
-              Bindings.Process.exit(0)
+            | Ok(filteredData) =>
+              let conversionResult =
+                switch flags.columnsArg {
+                | Some(columns) => TableTransform.selectColumns(filteredData, columns)
+                | None => Ok(filteredData)
+                }
+                ->Result.flatMap(finalData => {
+                  let formatName = options.outputFormat->Types.formatToString
+                  FormatterRegistry.format(formatName, finalData, options)->Result.map(output => {
+                    (finalData, output)
+                  })
+                })
+
+              switch conversionResult {
+              | Error(error) =>
+                printError(error)
+                Bindings.Process.exit(1)
+              | Ok((finalData, output)) =>
+                if flags.stats {
+                  let formatName = options.outputFormat->Types.formatToString
+                  writeStderr(
+                    `[tablyful] rows: ${finalData.metadata.rowCount->Int.toString}, columns: ${
+                      finalData.metadata.columnCount->Int.toString
+                    }, detected: ${finalData.metadata.sourceFormat}, format: ${formatName}\n`,
+                  )
+                }
+                writeStdout(output ++ "\n")
+                Bindings.Process.exit(0)
+              }
             }
           }
         }
@@ -527,7 +741,7 @@ let main = (): unit => {
       | None =>
         printError(
           TablyfulError.validationError(
-            `Invalid format for --list-set-keys-format: ${formatStr}. Expected one of: csv, json, markdown, html, latex.`,
+            `Invalid format for --list-set-keys-format: ${formatStr}. Expected one of: csv, tsv, psv, json, markdown, html, latex, sql, yaml.`,
           ),
         )
         Bindings.Process.exit(2)
@@ -544,13 +758,34 @@ let main = (): unit => {
       []
     }
 
+    let columnsArg = switch parseColumnsArg(values.columns) {
+    | Ok(columns) => columns
+    | Error(error) =>
+      printError(error)
+      showHelp()
+      Bindings.Process.exit(2)
+      None
+    }
+
+    let filterExprs = switch parseFilterExprs(values.filter) {
+    | Ok(filters) => filters
+    | Error(error) =>
+      printError(error)
+      showHelp()
+      Bindings.Process.exit(2)
+      []
+    }
+
     let flags: cliFlags = {
       formatArg: values.format,
       inputArg: values.input,
       setPairs,
+      columnsArg,
+      filterExprs,
       delimiterArg: values.delimiter,
       configPath: values.config,
       noHeaders: values.noHeaders->Option.getOr(false),
+      stats: values.stats->Option.getOr(false),
     }
 
     if positionals->Array.length > 0 {

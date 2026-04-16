@@ -13,5 +13,15 @@
     "align": "left",
     "padding": true,
     "githubFlavor": true
+  },
+  "sql": {
+    "tableName": "people",
+    "identifierQuote": "\"",
+    "includeCreateTable": true
+  },
+  "yaml": {
+    "indent": 2,
+    "quoteStrings": false,
+    "lineBreak": "\n"
   }
 }

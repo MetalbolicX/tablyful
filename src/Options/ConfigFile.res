@@ -66,6 +66,32 @@ let parseCsvOptions = (dict: dict<JSON.t>): csvOptions => {
   }
 }
 
+// Parse TSV options from JSON
+let parseTsvOptions = (dict: dict<JSON.t>): tsvOptions => {
+  let getBool = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.bool)
+    ->Option.getOr(default)
+
+  {
+    includeHeaders: getBool("includeHeaders", defaultTsvOptions.includeHeaders),
+  }
+}
+
+// Parse PSV options from JSON
+let parsePsvOptions = (dict: dict<JSON.t>): psvOptions => {
+  let getBool = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.bool)
+    ->Option.getOr(default)
+
+  {
+    includeHeaders: getBool("includeHeaders", defaultPsvOptions.includeHeaders),
+  }
+}
+
 // Parse JSON options from JSON
 let parseJsonOptions = (dict: dict<JSON.t>): jsonOptions => {
   let getBool = (key, default) =>
@@ -151,6 +177,55 @@ let parseLatexOptions = (dict: dict<JSON.t>): latexOptions => {
   }
 }
 
+// Parse SQL options from JSON
+let parseSqlOptions = (dict: dict<JSON.t>): sqlOptions => {
+  let getString = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.string)
+    ->Option.getOr(default)
+
+  let getBool = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.bool)
+    ->Option.getOr(default)
+
+  {
+    tableName: getString("tableName", defaultSqlOptions.tableName),
+    identifierQuote: getString("identifierQuote", defaultSqlOptions.identifierQuote),
+    includeCreateTable: getBool("includeCreateTable", defaultSqlOptions.includeCreateTable),
+  }
+}
+
+// Parse YAML options from JSON
+let parseYamlOptions = (dict: dict<JSON.t>): yamlOptions => {
+  let getString = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.string)
+    ->Option.getOr(default)
+
+  let getBool = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.bool)
+    ->Option.getOr(default)
+
+  let getInt = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.float)
+    ->Option.map(Float.toInt)
+    ->Option.getOr(default)
+
+  {
+    indent: getInt("indent", defaultYamlOptions.indent),
+    quoteStrings: getBool("quoteStrings", defaultYamlOptions.quoteStrings),
+    lineBreak: getString("lineBreak", defaultYamlOptions.lineBreak),
+  }
+}
+
 // Recursively merge two dicts (override values win; sub-objects merge recursively)
 let rec mergeDicts = (base: dict<JSON.t>, override: dict<JSON.t>): dict<JSON.t> => {
   let merged = Dict.make()
@@ -217,6 +292,20 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Option.map(parseCsvOptions)
     ->Option.map(csv => CsvOptions(csv))
     ->Option.getOr(CsvOptions(defaultCsvOptions))
+  | Tsv =>
+    dict
+    ->Dict.get("tsv")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.map(parseTsvOptions)
+    ->Option.map(tsv => TsvOptions(tsv))
+    ->Option.getOr(TsvOptions(defaultTsvOptions))
+  | Psv =>
+    dict
+    ->Dict.get("psv")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.map(parsePsvOptions)
+    ->Option.map(psv => PsvOptions(psv))
+    ->Option.getOr(PsvOptions(defaultPsvOptions))
   | Json =>
     dict
     ->Dict.get("json")
@@ -245,6 +334,20 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Option.map(parseLatexOptions)
     ->Option.map(latex => LatexOptions(latex))
     ->Option.getOr(LatexOptions(defaultLatexOptions))
+  | Sql =>
+    dict
+    ->Dict.get("sql")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.map(parseSqlOptions)
+    ->Option.map(sql => SqlOptions(sql))
+    ->Option.getOr(SqlOptions(defaultSqlOptions))
+  | Yaml =>
+    dict
+    ->Dict.get("yaml")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.map(parseYamlOptions)
+    ->Option.map(yaml => YamlOptions(yaml))
+    ->Option.getOr(YamlOptions(defaultYamlOptions))
   }
 
   {

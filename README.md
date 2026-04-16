@@ -1,6 +1,6 @@
 # tablyful
 
-`tablyful` is a CLI-first tool that converts JSON tabular data into `csv`, `json`, `markdown`, `html`, and `latex`.
+`tablyful` is a CLI-first tool that converts JSON tabular data into `csv`, `tsv`, `psv`, `json`, `markdown`, `html`, `latex`, `sql`, and `yaml`.
 
 ![Node.js version](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-blue)
 
@@ -21,6 +21,15 @@ tablyful data.json --format json
 
 # repeatable --set overrides
 tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
+
+# row filtering + column selection
+tablyful data.json --format yaml --filter "name LIKE ali%" --columns name,age
+
+# SQL placeholders with optional table creation
+tablyful data.json --format sql --set sql.tableName=users --set sql.includeCreateTable=true
+
+# conversion diagnostics
+tablyful data.json --format csv --stats
 
 # discover valid --set keys
 tablyful --list-set-keys

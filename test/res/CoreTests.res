@@ -100,6 +100,32 @@ test("Core Pipeline: csv conversion succeeds", () => {
   }
 })
 
+test("Core Pipeline: tsv conversion succeeds", () => {
+  switch convert(~input=makeArrayOfArraysInput(), ~format="tsv") {
+  | Ok(tsv) =>
+    assertion(
+      (left, right) => left == right,
+      tsv->String.includes("name\tage"),
+      true,
+      ~operator="equals",
+    )
+    assertion(
+      (left, right) => left == right,
+      tsv->String.includes("Alice\t30"),
+      true,
+      ~operator="equals",
+    )
+  | Error(error) =>
+    assertion(
+      (left, right) => left == right,
+      error->TablyfulError.toString->String.includes(""),
+      false,
+      ~operator="equals",
+      ~message="Expected TSV conversion to succeed",
+    )
+  }
+})
+
 test("Core Pipeline: json conversion succeeds", () => {
   switch convert(~input=makeArrayOfArraysInput(), ~format="json") {
   | Ok(json) =>
@@ -117,6 +143,64 @@ test("Core Pipeline: json conversion succeeds", () => {
       false,
       ~operator="equals",
       ~message="Expected conversion to succeed",
+    )
+  }
+})
+
+test("Core Pipeline: sql conversion succeeds", () => {
+  let options: Types.t = {
+    ...Defaults.t,
+    outputFormat: Sql,
+    formatOptions: SqlOptions({...Defaults.defaultSqlOptions, tableName: "users", includeCreateTable: true}),
+  }
+
+  switch convert(~input=makeArrayOfArraysInput(), ~format="sql", ~options) {
+  | Ok(sql) =>
+    assertion(
+      (left, right) => left == right,
+      sql->String.includes("CREATE TABLE \"users\""),
+      true,
+      ~operator="equals",
+    )
+    assertion(
+      (left, right) => left == right,
+      sql->String.includes("VALUES (?, ?)"),
+      true,
+      ~operator="equals",
+    )
+  | Error(error) =>
+    assertion(
+      (left, right) => left == right,
+      error->TablyfulError.toString->String.includes(""),
+      false,
+      ~operator="equals",
+      ~message="Expected SQL conversion to succeed",
+    )
+  }
+})
+
+test("Core Pipeline: yaml conversion succeeds", () => {
+  switch convert(~input=makeArrayOfArraysInput(), ~format="yaml") {
+  | Ok(yaml) =>
+    assertion(
+      (left, right) => left == right,
+      yaml->String.includes("- name: Alice"),
+      true,
+      ~operator="equals",
+    )
+    assertion(
+      (left, right) => left == right,
+      yaml->String.includes("  age: 30"),
+      true,
+      ~operator="equals",
+    )
+  | Error(error) =>
+    assertion(
+      (left, right) => left == right,
+      error->TablyfulError.toString->String.includes(""),
+      false,
+      ~operator="equals",
+      ~message="Expected YAML conversion to succeed",
     )
   }
 })
