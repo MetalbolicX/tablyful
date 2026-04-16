@@ -19,6 +19,12 @@ node dist/cli.mjs examples/cli/sample.json --config examples/cli/.tablyfulrc.jso
 # override delimiter inline
 node dist/cli.mjs examples/cli/sample.json --format csv --set csv.delimiter=';'
 
+# write to output file
+node dist/cli.mjs examples/cli/sample.json --format csv --output examples/cli/out.csv
+
+# automatic streaming for large csv/html/yaml/sql outputs
+node dist/cli.mjs examples/cli/sample.json --format csv --output examples/cli/out-stream.csv
+
 # filter + select columns
 node dist/cli.mjs examples/cli/sample.json --format yaml --filter "name LIKE ali%" --columns name,age
 

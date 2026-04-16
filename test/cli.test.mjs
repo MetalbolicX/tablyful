@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -285,6 +285,31 @@ test("cli --stats prints conversion summary to stderr", () => {
   assert.match(result.stderr, /format: csv/);
 });
 
+test("cli auto-stream path converts csv from stdin", () => {
+  const result = runCli({
+    args: ["--format", "csv"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /name,age/);
+  assert.match(result.stdout, /Alice,30/);
+});
+
+test("cli auto-stream path supports filters and columns", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--filter", "age>25", "--columns", "name"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /^name/m);
+  assert.match(result.stdout, /Alice/);
+  assert.equal(result.stdout.includes("Bob"), false);
+  assert.equal(result.stdout.includes("age"), false);
+});
+
+
 test("cli reads positional file input", () => {
   const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-"));
   const filePath = join(tempDir, "input.json");
@@ -296,6 +321,48 @@ test("cli reads positional file input", () => {
     assert.equal(result.code, 0);
     assert.match(result.stdout, /name,age/);
     assert.match(result.stdout, /Bob,25/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("cli --output writes formatted content to file", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-output-"));
+  const filePath = join(tempDir, "input.json");
+  const outputPath = join(tempDir, "out.csv");
+
+  try {
+    writeFileSync(filePath, sampleArrayOfArrays, "utf8");
+    const result = runCli({ args: [filePath, "--format", "csv", "--output", outputPath] });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, "");
+
+    const output = readFileSync(outputPath, "utf8");
+    assert.match(output, /name,age/);
+    assert.match(output, /Alice,30/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("cli csv with --output writes file content (auto-stream path)", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-stream-output-"));
+  const filePath = join(tempDir, "input.json");
+  const outputPath = join(tempDir, "out.csv");
+
+  try {
+    writeFileSync(filePath, sampleArrayOfArrays, "utf8");
+    const result = runCli({
+      args: [filePath, "--format", "csv", "--output", outputPath],
+    });
+
+    assert.equal(result.code, 0);
+    assert.equal(result.stdout, "");
+
+    const output = readFileSync(outputPath, "utf8");
+    assert.match(output, /name,age/);
+    assert.match(output, /Bob,25/);
   } finally {
     rmSync(tempDir, { recursive: true, force: true });
   }

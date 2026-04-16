@@ -28,6 +28,9 @@ module Fs = {
 
   @module("node:fs")
   external writeSyncFd: (int, string) => int = "writeSync"
+
+  @module("node:fs")
+  external writeFileSyncUtf8: (string, string) => unit = "writeFileSync"
 }
 
 module Path = {
@@ -77,6 +80,7 @@ module Util = {
     help?: bool,
     format?: string,
     input?: string,
+    output?: string,
     set?: array<string>,
     filter?: array<string>,
     columns?: string,
@@ -103,4 +107,36 @@ module Util = {
   }
 
   @module("node:util") external parseArgs: parseConfig => parseArgsResult = "parseArgs"
+}
+
+module StreamMode = {
+  type config = {
+    inputPath: string,
+    outputPath: string,
+    outputFormat: string,
+    delimiter: string,
+    quote: string,
+    escape: string,
+    lineBreak: string,
+    includeHeaders: bool,
+    hasHeaders: bool,
+    hasRowNumbers: bool,
+    rowNumberHeader: string,
+    sqlTableName: string,
+    sqlIdentifierQuote: string,
+    sqlIncludeCreateTable: bool,
+    htmlTableClass: string,
+    htmlTheadClass: string,
+    htmlTbodyClass: string,
+    htmlId: string,
+    htmlCaption: string,
+    yamlIndent: int,
+    yamlQuoteStrings: bool,
+    columns: array<string>,
+    filters: array<string>,
+    stats: bool,
+  }
+
+  @module("./Cli/StreamMode.mjs")
+  external run: config => unit = "runStreamConversion"
 }

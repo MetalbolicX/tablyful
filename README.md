@@ -19,6 +19,12 @@ cat data.json | tablyful --format csv
 # file -> json
 tablyful data.json --format json
 
+# write to file
+tablyful data.json --format csv --output out.csv
+
+# automatic streaming for large arrays (csv|tsv|psv|sql|html|yaml)
+cat data.json | tablyful --format csv --output out.csv
+
 # repeatable --set overrides
 tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
 
@@ -35,6 +41,8 @@ tablyful data.json --format csv --stats
 tablyful --list-set-keys
 tablyful --list-set-keys-format csv
 ```
+
+Automatic streaming is used for JSON arrays of arrays/objects when output format is: `csv`, `tsv`, `psv`, `sql`, `html`, `yaml`.
 
 ## Configuration and Precedence
 

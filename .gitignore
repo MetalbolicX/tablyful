@@ -148,6 +148,7 @@ dist
 .bs.lock
 .merlin
 /**/*.res.mjs
+/src/Cli/StreamMode.mjs
 
 # Ignore for AI
 *.prompt.md

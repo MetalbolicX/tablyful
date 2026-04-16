@@ -15,11 +15,12 @@
     "res:build": "rescript",
     "res:dev": "rescript watch",
     "res:clean": "rescript clean",
+    "ts:stream": "tsc -p tsconfig.stream.json",
     "res:test": "retest \"./test/res/**/*.res.mjs\"",
     "test:cli": "pnpm build && node --test test/cli.test.mjs",
     "test": "pnpm res:test && pnpm test:cli",
     "bundle": "rolldown -c",
-    "build": "rescript && rolldown -c"
+    "build": "rescript && pnpm ts:stream && rolldown -c"
   },
   "author": {
     "name": "José Martínez Santana"
@@ -38,9 +39,11 @@
   ],
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "rescript-test": "^8.0.0",
     "rolldown": "1.0.0-rc.15",
-    "rollup-plugin-esbuild": "^6.2.1"
+    "rollup-plugin-esbuild": "^6.2.1",
+    "typescript": "^6.0.2"
   },
   "packageManager": "pnpm@10.19.0+sha512.c9fc7236e92adf5c8af42fd5bf1612df99c2ceb62f27047032f4720b33f8eacdde311865e91c411f2774f618d82f320808ecb51718bfa82c060c4ba7c76a32b8",
   "keywords": [
@@ -61,6 +64,7 @@
   },
   "dependencies": {
     "@rescript/runtime": "^12.2.0",
-    "rescript": "^12.2.0"
+    "rescript": "^12.2.0",
+    "stream-json": "^2.1.0"
   }
 }

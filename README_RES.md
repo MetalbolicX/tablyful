@@ -15,6 +15,7 @@
 - Row filtering with SQL-like predicates (`=`, `!=`, `>`, `<`, `>=`, `<=`, `LIKE`)
 - Column projection via `--columns`
 - Conversion diagnostics with `--stats`
+- Automatic streaming for large JSON arrays when output is `csv`, `tsv`, `psv`, `sql`, `html`, or `yaml`
 - Human-readable discoverability with `--list-set-keys`
 
 ## Installation
@@ -31,6 +32,15 @@ cat data.json | tablyful --format csv
 
 # positional file -> json
 tablyful data.json --format json
+
+# write output to a file
+tablyful data.json --format csv --output out.csv
+
+# automatic streaming for large arrays (csv/tsv/psv/sql/html/yaml)
+cat data.json | tablyful --format csv --output out.csv
+
+# automatic streaming + filtering + projection
+cat data.json | tablyful --format sql --filter "age>25" --columns name,age
 
 # auto-detect parser, filter rows, and select columns
 cat data.json | tablyful --format yaml --filter 'name LIKE ali%' --columns name,age
@@ -53,6 +63,7 @@ Usage: tablyful [options] [file]
 Options:
   -f, --format <format>           Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
   -i, --input <format>            Input format (optional; auto-detected when omitted)
+  -o, --output <path>             Write output to file instead of stdout
       --set <key=value>           Override format option (repeatable, e.g. --set json.pretty=false)
       --list-set-keys             Print allowed --set keys and defaults
       --list-set-keys-format <f>  Print allowed --set keys for one format
@@ -67,6 +78,10 @@ Options:
 ```
 
 Input is read from `[file]` when provided, otherwise from stdin when piped.
+
+Automatic streaming is used for JSON arrays of arrays/objects when output format is: `csv`, `tsv`, `psv`, `sql`, `html`, `yaml`.
+
+To force the legacy batch pipeline for these formats, pass `--input ...` explicitly.
 
 ## Configuration
 

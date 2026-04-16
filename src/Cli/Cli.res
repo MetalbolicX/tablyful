@@ -19,6 +19,7 @@ Convert tabular data between formats.
 Options:
   -f, --format <format>   Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
   -i, --input <format>    Input format (optional; auto-detected when omitted)
+  -o, --output <path>     Write output to file instead of stdout
       --set <key=value>   Override format option (repeatable, e.g. --set json.pretty=false)
       --list-set-keys      Print allowed --set keys and defaults
       --list-set-keys-format <format>
@@ -39,6 +40,7 @@ Examples:
   cat data.json | tablyful --format json --set json.pretty=false --set json.indentSize=4
   cat data.json | tablyful --format yaml --filter 'name LIKE ali%' --columns name,age
   cat data.json | tablyful --format sql --set sql.tableName=users --stats
+  tablyful data.json --format csv --output out.csv
   tablyful --list-set-keys
   tablyful --list-set-keys-format csv
   cat data.json | tablyful --format csv --delimiter ';' --config conf.json
@@ -197,6 +199,7 @@ let makeParseOptions = (): dict<Bindings.Util.flatConfig> => {
   Dict.fromArray([
     ("format", makeStringOption(~short="f")),
     ("input", makeStringOption(~short="i")),
+    ("output", makeStringOption(~short="o")),
     ("set", makeStringOption(~multiple=true)),
     ("columns", makeStringOption(~short="C")),
     ("filter", makeStringOption(~multiple=true)),
@@ -214,6 +217,7 @@ let makeParseOptions = (): dict<Bindings.Util.flatConfig> => {
 type cliFlags = {
   formatArg: option<string>,
   inputArg: option<string>,
+  outputPath: option<string>,
   setPairs: array<(string, string)>,
   columnsArg: option<array<string>>,
   filterExprs: array<string>,
@@ -600,66 +604,266 @@ let overrideWithCliFlags = (options: t, flags: cliFlags): Common.result<t> => {
   })
 }
 
+let resolveOptions = (flags: cliFlags): Common.result<t> => {
+  mergeConfig(~configPath=flags.configPath)
+  ->Result.flatMap(configOptions => applySetOverrides(configOptions, flags.setPairs))
+  ->Result.flatMap(withSetOverrides => overrideWithCliFlags(withSetOverrides, flags))
+}
+
+let runStreamMode = (~inputPath: option<string>, flags: cliFlags): unit => {
+  switch resolveOptions(flags) {
+  | Error(error) =>
+    printError(error)
+    Bindings.Process.exit(2)
+  | Ok(options) =>
+    switch options.outputFormat {
+    | Csv => {
+        let csv = Defaults.getCsvOptions(options)
+        Bindings.StreamMode.run({
+          inputPath: inputPath->Option.getOr(""),
+          outputPath: flags.outputPath->Option.getOr(""),
+          outputFormat: "csv",
+          delimiter: csv.delimiter,
+          quote: csv.quote,
+          escape: csv.escape,
+          lineBreak: csv.lineBreak,
+          includeHeaders: csv.includeHeaders,
+          hasHeaders: options.hasHeaders,
+          hasRowNumbers: options.hasRowNumbers,
+          rowNumberHeader: options.rowNumberHeader,
+          sqlTableName: Defaults.defaultSqlOptions.tableName,
+          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
+          sqlIncludeCreateTable: false,
+          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
+          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
+          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
+          htmlId: Defaults.defaultHtmlOptions.id,
+          htmlCaption: Defaults.defaultHtmlOptions.caption,
+          yamlIndent: Defaults.defaultYamlOptions.indent,
+          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
+          columns: flags.columnsArg->Option.getOr([]),
+          filters: flags.filterExprs,
+          stats: flags.stats,
+        })
+      }
+    | Tsv => {
+        let tsv = Defaults.getTsvOptions(options)
+        Bindings.StreamMode.run({
+          inputPath: inputPath->Option.getOr(""),
+          outputPath: flags.outputPath->Option.getOr(""),
+          outputFormat: "tsv",
+          delimiter: "\t",
+          quote: Defaults.defaultCsvOptions.quote,
+          escape: Defaults.defaultCsvOptions.escape,
+          lineBreak: Defaults.defaultCsvOptions.lineBreak,
+          includeHeaders: tsv.includeHeaders,
+          hasHeaders: options.hasHeaders,
+          hasRowNumbers: options.hasRowNumbers,
+          rowNumberHeader: options.rowNumberHeader,
+          sqlTableName: Defaults.defaultSqlOptions.tableName,
+          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
+          sqlIncludeCreateTable: false,
+          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
+          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
+          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
+          htmlId: Defaults.defaultHtmlOptions.id,
+          htmlCaption: Defaults.defaultHtmlOptions.caption,
+          yamlIndent: Defaults.defaultYamlOptions.indent,
+          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
+          columns: flags.columnsArg->Option.getOr([]),
+          filters: flags.filterExprs,
+          stats: flags.stats,
+        })
+      }
+    | Psv => {
+        let psv = Defaults.getPsvOptions(options)
+        Bindings.StreamMode.run({
+          inputPath: inputPath->Option.getOr(""),
+          outputPath: flags.outputPath->Option.getOr(""),
+          outputFormat: "psv",
+          delimiter: "|",
+          quote: Defaults.defaultCsvOptions.quote,
+          escape: Defaults.defaultCsvOptions.escape,
+          lineBreak: Defaults.defaultCsvOptions.lineBreak,
+          includeHeaders: psv.includeHeaders,
+          hasHeaders: options.hasHeaders,
+          hasRowNumbers: options.hasRowNumbers,
+          rowNumberHeader: options.rowNumberHeader,
+          sqlTableName: Defaults.defaultSqlOptions.tableName,
+          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
+          sqlIncludeCreateTable: false,
+          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
+          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
+          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
+          htmlId: Defaults.defaultHtmlOptions.id,
+          htmlCaption: Defaults.defaultHtmlOptions.caption,
+          yamlIndent: Defaults.defaultYamlOptions.indent,
+          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
+          columns: flags.columnsArg->Option.getOr([]),
+          filters: flags.filterExprs,
+          stats: flags.stats,
+        })
+      }
+    | Sql => {
+        let sql = Defaults.getSqlOptions(options)
+        Bindings.StreamMode.run({
+          inputPath: inputPath->Option.getOr(""),
+          outputPath: flags.outputPath->Option.getOr(""),
+          outputFormat: "sql",
+          delimiter: Defaults.defaultCsvOptions.delimiter,
+          quote: Defaults.defaultCsvOptions.quote,
+          escape: Defaults.defaultCsvOptions.escape,
+          lineBreak: Defaults.defaultCsvOptions.lineBreak,
+          includeHeaders: false,
+          hasHeaders: options.hasHeaders,
+          hasRowNumbers: options.hasRowNumbers,
+          rowNumberHeader: options.rowNumberHeader,
+          sqlTableName: sql.tableName,
+          sqlIdentifierQuote: sql.identifierQuote,
+          sqlIncludeCreateTable: sql.includeCreateTable,
+          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
+          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
+          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
+          htmlId: Defaults.defaultHtmlOptions.id,
+          htmlCaption: Defaults.defaultHtmlOptions.caption,
+          yamlIndent: Defaults.defaultYamlOptions.indent,
+          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
+          columns: flags.columnsArg->Option.getOr([]),
+          filters: flags.filterExprs,
+          stats: flags.stats,
+        })
+      }
+    | Html => {
+        let html = Defaults.getHtmlOptions(options)
+        Bindings.StreamMode.run({
+          inputPath: inputPath->Option.getOr(""),
+          outputPath: flags.outputPath->Option.getOr(""),
+          outputFormat: "html",
+          delimiter: Defaults.defaultCsvOptions.delimiter,
+          quote: Defaults.defaultCsvOptions.quote,
+          escape: Defaults.defaultCsvOptions.escape,
+          lineBreak: Defaults.defaultCsvOptions.lineBreak,
+          includeHeaders: true,
+          hasHeaders: options.hasHeaders,
+          hasRowNumbers: options.hasRowNumbers,
+          rowNumberHeader: options.rowNumberHeader,
+          sqlTableName: Defaults.defaultSqlOptions.tableName,
+          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
+          sqlIncludeCreateTable: false,
+          htmlTableClass: html.tableClass,
+          htmlTheadClass: html.theadClass,
+          htmlTbodyClass: html.tbodyClass,
+          htmlId: html.id,
+          htmlCaption: html.caption,
+          yamlIndent: Defaults.defaultYamlOptions.indent,
+          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
+          columns: flags.columnsArg->Option.getOr([]),
+          filters: flags.filterExprs,
+          stats: flags.stats,
+        })
+      }
+    | Yaml => {
+        let yaml = Defaults.getYamlOptions(options)
+        Bindings.StreamMode.run({
+          inputPath: inputPath->Option.getOr(""),
+          outputPath: flags.outputPath->Option.getOr(""),
+          outputFormat: "yaml",
+          delimiter: Defaults.defaultCsvOptions.delimiter,
+          quote: Defaults.defaultCsvOptions.quote,
+          escape: Defaults.defaultCsvOptions.escape,
+          lineBreak: yaml.lineBreak,
+          includeHeaders: true,
+          hasHeaders: options.hasHeaders,
+          hasRowNumbers: options.hasRowNumbers,
+          rowNumberHeader: options.rowNumberHeader,
+          sqlTableName: Defaults.defaultSqlOptions.tableName,
+          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
+          sqlIncludeCreateTable: false,
+          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
+          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
+          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
+          htmlId: Defaults.defaultHtmlOptions.id,
+          htmlCaption: Defaults.defaultHtmlOptions.caption,
+          yamlIndent: yaml.indent,
+          yamlQuoteStrings: yaml.quoteStrings,
+          columns: flags.columnsArg->Option.getOr([]),
+          filters: flags.filterExprs,
+          stats: flags.stats,
+        })
+      }
+    | _ =>
+      printError(
+        TablyfulError.validationError(
+          "Automatic streaming currently supports output formats: csv, tsv, psv, sql, html, yaml.",
+        ),
+      )
+      Bindings.Process.exit(2)
+    }
+  }
+}
+
 let runConversion = (inputText: string, flags: cliFlags): unit => {
   switch parseJsonInput(inputText) {
   | Error(error) =>
     printError(error)
     Bindings.Process.exit(1)
   | Ok(jsonInput) =>
-    switch mergeConfig(~configPath=flags.configPath) {
+    switch resolveOptions(flags) {
     | Error(error) =>
       printError(error)
       Bindings.Process.exit(2)
-    | Ok(configOptions) =>
-      switch applySetOverrides(configOptions, flags.setPairs) {
+    | Ok(options) =>
+      switch ParserRegistry.parse(~format=?flags.inputArg, jsonInput, options) {
       | Error(error) =>
         printError(error)
-        Bindings.Process.exit(2)
-      | Ok(withSetOverrides) =>
-        switch overrideWithCliFlags(withSetOverrides, flags) {
+        Bindings.Process.exit(1)
+      | Ok(tableData) =>
+        switch TableTransform.applyFilters(tableData, flags.filterExprs) {
         | Error(error) =>
           printError(error)
-          Bindings.Process.exit(2)
-        | Ok(options) =>
-          switch ParserRegistry.parse(~format=?flags.inputArg, jsonInput, options) {
+          Bindings.Process.exit(1)
+        | Ok(filteredData) =>
+          let conversionResult =
+            switch flags.columnsArg {
+            | Some(columns) => TableTransform.selectColumns(filteredData, columns)
+            | None => Ok(filteredData)
+            }
+            ->Result.flatMap(finalData => {
+              let formatName = options.outputFormat->Types.formatToString
+              FormatterRegistry.format(formatName, finalData, options)->Result.map(output => {
+                (finalData, output)
+              })
+            })
+
+          switch conversionResult {
           | Error(error) =>
             printError(error)
             Bindings.Process.exit(1)
-          | Ok(tableData) =>
-            switch TableTransform.applyFilters(tableData, flags.filterExprs) {
-            | Error(error) =>
-              printError(error)
-              Bindings.Process.exit(1)
-            | Ok(filteredData) =>
-              let conversionResult =
-                switch flags.columnsArg {
-                | Some(columns) => TableTransform.selectColumns(filteredData, columns)
-                | None => Ok(filteredData)
-                }
-                ->Result.flatMap(finalData => {
-                  let formatName = options.outputFormat->Types.formatToString
-                  FormatterRegistry.format(formatName, finalData, options)->Result.map(output => {
-                    (finalData, output)
-                  })
-                })
-
-              switch conversionResult {
-              | Error(error) =>
-                printError(error)
-                Bindings.Process.exit(1)
-              | Ok((finalData, output)) =>
-                if flags.stats {
-                  let formatName = options.outputFormat->Types.formatToString
-                  writeStderr(
-                    `[tablyful] rows: ${finalData.metadata.rowCount->Int.toString}, columns: ${
-                      finalData.metadata.columnCount->Int.toString
-                    }, detected: ${finalData.metadata.sourceFormat}, format: ${formatName}\n`,
-                  )
-                }
-                writeStdout(output ++ "\n")
-                Bindings.Process.exit(0)
-              }
+          | Ok((finalData, output)) =>
+            if flags.stats {
+              let formatName = options.outputFormat->Types.formatToString
+              writeStderr(
+                `[tablyful] rows: ${finalData.metadata.rowCount->Int.toString}, columns: ${
+                  finalData.metadata.columnCount->Int.toString
+                }, detected: ${finalData.metadata.sourceFormat}, format: ${formatName}\n`,
+              )
             }
+            switch flags.outputPath {
+            | Some(path) =>
+              try {
+                Bindings.Fs.writeFileSyncUtf8(path, output ++ "\n")
+              } catch {
+              | JsExn(e) =>
+                printError(
+                  TablyfulError.ioError(
+                    `Failed to write output file: ${e->JsExn.message->Option.getOr("unknown error")}`,
+                  ),
+                )
+                Bindings.Process.exit(1)
+              }
+            | None => writeStdout(output ++ "\n")
+            }
+            Bindings.Process.exit(0)
           }
         }
       }
@@ -779,6 +983,7 @@ let main = (): unit => {
     let flags: cliFlags = {
       formatArg: values.format,
       inputArg: values.input,
+      outputPath: values.output,
       setPairs,
       columnsArg,
       filterExprs,
@@ -788,24 +993,59 @@ let main = (): unit => {
       stats: values.stats->Option.getOr(false),
     }
 
-    if positionals->Array.length > 0 {
-      let filePath = positionals->Array.getUnsafe(0)
-      let inputText = try {
-        Bindings.Fs.readFileSyncUtf8(filePath)
-      } catch {
-      | JsExn(e) =>
-        printError(
-          TablyfulError.ioError(`Failed to read input file: ${e->JsExn.message->Option.getOr("unknown error")}`),
-        )
-        Bindings.Process.exit(1)
-        ""
-      }
-      runConversion(inputText, flags)
-    } else if Bindings.Process.stdin.isTTY !== Some(true) {
-      readInputFromStdin(flags)
+    let inputPath = if positionals->Array.length > 0 {
+      Some(positionals->Array.getUnsafe(0))
     } else {
-      showHelp()
-      Bindings.Process.exit(0)
+      None
+    }
+
+    let runBatchMode = () => {
+      switch inputPath {
+      | Some(filePath) =>
+        let inputText = try {
+          Bindings.Fs.readFileSyncUtf8(filePath)
+        } catch {
+        | JsExn(e) =>
+          printError(
+            TablyfulError.ioError(`Failed to read input file: ${e->JsExn.message->Option.getOr("unknown error")}`),
+          )
+          Bindings.Process.exit(1)
+          ""
+        }
+        runConversion(inputText, flags)
+      | None =>
+        if Bindings.Process.stdin.isTTY !== Some(true) {
+          readInputFromStdin(flags)
+        } else {
+          showHelp()
+          Bindings.Process.exit(0)
+        }
+      }
+    }
+
+    if flags.inputArg->Option.isSome {
+      runBatchMode()
+    } else {
+      switch resolveOptions(flags) {
+      | Error(error) =>
+        printError(error)
+        Bindings.Process.exit(2)
+      | Ok(options) =>
+        switch options.outputFormat {
+        | Csv | Tsv | Psv | Sql | Html | Yaml =>
+          switch inputPath {
+          | Some(_) => runStreamMode(~inputPath, flags)
+          | None =>
+            if Bindings.Process.stdin.isTTY !== Some(true) {
+              runStreamMode(~inputPath, flags)
+            } else {
+              showHelp()
+              Bindings.Process.exit(0)
+            }
+          }
+        | _ => runBatchMode()
+        }
+      }
     }
   }
 }

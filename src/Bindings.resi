@@ -18,6 +18,7 @@ module Fs: {
   let existsSync: string => bool
   let readFileSyncUtf8: string => string
   let writeSyncFd: (int, string) => int
+  let writeFileSyncUtf8: (string, string) => unit
 }
 
 module Path: {
@@ -54,6 +55,7 @@ module Util: {
     help?: bool,
     format?: string,
     input?: string,
+    output?: string,
     set?: array<string>,
     filter?: array<string>,
     columns?: string,
@@ -80,4 +82,35 @@ module Util: {
   }
 
   let parseArgs: parseConfig => parseArgsResult
+}
+
+module StreamMode: {
+  type config = {
+    inputPath: string,
+    outputPath: string,
+    outputFormat: string,
+    delimiter: string,
+    quote: string,
+    escape: string,
+    lineBreak: string,
+    includeHeaders: bool,
+    hasHeaders: bool,
+    hasRowNumbers: bool,
+    rowNumberHeader: string,
+    sqlTableName: string,
+    sqlIdentifierQuote: string,
+    sqlIncludeCreateTable: bool,
+    htmlTableClass: string,
+    htmlTheadClass: string,
+    htmlTbodyClass: string,
+    htmlId: string,
+    htmlCaption: string,
+    yamlIndent: int,
+    yamlQuoteStrings: bool,
+    columns: array<string>,
+    filters: array<string>,
+    stats: bool,
+  }
+
+  let run: config => unit
 }
