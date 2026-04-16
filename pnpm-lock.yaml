@@ -15,9 +15,6 @@ importers:
         specifier: ^12.2.0
         version: 12.2.0
     devDependencies:
-      '@types/node':
-        specifier: ^25.6.0
-        version: 25.6.0
       rescript-test:
         specifier: ^8.0.0
         version: 8.0.0(rescript@12.2.0)
@@ -502,9 +499,6 @@ packages:
   '@types/estree@1.0.8':
     resolution: {integrity: sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w==}
 
-  '@types/node@25.6.0':
-    resolution: {integrity: sha512-+qIYRKdNYJwY3vRCZMdJbPLJAtGjQBudzZzdzwQYkEPQd+PJGixUL5QfvCLDaULoLv+RhT3LDkwEfKaAkgSmNQ==}
-
   agent-base@7.1.4:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
@@ -868,9 +862,6 @@ packages:
 
   tslib@2.8.1:
     resolution: {integrity: sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w==}
-
-  undici-types@7.19.2:
-    resolution: {integrity: sha512-qYVnV5OEm2AW8cJMCpdV20CDyaN3g0AjDlOGf1OW4iaDEx8MwdtChUp4zu4H0VP3nDRF/8RKWH+IPp9uW0YGZg==}
 
   universalify@0.2.0:
     resolution: {integrity: sha512-CJ1QgKmNg3CwvAv/kOFmtnEN05f0D/cn9QntgNOQlQF9dgvVTHj3t+8JPdjqawCHk7V/KA+fbUqzZ9XWhcqPUg==}
@@ -1236,10 +1227,6 @@ snapshots:
     optional: true
 
   '@types/estree@1.0.8': {}
-
-  '@types/node@25.6.0':
-    dependencies:
-      undici-types: 7.19.2
 
   agent-base@7.1.4: {}
 
@@ -1682,8 +1669,6 @@ snapshots:
 
   tslib@2.8.1:
     optional: true
-
-  undici-types@7.19.2: {}
 
   universalify@0.2.0: {}
 
