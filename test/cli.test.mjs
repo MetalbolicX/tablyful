@@ -135,6 +135,54 @@ test("cli --delimiter overrides csv delimiter", () => {
   assert.match(result.stdout, /Alice;30/);
 });
 
+test("cli --set csv.delimiter overrides delimiter", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--set", "csv.delimiter=;"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /name;age/);
+  assert.match(result.stdout, /Bob;25/);
+});
+
+test("cli --set can override json options", () => {
+  const result = runCli({
+    args: [
+      "--format",
+      "json",
+      "--set",
+      "json.pretty=false",
+      "--set",
+      "json.asArray=true",
+    ],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(Array.isArray(parsed), true);
+  assert.equal(Array.isArray(parsed[0]), true);
+});
+
+test("cli --list-set-keys prints options and exits 0", () => {
+  const result = runCli({ args: ["--list-set-keys"] });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /csv\.delimiter/);
+  assert.match(result.stdout, /json\.pretty/);
+  assert.match(result.stdout, /latex\.booktabs/);
+});
+
+test("cli --list-set-keys-format csv prints csv options only", () => {
+  const result = runCli({ args: ["--list-set-keys-format", "csv"] });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /csv\.delimiter/);
+  assert.match(result.stdout, /csv\.includeHeaders/);
+  assert.doesNotMatch(result.stdout, /json\.pretty/);
+});
+
 test("cli --no-headers removes header row", () => {
   const result = runCli({
     args: ["--format", "csv", "--no-headers"],
@@ -211,4 +259,14 @@ test("cli invalid output format exits 2", () => {
 
   assert.equal(result.code, 2);
   assert.match(result.stderr, /Invalid format: xml/);
+});
+
+test("cli invalid --set option exits 2", () => {
+  const result = runCli({
+    args: ["--format", "csv", "--set", "csv.notAnOption=1"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /Unknown --set option: csv.notAnOption/);
 });

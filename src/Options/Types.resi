@@ -1,4 +1,3 @@
-@genType
 type format =
   | Csv
   | Json
@@ -6,7 +5,6 @@ type format =
   | Html
   | Latex
 
-@genType
 type csvOptions = {
   delimiter: string,
   quote: string,
@@ -15,21 +13,18 @@ type csvOptions = {
   includeHeaders: bool,
 }
 
-@genType
 type jsonOptions = {
   pretty: bool,
   indentSize: int,
   asArray: bool,
 }
 
-@genType
 type markdownOptions = {
   align: string,
   padding: bool,
   githubFlavor: bool,
 }
 
-@genType
 type htmlOptions = {
   tableClass: string,
   theadClass: string,
@@ -38,7 +33,6 @@ type htmlOptions = {
   caption: string,
 }
 
-@genType
 type latexOptions = {
   tableEnvironment: string,
   columnSpec: string,
@@ -49,7 +43,6 @@ type latexOptions = {
   useTableEnvironment: bool,
 }
 
-@genType
 type formatOptions =
   | CsvOptions(csvOptions)
   | JsonOptions(jsonOptions)
@@ -57,7 +50,6 @@ type formatOptions =
   | HtmlOptions(htmlOptions)
   | LatexOptions(latexOptions)
 
-@genType
 type t = {
   headers: option<array<string>>,
   hasHeaders: bool,

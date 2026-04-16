@@ -23,14 +23,6 @@ const shared = {
 export default defineConfig([
   {
     ...shared,
-    input: join(dirname, "src", "Tablyful.res.mjs"),
-    output: {
-      format: "es",
-      file: join(dirname, "dist", "main.mjs"),
-    },
-  },
-  {
-    ...shared,
     input: join(dirname, "src", "Cli", "CliMain.res.mjs"),
     output: {
       format: "es",

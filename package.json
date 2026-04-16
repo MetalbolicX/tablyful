@@ -2,14 +2,7 @@
   "name": "tablyful",
   "version": "1.0.0",
   "description": "Convert data between table formats - ReScript v12 edition",
-  "module": "dist/index.mjs",
-  "types": "dist/index.d.mts",
-  "main": "dist/index.mjs",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs"
-    },
     "./cli": {
       "import": "./dist/cli.mjs"
     }
@@ -19,15 +12,14 @@
     "tablyful": "./dist/cli.mjs"
   },
   "scripts": {
-    "res:typefix": "node ./scripts/rename-gentype-files.mjs",
-    "res:build": "rescript && pnpm run res:typefix",
+    "res:build": "rescript",
     "res:dev": "rescript watch",
     "res:clean": "rescript clean",
     "res:test": "retest \"./test/res/**/*.res.mjs\"",
-    "test:cli": "node --test test/cli.test.mjs",
+    "test:cli": "pnpm build && node --test test/cli.test.mjs",
     "test": "pnpm res:test && pnpm test:cli",
     "bundle": "rolldown -c",
-    "build": "pnpm res:build && pnpm bundle"
+    "build": "rescript && rolldown -c"
   },
   "author": {
     "name": "José Martínez Santana"
@@ -41,8 +33,6 @@
   },
   "files": [
     "dist",
-    "scripts",
-    "src/**/*.gen.ts",
     "src/**/*.res.mjs",
     "src/**/*.res"
   ],

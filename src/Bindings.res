@@ -69,6 +69,7 @@ module Util = {
   type flatConfig = {
     @as("type") type_: string,
     short?: string,
+    multiple?: bool,
     default?: defaultValue,
   }
 
@@ -76,10 +77,13 @@ module Util = {
     help?: bool,
     format?: string,
     input?: string,
+    set?: array<string>,
     delimiter?: string,
     config?: string,
     version?: bool,
     @as("no-headers") noHeaders?: bool,
+    @as("list-set-keys") listSetKeys?: bool,
+    @as("list-set-keys-format") listSetKeysFormat?: string,
   }
 
   type parseArgsResult = {

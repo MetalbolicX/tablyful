@@ -1,0 +1,17 @@
+{
+  "defaultFormat": "json",
+  "json": {
+    "pretty": true,
+    "indentSize": 2,
+    "asArray": false
+  },
+  "csv": {
+    "delimiter": ",",
+    "includeHeaders": true
+  },
+  "markdown": {
+    "align": "left",
+    "padding": true,
+    "githubFlavor": true
+  }
+}

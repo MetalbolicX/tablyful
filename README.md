@@ -1,48 +1,52 @@
 # tablyful
 
-> `tablyful` Converts semi-structured data into common table formats.
+`tablyful` is a CLI-first tool that converts JSON tabular data into `csv`, `json`, `markdown`, `html`, and `latex`.
 
-**Supported Versions:**
+![Node.js version](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-blue)
 
-![Node.js version](https://img.shields.io/badge/Node.js-%3E%3D20.0.0-blue)
-
-## Features
-
-1. Support for multiple input data formats (arrays, objects, etc.)
-2. Conversion to popular table formats (CSV, JSON, Markdown)
-3. Customizable formatting options
-4. Streaming API for large datasets
-
-## 🚀 Quick Installation
+## Install
 
 ```bash
 npm install tablyful
 ```
 
-## 📚 Documentation
+## Quick Usage
 
-<div align="center">
+```bash
+# stdin -> csv
+cat data.json | tablyful --format csv
 
-  [![view - Documentation](https://img.shields.io/badge/view-Documentation-blue?style=for-the-badge)](https://metalbolicx.github.io/tablyful/#/api-reference)
+# file -> json
+tablyful data.json --format json
 
-</div>
+# repeatable --set overrides
+tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
 
-## Contributing
+# discover valid --set keys
+tablyful --list-set-keys
+tablyful --list-set-keys-format csv
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Configuration and Precedence
 
-## Technologies used
+`tablyful` supports `.tablyfulrc.json` config files and CLI overrides.
 
-<table>
-  <tr>
-    <td align="center">
-      <a href="https://nodejs.org/" target="_blank">
-        <img src="https://upload.wikimedia.org/wikipedia/commons/d/d9/Node.js_logo.svg" alt="Node.js" width="42" height="42" /><br/>
-        <b>Node.js</b><br/>
-      </a>
-    </td>
-  </tr>
-</table>
+Priority order:
+
+1. Built-in defaults
+2. Config file(s)
+3. `--set format.option=value`
+4. Explicit shallow flags (`--delimiter`, `--no-headers`)
+
+See `README_RES.md` for full CLI documentation and `examples/cli/` for runnable examples.
+
+## Development
+
+```bash
+pnpm install
+pnpm build
+pnpm test
+```
 
 ## License
 

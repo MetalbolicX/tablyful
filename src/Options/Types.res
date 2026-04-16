@@ -3,7 +3,6 @@
 /**
  * Configuration options types
  */
-@genType
 type format =
   | Csv
   | Json
@@ -12,7 +11,6 @@ type format =
   | Latex
 
 // CSV options
-@genType
 type csvOptions = {
   delimiter: string,
   quote: string,
@@ -22,7 +20,6 @@ type csvOptions = {
 }
 
 // JSON options
-@genType
 type jsonOptions = {
   pretty: bool,
   indentSize: int,
@@ -30,7 +27,6 @@ type jsonOptions = {
 }
 
 // Markdown options
-@genType
 type markdownOptions = {
   align: string, // "left" | "center" | "right"
   padding: bool,
@@ -38,7 +34,6 @@ type markdownOptions = {
 }
 
 // HTML options
-@genType
 type htmlOptions = {
   tableClass: string,
   theadClass: string,
@@ -48,7 +43,6 @@ type htmlOptions = {
 }
 
 // LaTeX options
-@genType
 type latexOptions = {
   tableEnvironment: string,
   columnSpec: string,
@@ -60,7 +54,6 @@ type latexOptions = {
 }
 
 // Format options variant
-@genType
 type formatOptions =
   | CsvOptions(csvOptions)
   | JsonOptions(jsonOptions)
@@ -69,7 +62,6 @@ type formatOptions =
   | LatexOptions(latexOptions)
 
 // Main options type
-@genType
 type t = {
   // Input
   headers: option<array<string>>,

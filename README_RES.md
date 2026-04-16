@@ -1,19 +1,18 @@
 # Tablyful - ReScript Edition
 
-> Convert data between table formats with a functional, type-safe approach
+`tablyful` is a CLI-first tool for converting JSON tabular data between `csv`, `json`, `markdown`, `html`, and `latex`.
 
 [![ReScript](https://img.shields.io/badge/ReScript-v12.2.0-red)](https://rescript-lang.org/)
 [![Node.js](https://img.shields.io/badge/Node.js->=22.0.0-blue)](https://nodejs.org/)
 
 ## Features
 
-- **Multiple Input Formats**: Array of arrays, array of objects, object of arrays, object of objects
-- **Multiple Output Formats**: CSV, JSON, Markdown, HTML, LaTeX
-- **Type-Safe**: Built with ReScript for compile-time safety
-- **CLI Support**: Unix-friendly with stdin/stdout pipeline support
-- **Configuration Files**: Cascading config via `.tablyfulrc.json`
-- **Detailed Errors**: Context-rich error messages with suggestions
-- **Functional Design**: Pure functions, immutability, and composability
+- Multiple input shapes: array of arrays, array of objects, object of arrays, object of objects
+- Multiple output formats: CSV, JSON, Markdown, HTML, LaTeX
+- Unix-friendly CLI (stdin/stdout by default, positional file input supported)
+- Cascading JSON config (`.tablyfulrc.json`)
+- Repeatable `--set format.option=value` overrides for format-specific options
+- Human-readable discoverability with `--list-set-keys`
 
 ## Installation
 
@@ -23,185 +22,135 @@ npm install tablyful
 
 ## Quick Start
 
-### JavaScript/TypeScript API
-
-```javascript
-import { toCsv, toJson, toMarkdown } from 'tablyful';
-
-// Convert array of arrays to CSV
-const data = [
-  ['name', 'age', 'city'],
-  ['Alice', 30, 'NYC'],
-  ['Bob', 25, 'LA']
-];
-
-const csv = toCsv({ input: JSON.stringify(data) });
-console.log(csv);
-// Output:
-// name,age,city
-// Alice,30,NYC
-// Bob,25,LA
-
-// Convert to JSON
-const json = toJson({ input: JSON.stringify(data) });
-console.log(json);
-```
-
-### CLI Usage
-
 ```bash
-# Convert JSON to CSV
+# stdin -> csv
 cat data.json | tablyful --format csv
 
-# Convert CSV to pretty JSON
-tablyful data.csv --format json --pretty
+# positional file -> json
+tablyful data.json --format json
 
-# Convert with custom headers
-tablyful data.json --headers "Name,Age,City" --format markdown
+# force parser and customize csv delimiter
+cat data.json | tablyful --input array-of-objects --format csv --set csv.delimiter=';'
 
-# Use config file
-tablyful data.json --config ./.tablyfulrc.json
-
-# Pipeline example
-curl -s api.json | tablyful --format markdown | less
+# use config and then override one value inline
+tablyful data.json --config ./.tablyfulrc.json --set json.pretty=false --format json
 ```
+
+## CLI Options
+
+```text
+Usage: tablyful [options] [file]
+
+Options:
+  -f, --format <format>           Output format (csv|json|markdown|html|latex)
+  -i, --input <format>            Input format (array-of-arrays|array-of-objects|object-of-arrays|object-of-objects)
+      --set <key=value>           Override format option (repeatable, e.g. --set json.pretty=false)
+      --list-set-keys             Print allowed --set keys and defaults
+      --list-set-keys-format <f>  Print allowed --set keys for one format
+  -c, --config <path>             Path to config JSON file
+  -d, --delimiter <char>          CSV delimiter override
+      --no-headers                Omit CSV headers in output
+  -h, --help                      Show help
+  -v, --version                   Show version
+```
+
+Input is read from `[file]` when provided, otherwise from stdin when piped.
 
 ## Configuration
 
-Create a `.tablyfulrc.json` file in your project root or home directory:
+Create a `.tablyfulrc.json` in the current directory (or home directory):
 
 ```json
 {
-  "input": {
-    "hasHeaders": true,
-    "encoding": "utf8"
-  },
-  "output": {
-    "defaultFormat": "csv",
-    "includeRowNumbers": false
-  },
+  "defaultFormat": "csv",
+  "hasHeaders": true,
+  "includeRowNumbers": false,
   "csv": {
     "delimiter": ",",
     "quote": "\"",
+    "escape": "\\",
+    "lineBreak": "\\n",
     "includeHeaders": true
   },
   "json": {
     "pretty": true,
-    "indentSize": 2
+    "indentSize": 2,
+    "asArray": false
   },
   "markdown": {
     "align": "left",
+    "padding": true,
     "githubFlavor": true
+  },
+  "html": {
+    "tableClass": "tablyful-table",
+    "theadClass": "",
+    "tbodyClass": "",
+    "id": "",
+    "caption": ""
+  },
+  "latex": {
+    "tableEnvironment": "tabular",
+    "columnSpec": "",
+    "booktabs": true,
+    "caption": "",
+    "label": "",
+    "centering": true,
+    "useTableEnvironment": false
   }
 }
 ```
 
-Configuration cascade (highest priority first):
-1. CLI arguments
-2. `./.tablyfulrc.json` (current directory)
-3. `~/.tablyfulrc.json` (home directory)
-4. Default options
+Precedence (lowest to highest):
+1. Built-in defaults
+2. Config file(s)
+3. Repeatable `--set` overrides
+4. Explicit shallow CLI flags like `--delimiter` and `--no-headers`
 
-## CLI Options
+## `--set` Overrides
 
-```
-USAGE:
-  tablyful [OPTIONS] [INPUT_FILE]
+Use repeatable `--set` values with this syntax:
 
-OPTIONS:
-  -i, --input <path>       Input file (default: stdin)
-  -o, --output <path>      Output file (default: stdout)
-  -f, --format <format>    Output format: csv, json, markdown, html, latex
-  -h, --headers <list>     Custom headers (comma-separated)
-      --has-headers        Input has header row
-      --no-headers         Input does not have header row
-  -d, --delimiter <char>   CSV delimiter (default: ,)
-  -p, --pretty             Pretty print JSON output
-      --compact            Compact JSON output
-  -n, --row-numbers        Include row numbers
-  -c, --config <path>      Config file path
-      --help               Show help message
+```text
+--set <format>.<option>=<value>
 ```
 
-## API Reference
+Examples:
 
-### Core Functions
+```bash
+# boolean + int parsing
+tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
 
-```rescript
-// Convert to specific format
-Tablyful.toCsv(~input: Js.Json.t, ~options: Options.t): result<string>
-Tablyful.toJson(~input: Js.Json.t, ~options: Options.t): result<string>
-Tablyful.toMarkdown(~input: Js.Json.t, ~options: Options.t): result<string>
-Tablyful.toHtml(~input: Js.Json.t, ~options: Options.t): result<string>
-Tablyful.toLatex(~input: Js.Json.t, ~options: Options.t): result<string>
+# string fallback
+tablyful data.json --format csv --set csv.delimiter=';'
 
-// Generic convert function
-Tablyful.convert(
-  ~input: Js.Json.t,
-  ~format: string,
-  ~options: Options.t
-): result<string>
-
-// Parse and format separately
-Tablyful.parse(~input: Js.Json.t, ~options: Options.t): result<TableData.t>
-Tablyful.format(
-  ~data: TableData.t,
-  ~format: string,
-  ~options: Options.t
-): result<string>
-
-// Utility functions
-Tablyful.detectFormat(Js.Json.t): string
-Tablyful.availableParsers(): array<string>
-Tablyful.availableFormatters(): array<string>
+# explicit CLI flags win over --set
+tablyful data.json --format csv --set csv.delimiter=';' --delimiter ','
 ```
 
-### Error Handling
+Value parsing:
+- `true`/`false` -> boolean
+- integer strings (for numeric fields) -> int
+- everything else -> string
 
-All functions return `result<'a, Error.t>`, providing detailed error information:
+## Discoverability
 
-```rescript
-switch Tablyful.toCsv(~input=data, ~options) {
-| Ok(csv) => Js.log(csv)
-| Error(err) =>
-  Js.log(err->Error.toString)
-  // Output: [PARSE_ERROR] Invalid JSON format (row 5, column 3)
-  // 💡 Suggestion: Ensure the input is valid JSON
-}
+```bash
+# list all allowed keys for --set
+tablyful --list-set-keys
+
+# list keys for one format
+tablyful --list-set-keys-format csv
 ```
-
-## Architecture
-
-This library uses functional programming patterns:
-
-- **GADTs** (Generalized Algebraic Data Types) for type-safe input handling
-- **Functors** for creating parsers and formatters with common functionality
-- **Module Types** for defining contracts
-- **Pipe-first** operator for composable data flow
-- **Result/Option** types for explicit error handling
 
 ## Development
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Build the project
-pnpm run res:build
-
-# Watch mode
-pnpm run res:dev
-
-# Run tests
+pnpm build
 pnpm test
-
-# Test watch mode
-pnpm test:watch
-
-# Clean build artifacts
-pnpm run res:clean
 ```
 
 ## License
 
-MIT © José Martínez Santana
+MIT © Jose Martinez Santana

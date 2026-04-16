@@ -43,23 +43,28 @@ let objectOfObjectsInput = (): JSON.t =>
     ]),
   )
 
+let convert = (~input: JSON.t, ~format: string, ~options: Types.t=Defaults.t): Common.result<string> => {
+  ParserRegistry.parse(input, options)
+  ->Result.flatMap(tableData => FormatterRegistry.format(format, tableData, options))
+}
+
 test("E2E detectFormat: array_of_arrays", () => {
-  let format = Tablyful.detectFormat(arrayOfArraysInput())
+  let format = arrayOfArraysInput()->InputData.classify->InputData.shapeToString
   assertion((left, right) => left == right, format, "array_of_arrays", ~operator="equals")
 })
 
 test("E2E detectFormat: array_of_objects", () => {
-  let format = Tablyful.detectFormat(arrayOfObjectsInput())
+  let format = arrayOfObjectsInput()->InputData.classify->InputData.shapeToString
   assertion((left, right) => left == right, format, "array_of_objects", ~operator="equals")
 })
 
 test("E2E detectFormat: object_of_arrays", () => {
-  let format = Tablyful.detectFormat(objectOfArraysInput())
+  let format = objectOfArraysInput()->InputData.classify->InputData.shapeToString
   assertion((left, right) => left == right, format, "object_of_arrays", ~operator="equals")
 })
 
 test("E2E detectFormat: object_of_objects", () => {
-  let format = Tablyful.detectFormat(objectOfObjectsInput())
+  let format = objectOfObjectsInput()->InputData.classify->InputData.shapeToString
   assertion((left, right) => left == right, format, "object_of_objects", ~operator="equals")
 })
 
@@ -72,7 +77,7 @@ test("E2E toCsv: handles all supported input shapes", () => {
   ]
 
   inputs->Array.forEach(input => {
-    switch Tablyful.toCsv(~input) {
+    switch convert(~input, ~format="csv") {
     | Ok(csv) =>
       assertion(
         (left, right) => left == right,
@@ -99,7 +104,7 @@ test("E2E toCsv: handles all supported input shapes", () => {
 })
 
 test("E2E toJson: converts and includes expected fields", () => {
-  switch Tablyful.toJson(~input=arrayOfArraysInput()) {
+  switch convert(~input=arrayOfArraysInput(), ~format="json") {
   | Ok(json) =>
     assertion(
       (left, right) => left == right,
@@ -120,7 +125,7 @@ test("E2E toJson: converts and includes expected fields", () => {
 })
 
 test("E2E toMarkdown: renders table separators", () => {
-  switch Tablyful.toMarkdown(~input=arrayOfArraysInput()) {
+  switch convert(~input=arrayOfArraysInput(), ~format="markdown") {
   | Ok(markdown) =>
     assertion(
       (left, right) => left == right,
@@ -146,7 +151,7 @@ test("E2E toMarkdown: renders table separators", () => {
 })
 
 test("E2E toHtml: emits table markup", () => {
-  switch Tablyful.toHtml(~input=arrayOfArraysInput()) {
+  switch convert(~input=arrayOfArraysInput(), ~format="html") {
   | Ok(html) =>
     assertion((left, right) => left == right, html->String.includes("<table"), true, ~operator="equals")
     assertion(
@@ -173,7 +178,7 @@ test("E2E toHtml: emits table markup", () => {
 })
 
 test("E2E toLatex: emits tabular environment", () => {
-  switch Tablyful.toLatex(~input=arrayOfArraysInput()) {
+  switch convert(~input=arrayOfArraysInput(), ~format="latex") {
   | Ok(latex) =>
     assertion(
       (left, right) => left == right,
@@ -199,7 +204,7 @@ test("E2E toLatex: emits tabular environment", () => {
 })
 
 test("E2E convert: unknown output format returns FormatError", () => {
-  switch Tablyful.convert(~input=arrayOfArraysInput(), ~format="xml") {
+  switch convert(~input=arrayOfArraysInput(), ~format="xml") {
   | Ok(_) =>
     assertion((left, right) => left == right, true, false, ~operator="equals")
   | Error(error) =>
@@ -213,7 +218,7 @@ test("E2E convert: unknown output format returns FormatError", () => {
 })
 
 test("E2E convert: invalid scalar shape returns ParseError", () => {
-  switch Tablyful.convert(~input=JSON.Encode.float(42.0), ~format="csv") {
+  switch convert(~input=JSON.Encode.float(42.0), ~format="csv") {
   | Ok(_) => assertion((left, right) => left == right, true, false, ~operator="equals")
   | Error(error) =>
     assertion(
@@ -231,7 +236,7 @@ test("E2E options: CSV includeHeaders=false omits header row", () => {
     formatOptions: CsvOptions({...Defaults.defaultCsvOptions, includeHeaders: false}),
   }
 
-  switch Tablyful.toCsv(~input=arrayOfArraysInput(), ~options) {
+  switch convert(~input=arrayOfArraysInput(), ~format="csv", ~options) {
   | Ok(csv) =>
     assertion(
       (left, right) => left == right,
@@ -263,7 +268,7 @@ test("E2E options: hasRowNumbers adds row number column", () => {
     rowNumberHeader: "#",
   }
 
-  switch Tablyful.toCsv(~input=arrayOfArraysInput(), ~options) {
+  switch convert(~input=arrayOfArraysInput(), ~format="csv", ~options) {
   | Ok(csv) =>
     assertion(
       (left, right) => left == right,

@@ -1,14 +1,11 @@
-@genType
 type row = dict<JSON.t>
 
-@genType
 type column = {
   name: string,
   dataType: Common.dataType,
   nullable: bool,
 }
 
-@genType
 type metadata = {
   rowCount: int,
   columnCount: int,
@@ -16,7 +13,6 @@ type metadata = {
   sourceFormat: string,
 }
 
-@genType
 type t = {
   headers: array<string>,
   rows: array<row>,

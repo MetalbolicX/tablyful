@@ -7,6 +7,11 @@ let makeArrayOfArraysInput = (): JSON.t =>
     JSON.Encode.array([JSON.Encode.string("Bob"), JSON.Encode.float(25.0)]),
   ])
 
+let convert = (~input: JSON.t, ~format: string, ~options: Types.t=Defaults.t): Common.result<string> => {
+  ParserRegistry.parse(input, options)
+  ->Result.flatMap(tableData => FormatterRegistry.format(format, tableData, options))
+}
+
 test("Core Position: make creates empty position", () => {
   let pos = Position.make()
   assertion((left, right) => left == right, pos.row, None, ~operator="equals")
@@ -48,13 +53,13 @@ test("Core TablyfulError: withSuggestion augments error", () => {
   )
 })
 
-test("Tablyful API: detectFormat recognizes array_of_arrays", () => {
-  let format = Tablyful.detectFormat(makeArrayOfArraysInput())
+test("Core Pipeline: detectFormat recognizes array_of_arrays", () => {
+  let format = makeArrayOfArraysInput()->InputData.classify->InputData.shapeToString
   assertion((left, right) => left == right, format, "array_of_arrays", ~operator="equals")
 })
 
-test("Tablyful API: availableParsers exposes builtins", () => {
-  let parsers = Tablyful.availableParsers()
+test("Core Pipeline: availableParsers exposes builtins", () => {
+  let parsers = ParserRegistry.getNames()
   assertion(
     (left, right) => left == right,
     parsers->Array.includes("array-of-arrays"),
@@ -69,8 +74,8 @@ test("Tablyful API: availableParsers exposes builtins", () => {
   )
 })
 
-test("Tablyful API: toCsv converts matrix input", () => {
-  switch Tablyful.toCsv(~input=makeArrayOfArraysInput()) {
+test("Core Pipeline: csv conversion succeeds", () => {
+  switch convert(~input=makeArrayOfArraysInput(), ~format="csv") {
   | Ok(csv) =>
     assertion(
       (left, right) => left == right,
@@ -95,8 +100,8 @@ test("Tablyful API: toCsv converts matrix input", () => {
   }
 })
 
-test("Tablyful API: toJson converts matrix input", () => {
-  switch Tablyful.toJson(~input=makeArrayOfArraysInput()) {
+test("Core Pipeline: json conversion succeeds", () => {
+  switch convert(~input=makeArrayOfArraysInput(), ~format="json") {
   | Ok(json) =>
     assertion(
       (left, right) => left == right,
