@@ -7,6 +7,7 @@ import streamArray from "stream-json/streamers/stream-array.js";
 type OutputFormat = "csv" | "tsv" | "psv" | "sql" | "html" | "yaml";
 
 type PredicateOp = "=" | "!=" | ">" | "<" | ">=" | "<=" | "LIKE";
+type DetectedShape = "array-of-arrays" | "array-of-objects";
 
 type Row = Record<string, unknown>;
 
@@ -46,6 +47,7 @@ interface Predicate {
   column: string;
   op: PredicateOp;
   value: string;
+  likePattern?: RegExp;
 }
 
 interface InitializeArgs {
@@ -68,6 +70,23 @@ class StreamCliError extends Error {
     this.exitCode = exitCode;
   }
 }
+
+// Centralized error messages used across the streaming implementation.
+const ERR_FILTER_EMPTY = "Filter expression cannot be empty.";
+const ERR_INVALID_FILTER = (expression: string) =>
+  `Invalid filter expression: ${expression}. Expected operators: =, !=, >, <, >=, <=, LIKE.`;
+const ERR_HEADERS_NOT_INIT = "Streaming headers were not initialized.";
+const ERR_ARRAYS_INCONSISTENT = "Inconsistent JSON array: expected all rows to be arrays in stream mode.";
+const ERR_OBJECTS_INCONSISTENT = "Inconsistent JSON array: expected all rows to be objects in stream mode.";
+const ERR_UNSUPPORTED_OUTPUTS =
+  "Automatic streaming currently supports output formats: csv, tsv, psv, sql, html, yaml.";
+const ERR_IO_ENOENT = (path: string) => `Failed to read input file: ENOENT: no such file or directory, open '${path}'`;
+const ERR_UNKNOWN_COLUMNS = (missing: string[], available: string[]) =>
+  `Unknown column(s) in --columns: ${missing.join(", ")}. Available columns: ${available.join(", ")}.`;
+const ERR_UNEXPECTED_TOKEN = "Unexpected streaming token shape.";
+const ERR_EXPECT_ARRAY_ROWS = "Stream mode expects a JSON array containing arrays or objects.";
+const ERR_SHAPE_NOT_INIT = "Streaming shape was not initialized.";
+const ERR_EMPTY_INPUT = "Input JSON array is empty in streaming mode.";
 
 const SUPPORTED_OUTPUTS: ReadonlySet<OutputFormat> = new Set<OutputFormat>([
   "csv",
@@ -187,18 +206,26 @@ const stripQuotes = (value: string): string => {
   return trimmed;
 };
 
+const compileLikePattern = (pattern: string): RegExp => {
+  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const source = `^${escaped.replaceAll("%", ".*").replaceAll("_", ".")}$`;
+  return new RegExp(source, "i");
+};
+
 const parseFilterExpression = (expression: string): Predicate => {
   const expr = expression.trim();
   if (!expr) {
-    throw new StreamCliError("VALIDATION_ERROR", "Filter expression cannot be empty.", 1);
+    throw new StreamCliError("VALIDATION_ERROR", ERR_FILTER_EMPTY, 1);
   }
 
   const likeMatch = expr.match(/^(.*?)\s+like\s+(.*)$/i);
   if (likeMatch) {
+    const parsedValue = stripQuotes(likeMatch[2]);
     return {
       column: likeMatch[1].trim(),
       op: "LIKE",
-      value: stripQuotes(likeMatch[2]),
+      value: parsedValue,
+      likePattern: compileLikePattern(parsedValue),
     };
   }
 
@@ -214,11 +241,7 @@ const parseFilterExpression = (expression: string): Predicate => {
     }
   }
 
-  throw new StreamCliError(
-    "VALIDATION_ERROR",
-    `Invalid filter expression: ${expression}. Expected operators: =, !=, >, <, >=, <=, LIKE.`,
-    1,
-  );
+  throw new StreamCliError("VALIDATION_ERROR", ERR_INVALID_FILTER(expression), 1);
 };
 
 const compareValues = (left: string, right: string): number => {
@@ -238,12 +261,6 @@ const compareValues = (left: string, right: string): number => {
   return 0;
 };
 
-const matchesLike = (value: string, pattern: string): boolean => {
-  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const source = `^${escaped.replaceAll("%", ".*").replaceAll("_", ".")}$`;
-  return new RegExp(source, "i").test(value);
-};
-
 const rowMatchesFilters = (row: Row, predicates: ReadonlyArray<Predicate>): boolean => {
   for (const predicate of predicates) {
     const rowValue = toComparableString(row[predicate.column]);
@@ -256,7 +273,7 @@ const rowMatchesFilters = (row: Row, predicates: ReadonlyArray<Predicate>): bool
     if (predicate.op === "<" && cmp >= 0) return false;
     if (predicate.op === ">=" && cmp < 0) return false;
     if (predicate.op === "<=" && cmp > 0) return false;
-    if (predicate.op === "LIKE" && !matchesLike(rowValue, value)) return false;
+    if (predicate.op === "LIKE" && !(predicate.likePattern ?? compileLikePattern(value)).test(rowValue)) return false;
   }
 
   return true;
@@ -278,13 +295,66 @@ const buildObjectRow = (headers: ReadonlyArray<string>, value: Record<string, un
   return row;
 };
 
+const ensureInitializedHeaders = (
+  sourceHeaders: string[] | null,
+  outputHeaders: string[] | null,
+): { sourceHeaders: string[]; outputHeaders: string[] } => {
+    if (!sourceHeaders || !outputHeaders) {
+      throw new StreamCliError("STREAM_ERROR", ERR_HEADERS_NOT_INIT, 1);
+    }
+
+  return { sourceHeaders, outputHeaders };
+};
+
+const buildRowFromValue = (shape: DetectedShape, sourceHeaders: ReadonlyArray<string>, value: unknown): Row => {
+  if (shape === "array-of-arrays") {
+        if (!Array.isArray(value)) {
+            throw new StreamCliError("PARSE_ERROR", ERR_ARRAYS_INCONSISTENT, 1);
+        }
+
+    return buildArrayRow(sourceHeaders, value);
+  }
+
+    if (!isObjectRecord(value)) {
+        throw new StreamCliError("PARSE_ERROR", ERR_OBJECTS_INCONSISTENT, 1);
+    }
+
+  return buildObjectRow(sourceHeaders, value);
+};
+
+const projectRow = (
+  row: Row,
+  outputHeaders: ReadonlyArray<string>,
+  config: StreamCliConfig,
+  rowNumber: number,
+): Row => {
+  const withRowNumber = config.hasRowNumbers ? { ...row, [config.rowNumberHeader]: rowNumber } : row;
+  return buildObjectRow(outputHeaders, withRowNumber);
+};
+
+const processRowValue = async (
+  stream: Writable,
+  value: unknown,
+  sourceHeaders: ReadonlyArray<string>,
+  outputHeaders: ReadonlyArray<string>,
+  shape: DetectedShape,
+  predicates: ReadonlyArray<Predicate>,
+  config: StreamCliConfig,
+  rowNumber: number,
+): Promise<boolean> => {
+  const row = buildRowFromValue(shape, sourceHeaders, value);
+  if (!rowMatchesFilters(row, predicates)) {
+    return false;
+  }
+
+  const projected = projectRow(row, outputHeaders, config, rowNumber);
+  await emitRow(stream, outputHeaders, projected, config);
+  return true;
+};
+
 function ensureSupported(outputFormat: string): asserts outputFormat is OutputFormat {
   if (!SUPPORTED_OUTPUTS.has(outputFormat as OutputFormat)) {
-    throw new StreamCliError(
-      "VALIDATION_ERROR",
-      "Automatic streaming currently supports output formats: csv, tsv, psv, sql, html, yaml.",
-      2,
-    );
+    throw new StreamCliError("VALIDATION_ERROR", ERR_UNSUPPORTED_OUTPUTS, 2);
   }
 }
 
@@ -379,13 +449,13 @@ const run = async (config: StreamCliConfig): Promise<void> => {
   const hasOutputPath = Boolean(config.outputPath);
 
   if (hasInputPath && !fs.existsSync(config.inputPath)) {
-    throw new StreamCliError("IO_ERROR", `Failed to read input file: ENOENT: no such file or directory, open '${config.inputPath}'`, 1);
+    throw new StreamCliError("IO_ERROR", ERR_IO_ENOENT(config.inputPath), 1);
   }
 
-  const input: ReadStream | NodeJS.ReadStream = hasInputPath
+  const input = hasInputPath
     ? fs.createReadStream(config.inputPath, { encoding: "utf8" })
     : process.stdin;
-  const output: WriteStream | NodeJS.WriteStream = hasOutputPath
+  const output = hasOutputPath
     ? fs.createWriteStream(config.outputPath, { encoding: "utf8" })
     : process.stdout;
 
@@ -395,12 +465,13 @@ const run = async (config: StreamCliConfig): Promise<void> => {
 
   const jsonStream = input.pipe(streamArray.withParserAsStream()) as AsyncIterable<unknown>;
 
-  let detectedShape = "";
+  let detectedShape: DetectedShape | "" = "";
   let sourceHeaders: string[] | null = null;
   let outputHeaders: string[] | null = null;
   let sawAnyItem = false;
   let writtenRows = 0;
   let initialized = false;
+  const configWithLineBreak: StreamCliConfig = { ...config, lineBreak };
 
   const initialize = async ({ headers, strictValidation }: InitializeArgs): Promise<void> => {
     let selectedHeaders = headers;
@@ -408,11 +479,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
       if (strictValidation) {
         const missing = requestedColumns.filter(column => !headers.includes(column));
         if (missing.length > 0) {
-          throw new StreamCliError(
-            "VALIDATION_ERROR",
-            `Unknown column(s) in --columns: ${missing.join(", ")}. Available columns: ${headers.join(", ")}.`,
-            1,
-          );
+          throw new StreamCliError("VALIDATION_ERROR", ERR_UNKNOWN_COLUMNS(missing, headers), 1);
         }
       }
       selectedHeaders = requestedColumns;
@@ -472,7 +539,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
 
   for await (const entry of jsonStream) {
     if (!isStreamArrayItem(entry)) {
-      throw new StreamCliError("PARSE_ERROR", "Unexpected streaming token shape.", 1);
+      throw new StreamCliError("PARSE_ERROR", ERR_UNEXPECTED_TOKEN, 1);
     }
 
     const value = entry.value;
@@ -480,7 +547,8 @@ const run = async (config: StreamCliConfig): Promise<void> => {
 
     if (!initialized) {
       if (Array.isArray(value)) {
-        detectedShape = "array-of-arrays";
+        const shape: DetectedShape = "array-of-arrays";
+        detectedShape = shape;
 
         if (config.hasHeaders) {
           const headers = value.map(item => toComparableString(item));
@@ -491,105 +559,72 @@ const run = async (config: StreamCliConfig): Promise<void> => {
         const headers = requestedColumns.length > 0 ? requestedColumns : value.map((_, idx) => `column${idx + 1}`);
         await initialize({ headers, strictValidation: false });
 
-        if (!sourceHeaders || !outputHeaders) {
-          throw new StreamCliError("STREAM_ERROR", "Streaming headers were not initialized.", 1);
+        const initializedHeaders = ensureInitializedHeaders(sourceHeaders, outputHeaders);
+        const wroteRow = await processRowValue(
+          output,
+          value,
+          initializedHeaders.sourceHeaders,
+          initializedHeaders.outputHeaders,
+          shape,
+          predicates,
+          configWithLineBreak,
+          writtenRows + 1,
+        );
+        if (wroteRow) {
+          writtenRows += 1;
         }
-
-        const row = buildArrayRow(sourceHeaders, value);
-        if (!rowMatchesFilters(row, predicates)) {
-          continue;
-        }
-
-        const projected = buildObjectRow(outputHeaders, {
-          ...row,
-          [config.rowNumberHeader]: writtenRows + 1,
-        });
-        if (config.hasRowNumbers) {
-          projected[config.rowNumberHeader] = writtenRows + 1;
-        }
-        await emitRow(output, outputHeaders, projected, {...config, lineBreak});
-        writtenRows += 1;
         continue;
       }
 
       if (isObjectRecord(value)) {
-        detectedShape = "array-of-objects";
+        const shape: DetectedShape = "array-of-objects";
+        detectedShape = shape;
         const baseHeaders = Object.keys(value);
         const headers = requestedColumns.length > 0 ? requestedColumns : baseHeaders;
         await initialize({ headers, strictValidation: false });
 
-        if (!sourceHeaders || !outputHeaders) {
-          throw new StreamCliError("STREAM_ERROR", "Streaming headers were not initialized.", 1);
+        const initializedHeaders = ensureInitializedHeaders(sourceHeaders, outputHeaders);
+        const wroteRow = await processRowValue(
+          output,
+          value,
+          initializedHeaders.sourceHeaders,
+          initializedHeaders.outputHeaders,
+          shape,
+          predicates,
+          configWithLineBreak,
+          writtenRows + 1,
+        );
+        if (wroteRow) {
+          writtenRows += 1;
         }
-
-        const row = buildObjectRow(sourceHeaders, value);
-        if (!rowMatchesFilters(row, predicates)) {
-          continue;
-        }
-
-        const projected = buildObjectRow(outputHeaders, {
-          ...row,
-          [config.rowNumberHeader]: writtenRows + 1,
-        });
-        if (config.hasRowNumbers) {
-          projected[config.rowNumberHeader] = writtenRows + 1;
-        }
-        await emitRow(output, outputHeaders, projected, {...config, lineBreak});
-        writtenRows += 1;
         continue;
       }
 
-      throw new StreamCliError("PARSE_ERROR", "Stream mode expects a JSON array containing arrays or objects.", 1);
+        throw new StreamCliError("PARSE_ERROR", ERR_EXPECT_ARRAY_ROWS, 1);
     }
 
-    if (!sourceHeaders || !outputHeaders) {
-      throw new StreamCliError("STREAM_ERROR", "Streaming headers were not initialized.", 1);
+    if (detectedShape === "") {
+      throw new StreamCliError("STREAM_ERROR", ERR_SHAPE_NOT_INIT, 1);
     }
 
-    if (detectedShape === "array-of-arrays") {
-      if (!Array.isArray(value)) {
-        throw new StreamCliError("PARSE_ERROR", "Inconsistent JSON array: expected all rows to be arrays in stream mode.", 1);
-      }
-
-      const row = buildArrayRow(sourceHeaders, value);
-      if (!rowMatchesFilters(row, predicates)) {
-        continue;
-      }
-
-      const projected = buildObjectRow(outputHeaders, {
-        ...row,
-        [config.rowNumberHeader]: writtenRows + 1,
-      });
-      if (config.hasRowNumbers) {
-        projected[config.rowNumberHeader] = writtenRows + 1;
-      }
-      await emitRow(output, outputHeaders, projected, {...config, lineBreak});
+    const initializedHeaders = ensureInitializedHeaders(sourceHeaders, outputHeaders);
+    const wroteRow = await processRowValue(
+      output,
+      value,
+      initializedHeaders.sourceHeaders,
+      initializedHeaders.outputHeaders,
+      detectedShape,
+      predicates,
+      configWithLineBreak,
+      writtenRows + 1,
+    );
+    if (wroteRow) {
       writtenRows += 1;
-      continue;
     }
-
-    if (!isObjectRecord(value)) {
-      throw new StreamCliError("PARSE_ERROR", "Inconsistent JSON array: expected all rows to be objects in stream mode.", 1);
-    }
-
-    const row = buildObjectRow(sourceHeaders, value);
-    if (!rowMatchesFilters(row, predicates)) {
-      continue;
-    }
-
-    const projected = buildObjectRow(outputHeaders, {
-      ...row,
-      [config.rowNumberHeader]: writtenRows + 1,
-    });
-    if (config.hasRowNumbers) {
-      projected[config.rowNumberHeader] = writtenRows + 1;
-    }
-    await emitRow(output, outputHeaders, projected, {...config, lineBreak});
-    writtenRows += 1;
   }
 
-  if (!sawAnyItem) {
-    throw new StreamCliError("PARSE_ERROR", "Input JSON array is empty in streaming mode.", 1);
+    if (!sawAnyItem) {
+    throw new StreamCliError("PARSE_ERROR", ERR_EMPTY_INPUT, 1);
   }
 
   if (config.outputFormat === "html") {

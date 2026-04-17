@@ -82,116 +82,107 @@ let printSetKeys = (filter: option<Types.format>): unit => {
     value->String.replaceAll("\n", "\\n")->String.replaceAll("\t", "\\t")
   }
 
+  let printSection = (name: string, entries: array<string>): unit => {
+    writeStdout(`${name} options:\n`)
+    entries->Array.forEach(entry => {
+      writeStdout(`  ${entry}\n`)
+    })
+    writeStdout("\n")
+  }
+
   let printCsv = () => {
-    writeStdout("csv options:\n")
-    writeStdout(`  csv.delimiter (string) - field delimiter (default: ${csv.delimiter})\n`)
-    writeStdout(`  csv.quote (string) - quote char (default: ${csv.quote})\n`)
-    writeStdout(`  csv.escape (string) - escape char (default: ${csv.escape})\n`)
-    writeStdout(`  csv.lineBreak (string) - line break (default: ${csv.lineBreak->displayLiteral})\n`)
-    writeStdout(
-      `  csv.includeHeaders (boolean) - include headers (default: ${csv.includeHeaders->Bool.toString})\n\n`,
-    )
+    printSection("csv", [
+      `csv.delimiter (string) - field delimiter (default: ${csv.delimiter})`,
+      `csv.quote (string) - quote char (default: ${csv.quote})`,
+      `csv.escape (string) - escape char (default: ${csv.escape})`,
+      `csv.lineBreak (string) - line break (default: ${csv.lineBreak->displayLiteral})`,
+      `csv.includeHeaders (boolean) - include headers (default: ${csv.includeHeaders->Bool.toString})`,
+    ])
   }
 
   let printJson = () => {
-    writeStdout("json options:\n")
-    writeStdout(
-      `  json.pretty (boolean) - pretty print JSON (default: ${json.pretty->Bool.toString})\n`,
-    )
-    writeStdout(`  json.indentSize (int) - indent size (default: ${json.indentSize->Int.toString})\n`)
-    writeStdout(`  json.asArray (boolean) - output arrays (default: ${json.asArray->Bool.toString})\n\n`)
+    printSection("json", [
+      `json.pretty (boolean) - pretty print JSON (default: ${json.pretty->Bool.toString})`,
+      `json.indentSize (int) - indent size (default: ${json.indentSize->Int.toString})`,
+      `json.asArray (boolean) - output arrays (default: ${json.asArray->Bool.toString})`,
+    ])
   }
 
   let printTsv = () => {
-    writeStdout("tsv options:\n")
-    writeStdout(
-      `  tsv.includeHeaders (boolean) - include headers (default: ${tsv.includeHeaders->Bool.toString})\n\n`,
-    )
+    printSection("tsv", [
+      `tsv.includeHeaders (boolean) - include headers (default: ${tsv.includeHeaders->Bool.toString})`,
+    ])
   }
 
   let printPsv = () => {
-    writeStdout("psv options:\n")
-    writeStdout(
-      `  psv.includeHeaders (boolean) - include headers (default: ${psv.includeHeaders->Bool.toString})\n\n`,
-    )
+    printSection("psv", [
+      `psv.includeHeaders (boolean) - include headers (default: ${psv.includeHeaders->Bool.toString})`,
+    ])
   }
 
   let printMarkdown = () => {
-    writeStdout("markdown options:\n")
-    writeStdout(`  markdown.align (string) - alignment (default: ${markdown.align})\n`)
-    writeStdout(
-      `  markdown.padding (boolean) - pad columns (default: ${markdown.padding->Bool.toString})\n`,
-    )
-    writeStdout(
-      `  markdown.githubFlavor (boolean) - GitHub flavor output (default: ${markdown.githubFlavor->Bool.toString})\n\n`,
-    )
+    printSection("markdown", [
+      `markdown.align (string) - alignment (default: ${markdown.align})`,
+      `markdown.padding (boolean) - pad columns (default: ${markdown.padding->Bool.toString})`,
+      `markdown.githubFlavor (boolean) - GitHub flavor output (default: ${markdown.githubFlavor->Bool.toString})`,
+    ])
   }
 
   let printHtml = () => {
-    writeStdout("html options:\n")
-    writeStdout(`  html.tableClass (string) - table class (default: ${html.tableClass})\n`)
-    writeStdout(`  html.theadClass (string) - thead class (default: ${html.theadClass})\n`)
-    writeStdout(`  html.tbodyClass (string) - tbody class (default: ${html.tbodyClass})\n`)
-    writeStdout(`  html.id (string) - table id (default: ${html.id})\n`)
-    writeStdout(`  html.caption (string) - caption text (default: ${html.caption})\n\n`)
+    printSection("html", [
+      `html.tableClass (string) - table class (default: ${html.tableClass})`,
+      `html.theadClass (string) - thead class (default: ${html.theadClass})`,
+      `html.tbodyClass (string) - tbody class (default: ${html.tbodyClass})`,
+      `html.id (string) - table id (default: ${html.id})`,
+      `html.caption (string) - caption text (default: ${html.caption})`,
+    ])
   }
 
   let printLatex = () => {
-    writeStdout("latex options:\n")
-    writeStdout(
-      `  latex.tableEnvironment (string) - environment name (default: ${latex.tableEnvironment})\n`,
-    )
-    writeStdout(`  latex.columnSpec (string) - column spec (default: ${latex.columnSpec})\n`)
-    writeStdout(`  latex.booktabs (boolean) - use booktabs (default: ${latex.booktabs->Bool.toString})\n`)
-    writeStdout(`  latex.caption (string) - caption text (default: ${latex.caption})\n`)
-    writeStdout(`  latex.label (string) - table label (default: ${latex.label})\n`)
-    writeStdout(`  latex.centering (boolean) - center table (default: ${latex.centering->Bool.toString})\n`)
-    writeStdout(
-      `  latex.useTableEnvironment (boolean) - wrap in table env (default: ${latex.useTableEnvironment->Bool.toString})\n\n`,
-    )
+    printSection("latex", [
+      `latex.tableEnvironment (string) - environment name (default: ${latex.tableEnvironment})`,
+      `latex.columnSpec (string) - column spec (default: ${latex.columnSpec})`,
+      `latex.booktabs (boolean) - use booktabs (default: ${latex.booktabs->Bool.toString})`,
+      `latex.caption (string) - caption text (default: ${latex.caption})`,
+      `latex.label (string) - table label (default: ${latex.label})`,
+      `latex.centering (boolean) - center table (default: ${latex.centering->Bool.toString})`,
+      `latex.useTableEnvironment (boolean) - wrap in table env (default: ${latex.useTableEnvironment->Bool.toString})`,
+    ])
   }
 
   let printSql = () => {
-    writeStdout("sql options:\n")
-    writeStdout(`  sql.tableName (string) - table name (default: ${sql.tableName})\n`)
-    writeStdout(
-      `  sql.identifierQuote (string) - identifier quote (default: ${sql.identifierQuote})\n`,
-    )
-    writeStdout(
-      `  sql.includeCreateTable (boolean) - include CREATE TABLE (default: ${sql.includeCreateTable->Bool.toString})\n\n`,
-    )
+    printSection("sql", [
+      `sql.tableName (string) - table name (default: ${sql.tableName})`,
+      `sql.identifierQuote (string) - identifier quote (default: ${sql.identifierQuote})`,
+      `sql.includeCreateTable (boolean) - include CREATE TABLE (default: ${sql.includeCreateTable->Bool.toString})`,
+    ])
   }
 
   let printYaml = () => {
-    writeStdout("yaml options:\n")
-    writeStdout(`  yaml.indent (int) - indentation spaces (default: ${yaml.indent->Int.toString})\n`)
-    writeStdout(
-      `  yaml.quoteStrings (boolean) - quote all strings (default: ${yaml.quoteStrings->Bool.toString})\n`,
-    )
-    writeStdout(`  yaml.lineBreak (string) - line break (default: ${yaml.lineBreak->displayLiteral})\n\n`)
+    printSection("yaml", [
+      `yaml.indent (int) - indentation spaces (default: ${yaml.indent->Int.toString})`,
+      `yaml.quoteStrings (boolean) - quote all strings (default: ${yaml.quoteStrings->Bool.toString})`,
+      `yaml.lineBreak (string) - line break (default: ${yaml.lineBreak->displayLiteral})`,
+    ])
+  }
+
+  let printByFormat = (format: Types.format): unit => {
+    switch format {
+    | Csv => printCsv()
+    | Tsv => printTsv()
+    | Psv => printPsv()
+    | Json => printJson()
+    | Markdown => printMarkdown()
+    | Html => printHtml()
+    | Latex => printLatex()
+    | Sql => printSql()
+    | Yaml => printYaml()
+    }
   }
 
   switch filter {
-  | None => {
-      printCsv()
-      printTsv()
-      printPsv()
-      printJson()
-      printMarkdown()
-      printHtml()
-      printLatex()
-      printSql()
-      printYaml()
-    }
-  | Some(Csv) => printCsv()
-  | Some(Tsv) => printTsv()
-  | Some(Psv) => printPsv()
-  | Some(Json) => printJson()
-  | Some(Markdown) => printMarkdown()
-  | Some(Html) => printHtml()
-  | Some(Latex) => printLatex()
-  | Some(Sql) => printSql()
-  | Some(Yaml) => printYaml()
+  | None => [Csv, Tsv, Psv, Json, Markdown, Html, Latex, Sql, Yaml]->Array.forEach(printByFormat)
+  | Some(format) => printByFormat(format)
   }
 }
 
@@ -274,12 +265,19 @@ let parseSetPair = (entry: string): Common.result<(string, string)> => {
 let parseSetPairs = (raw: option<array<string>>): Common.result<array<(string, string)>> => {
   switch raw {
   | None => Ok([])
-  | Some(entries) =>
-    entries->Array.reduce(Ok([]), (acc, entry) => {
-      acc->Result.flatMap(pairs => {
-        parseSetPair(entry)->Result.map(pair => Array.concat(pairs, [pair]))
-      })
-    })
+   | Some(entries) => {
+       let rec loop = (index: int, acc: list<(string, string)>): Common.result<array<(string, string)>> => {
+         if index >= entries->Array.length {
+           Ok(acc->List.reverse->List.toArray)
+         } else {
+           parseSetPair(entries->Array.getUnsafe(index))->Result.flatMap(pair => {
+             loop(index + 1, list{pair, ...acc})
+           })
+         }
+       }
+
+       loop(0, list{})
+     }
   }
 }
 
@@ -610,185 +608,101 @@ let resolveOptions = (flags: cliFlags): Common.result<t> => {
   ->Result.flatMap(withSetOverrides => overrideWithCliFlags(withSetOverrides, flags))
 }
 
+let makeBaseStreamConfig = (
+  ~inputPath: option<string>,
+  flags: cliFlags,
+  options: t,
+): Bindings.StreamMode.config => {
+  {
+    inputPath: inputPath->Option.getOr(""),
+    outputPath: flags.outputPath->Option.getOr(""),
+    outputFormat: "csv",
+    delimiter: Defaults.defaultCsvOptions.delimiter,
+    quote: Defaults.defaultCsvOptions.quote,
+    escape: Defaults.defaultCsvOptions.escape,
+    lineBreak: Defaults.defaultCsvOptions.lineBreak,
+    includeHeaders: true,
+    hasHeaders: options.hasHeaders,
+    hasRowNumbers: options.hasRowNumbers,
+    rowNumberHeader: options.rowNumberHeader,
+    sqlTableName: Defaults.defaultSqlOptions.tableName,
+    sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
+    sqlIncludeCreateTable: false,
+    htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
+    htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
+    htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
+    htmlId: Defaults.defaultHtmlOptions.id,
+    htmlCaption: Defaults.defaultHtmlOptions.caption,
+    yamlIndent: Defaults.defaultYamlOptions.indent,
+    yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
+    columns: flags.columnsArg->Option.getOr([]),
+    filters: flags.filterExprs,
+    stats: flags.stats,
+  }
+}
+
 let runStreamMode = (~inputPath: option<string>, flags: cliFlags): unit => {
   switch resolveOptions(flags) {
   | Error(error) =>
     printError(error)
     Bindings.Process.exit(2)
   | Ok(options) =>
-    switch options.outputFormat {
+    let baseConfig = makeBaseStreamConfig(~inputPath, flags, options)
+
+    let streamConfig = switch options.outputFormat {
     | Csv => {
         let csv = Defaults.getCsvOptions(options)
-        Bindings.StreamMode.run({
-          inputPath: inputPath->Option.getOr(""),
-          outputPath: flags.outputPath->Option.getOr(""),
+        Some({
+          ...baseConfig,
           outputFormat: "csv",
           delimiter: csv.delimiter,
           quote: csv.quote,
           escape: csv.escape,
           lineBreak: csv.lineBreak,
           includeHeaders: csv.includeHeaders,
-          hasHeaders: options.hasHeaders,
-          hasRowNumbers: options.hasRowNumbers,
-          rowNumberHeader: options.rowNumberHeader,
-          sqlTableName: Defaults.defaultSqlOptions.tableName,
-          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
-          sqlIncludeCreateTable: false,
-          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
-          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
-          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
-          htmlId: Defaults.defaultHtmlOptions.id,
-          htmlCaption: Defaults.defaultHtmlOptions.caption,
-          yamlIndent: Defaults.defaultYamlOptions.indent,
-          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
-          columns: flags.columnsArg->Option.getOr([]),
-          filters: flags.filterExprs,
-          stats: flags.stats,
         })
       }
     | Tsv => {
         let tsv = Defaults.getTsvOptions(options)
-        Bindings.StreamMode.run({
-          inputPath: inputPath->Option.getOr(""),
-          outputPath: flags.outputPath->Option.getOr(""),
-          outputFormat: "tsv",
-          delimiter: "\t",
-          quote: Defaults.defaultCsvOptions.quote,
-          escape: Defaults.defaultCsvOptions.escape,
-          lineBreak: Defaults.defaultCsvOptions.lineBreak,
-          includeHeaders: tsv.includeHeaders,
-          hasHeaders: options.hasHeaders,
-          hasRowNumbers: options.hasRowNumbers,
-          rowNumberHeader: options.rowNumberHeader,
-          sqlTableName: Defaults.defaultSqlOptions.tableName,
-          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
-          sqlIncludeCreateTable: false,
-          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
-          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
-          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
-          htmlId: Defaults.defaultHtmlOptions.id,
-          htmlCaption: Defaults.defaultHtmlOptions.caption,
-          yamlIndent: Defaults.defaultYamlOptions.indent,
-          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
-          columns: flags.columnsArg->Option.getOr([]),
-          filters: flags.filterExprs,
-          stats: flags.stats,
-        })
+        Some({...baseConfig, outputFormat: "tsv", delimiter: "\t", includeHeaders: tsv.includeHeaders})
       }
     | Psv => {
         let psv = Defaults.getPsvOptions(options)
-        Bindings.StreamMode.run({
-          inputPath: inputPath->Option.getOr(""),
-          outputPath: flags.outputPath->Option.getOr(""),
-          outputFormat: "psv",
-          delimiter: "|",
-          quote: Defaults.defaultCsvOptions.quote,
-          escape: Defaults.defaultCsvOptions.escape,
-          lineBreak: Defaults.defaultCsvOptions.lineBreak,
-          includeHeaders: psv.includeHeaders,
-          hasHeaders: options.hasHeaders,
-          hasRowNumbers: options.hasRowNumbers,
-          rowNumberHeader: options.rowNumberHeader,
-          sqlTableName: Defaults.defaultSqlOptions.tableName,
-          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
-          sqlIncludeCreateTable: false,
-          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
-          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
-          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
-          htmlId: Defaults.defaultHtmlOptions.id,
-          htmlCaption: Defaults.defaultHtmlOptions.caption,
-          yamlIndent: Defaults.defaultYamlOptions.indent,
-          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
-          columns: flags.columnsArg->Option.getOr([]),
-          filters: flags.filterExprs,
-          stats: flags.stats,
-        })
+        Some({...baseConfig, outputFormat: "psv", delimiter: "|", includeHeaders: psv.includeHeaders})
       }
     | Sql => {
         let sql = Defaults.getSqlOptions(options)
-        Bindings.StreamMode.run({
-          inputPath: inputPath->Option.getOr(""),
-          outputPath: flags.outputPath->Option.getOr(""),
+        Some({
+          ...baseConfig,
           outputFormat: "sql",
-          delimiter: Defaults.defaultCsvOptions.delimiter,
-          quote: Defaults.defaultCsvOptions.quote,
-          escape: Defaults.defaultCsvOptions.escape,
-          lineBreak: Defaults.defaultCsvOptions.lineBreak,
           includeHeaders: false,
-          hasHeaders: options.hasHeaders,
-          hasRowNumbers: options.hasRowNumbers,
-          rowNumberHeader: options.rowNumberHeader,
           sqlTableName: sql.tableName,
           sqlIdentifierQuote: sql.identifierQuote,
           sqlIncludeCreateTable: sql.includeCreateTable,
-          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
-          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
-          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
-          htmlId: Defaults.defaultHtmlOptions.id,
-          htmlCaption: Defaults.defaultHtmlOptions.caption,
-          yamlIndent: Defaults.defaultYamlOptions.indent,
-          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
-          columns: flags.columnsArg->Option.getOr([]),
-          filters: flags.filterExprs,
-          stats: flags.stats,
         })
       }
     | Html => {
         let html = Defaults.getHtmlOptions(options)
-        Bindings.StreamMode.run({
-          inputPath: inputPath->Option.getOr(""),
-          outputPath: flags.outputPath->Option.getOr(""),
+        Some({
+          ...baseConfig,
           outputFormat: "html",
-          delimiter: Defaults.defaultCsvOptions.delimiter,
-          quote: Defaults.defaultCsvOptions.quote,
-          escape: Defaults.defaultCsvOptions.escape,
-          lineBreak: Defaults.defaultCsvOptions.lineBreak,
           includeHeaders: true,
-          hasHeaders: options.hasHeaders,
-          hasRowNumbers: options.hasRowNumbers,
-          rowNumberHeader: options.rowNumberHeader,
-          sqlTableName: Defaults.defaultSqlOptions.tableName,
-          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
-          sqlIncludeCreateTable: false,
           htmlTableClass: html.tableClass,
           htmlTheadClass: html.theadClass,
           htmlTbodyClass: html.tbodyClass,
           htmlId: html.id,
           htmlCaption: html.caption,
-          yamlIndent: Defaults.defaultYamlOptions.indent,
-          yamlQuoteStrings: Defaults.defaultYamlOptions.quoteStrings,
-          columns: flags.columnsArg->Option.getOr([]),
-          filters: flags.filterExprs,
-          stats: flags.stats,
         })
       }
     | Yaml => {
         let yaml = Defaults.getYamlOptions(options)
-        Bindings.StreamMode.run({
-          inputPath: inputPath->Option.getOr(""),
-          outputPath: flags.outputPath->Option.getOr(""),
+        Some({
+          ...baseConfig,
           outputFormat: "yaml",
-          delimiter: Defaults.defaultCsvOptions.delimiter,
-          quote: Defaults.defaultCsvOptions.quote,
-          escape: Defaults.defaultCsvOptions.escape,
-          lineBreak: yaml.lineBreak,
           includeHeaders: true,
-          hasHeaders: options.hasHeaders,
-          hasRowNumbers: options.hasRowNumbers,
-          rowNumberHeader: options.rowNumberHeader,
-          sqlTableName: Defaults.defaultSqlOptions.tableName,
-          sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
-          sqlIncludeCreateTable: false,
-          htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
-          htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
-          htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
-          htmlId: Defaults.defaultHtmlOptions.id,
-          htmlCaption: Defaults.defaultHtmlOptions.caption,
+          lineBreak: yaml.lineBreak,
           yamlIndent: yaml.indent,
           yamlQuoteStrings: yaml.quoteStrings,
-          columns: flags.columnsArg->Option.getOr([]),
-          filters: flags.filterExprs,
-          stats: flags.stats,
         })
       }
     | _ =>
@@ -798,6 +712,12 @@ let runStreamMode = (~inputPath: option<string>, flags: cliFlags): unit => {
         ),
       )
       Bindings.Process.exit(2)
+      None
+    }
+
+    switch streamConfig {
+    | Some(config) => Bindings.StreamMode.run(config)
+    | None => ()
     }
   }
 }
@@ -874,14 +794,14 @@ let runConversion = (inputText: string, flags: cliFlags): unit => {
 let readInputFromStdin = (flags: cliFlags): unit => {
   Bindings.Stream.setEncoding(Bindings.Process.stdin, "utf8")
 
-  let buffer = ref("")
+  let chunks = ref(list{})
 
   Bindings.Stream.onData(Bindings.Process.stdin, chunk => {
-    buffer.contents = buffer.contents ++ chunk
+    chunks.contents = list{chunk, ...chunks.contents}
   })
 
   Bindings.Stream.onEnd(Bindings.Process.stdin, () => {
-    runConversion(buffer.contents, flags)
+    runConversion(chunks.contents->List.reverse->List.toArray->Array.join(""), flags)
   })
 
   Bindings.Stream.onError(Bindings.Process.stdin, e => {
