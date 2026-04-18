@@ -1,4 +1,6 @@
 open Test
+open Assertions
+open TestHelpers
 
 let makeArrayOfArraysInput = (): JSON.t =>
   JSON.Encode.array([
@@ -12,14 +14,23 @@ let convert = (~input: JSON.t, ~format: string, ~options: Types.t=Defaults.t): C
   ->Result.flatMap(tableData => FormatterRegistry.format(format, tableData, options))
 }
 
-test("Core Position: make creates empty position", () => {
+let expectConverted = (
+  ~format: string,
+  ~options: Types.t=Defaults.t,
+  ~expected: string,
+  assertOutput: string => unit,
+): unit => {
+  expectOk(convert(~input=makeArrayOfArraysInput(), ~format, ~options), ~expected, ~assertOk=assertOutput)
+}
+
+test("Core: Position make creates empty position", () => {
   let pos = Position.make()
   assertion((left, right) => left == right, pos.row, None, ~operator="equals")
   assertion((left, right) => left == right, pos.column, None, ~operator="equals")
   assertion((left, right) => left == right, pos.path, [], ~operator="equals")
 })
 
-test("Core Position: modifiers update context", () => {
+test("Core: Position modifiers update context", () => {
   let pos =
     Position.make()
     ->Position.atRow(2)
@@ -31,176 +42,66 @@ test("Core Position: modifiers update context", () => {
   assertion((left, right) => left == right, pos.path, ["users"], ~operator="equals")
 })
 
-test("Core TablyfulError: parseError builds parse category", () => {
+test("Core: TablyfulError parseError builds parse category", () => {
   let error = TablyfulError.parseError("invalid input")
-  assertion(
-    (left, right) => left == right,
-    error.category,
-    TablyfulError.ParseError,
-    ~operator="equals",
-  )
-  assertion((left, right) => left == right, error.message, "invalid input", ~operator="equals")
+  expectTrue(error.category == TablyfulError.ParseError)
+  expectTextEqual("invalid input", error.message)
 })
 
-test("Core TablyfulError: withSuggestion augments error", () => {
+test("Core: TablyfulError withSuggestion augments error", () => {
   let error =
     TablyfulError.validationError("missing field")->TablyfulError.withSuggestion("check headers")
-  assertion(
-    (left, right) => left == right,
-    error.suggestion,
-    Some("check headers"),
-    ~operator="equals",
-  )
+  assertion((left, right) => left == right, error.suggestion, Some("check headers"), ~operator="equals")
 })
 
-test("Core Pipeline: detectFormat recognizes array_of_arrays", () => {
+test("Core: pipeline detectFormat recognizes array_of_arrays", () => {
   let format = makeArrayOfArraysInput()->InputData.classify->InputData.shapeToString
-  assertion((left, right) => left == right, format, "array_of_arrays", ~operator="equals")
+  expectTextEqual("array_of_arrays", format)
 })
 
-test("Core Pipeline: availableParsers exposes builtins", () => {
+test("Core: pipeline availableParsers exposes builtins", () => {
   let parsers = ParserRegistry.getNames()
-  assertion(
-    (left, right) => left == right,
-    parsers->Array.includes("array-of-arrays"),
-    true,
-    ~operator="equals",
-  )
-  assertion(
-    (left, right) => left == right,
-    parsers->Array.includes("array-of-objects"),
-    true,
-    ~operator="equals",
-  )
+  expectTrue(parsers->Array.includes("array-of-arrays"))
+  expectTrue(parsers->Array.includes("array-of-objects"))
 })
 
-test("Core Pipeline: csv conversion succeeds", () => {
-  switch convert(~input=makeArrayOfArraysInput(), ~format="csv") {
-  | Ok(csv) =>
-    assertion(
-      (left, right) => left == right,
-      csv->String.includes("name,age"),
-      true,
-      ~operator="equals",
-    )
-    assertion(
-      (left, right) => left == right,
-      csv->String.includes("Alice,30"),
-      true,
-      ~operator="equals",
-    )
-  | Error(error) =>
-    assertion(
-      (left, right) => left == right,
-      error->TablyfulError.toString->String.includes(""),
-      false,
-      ~operator="equals",
-      ~message="Expected conversion to succeed",
-    )
-  }
+test("Core: pipeline csv conversion succeeds", () => {
+  expectConverted(~format="csv", ~expected="CSV conversion to succeed", csv => {
+    expectTrue(csv->String.includes("name,age"))
+    expectTrue(csv->String.includes("Alice,30"))
+  })
 })
 
-test("Core Pipeline: tsv conversion succeeds", () => {
-  switch convert(~input=makeArrayOfArraysInput(), ~format="tsv") {
-  | Ok(tsv) =>
-    assertion(
-      (left, right) => left == right,
-      tsv->String.includes("name\tage"),
-      true,
-      ~operator="equals",
-    )
-    assertion(
-      (left, right) => left == right,
-      tsv->String.includes("Alice\t30"),
-      true,
-      ~operator="equals",
-    )
-  | Error(error) =>
-    assertion(
-      (left, right) => left == right,
-      error->TablyfulError.toString->String.includes(""),
-      false,
-      ~operator="equals",
-      ~message="Expected TSV conversion to succeed",
-    )
-  }
+test("Core: pipeline tsv conversion succeeds", () => {
+  expectConverted(~format="tsv", ~expected="TSV conversion to succeed", tsv => {
+    expectTrue(tsv->String.includes("name\tage"))
+    expectTrue(tsv->String.includes("Alice\t30"))
+  })
 })
 
-test("Core Pipeline: json conversion succeeds", () => {
-  switch convert(~input=makeArrayOfArraysInput(), ~format="json") {
-  | Ok(json) =>
-    assertion(
-      (left, right) => left == right,
-      json->String.includes("Alice"),
-      true,
-      ~operator="equals",
-    )
-    assertion((left, right) => left == right, json->String.includes("25"), true, ~operator="equals")
-  | Error(error) =>
-    assertion(
-      (left, right) => left == right,
-      error->TablyfulError.toString->String.includes(""),
-      false,
-      ~operator="equals",
-      ~message="Expected conversion to succeed",
-    )
-  }
+test("Core: pipeline json conversion succeeds", () => {
+  expectConverted(~format="json", ~expected="JSON conversion to succeed", json => {
+    expectTrue(json->String.includes("Alice"))
+    expectTrue(json->String.includes("25"))
+  })
 })
 
-test("Core Pipeline: sql conversion succeeds", () => {
+test("Core: pipeline sql conversion succeeds", () => {
   let options: Types.t = {
     ...Defaults.t,
     outputFormat: Sql,
     formatOptions: SqlOptions({...Defaults.defaultSqlOptions, tableName: "users", includeCreateTable: true}),
   }
 
-  switch convert(~input=makeArrayOfArraysInput(), ~format="sql", ~options) {
-  | Ok(sql) =>
-    assertion(
-      (left, right) => left == right,
-      sql->String.includes("CREATE TABLE \"users\""),
-      true,
-      ~operator="equals",
-    )
-    assertion(
-      (left, right) => left == right,
-      sql->String.includes("VALUES (?, ?)"),
-      true,
-      ~operator="equals",
-    )
-  | Error(error) =>
-    assertion(
-      (left, right) => left == right,
-      error->TablyfulError.toString->String.includes(""),
-      false,
-      ~operator="equals",
-      ~message="Expected SQL conversion to succeed",
-    )
-  }
+  expectConverted(~format="sql", ~options, ~expected="SQL conversion to succeed", sql => {
+    expectTrue(sql->String.includes("CREATE TABLE \"users\""))
+    expectTrue(sql->String.includes("VALUES (?, ?)"))
+  })
 })
 
-test("Core Pipeline: yaml conversion succeeds", () => {
-  switch convert(~input=makeArrayOfArraysInput(), ~format="yaml") {
-  | Ok(yaml) =>
-    assertion(
-      (left, right) => left == right,
-      yaml->String.includes("- name: Alice"),
-      true,
-      ~operator="equals",
-    )
-    assertion(
-      (left, right) => left == right,
-      yaml->String.includes("  age: 30"),
-      true,
-      ~operator="equals",
-    )
-  | Error(error) =>
-    assertion(
-      (left, right) => left == right,
-      error->TablyfulError.toString->String.includes(""),
-      false,
-      ~operator="equals",
-      ~message="Expected YAML conversion to succeed",
-    )
-  }
+test("Core: pipeline yaml conversion succeeds", () => {
+  expectConverted(~format="yaml", ~expected="YAML conversion to succeed", yaml => {
+    expectTrue(yaml->String.includes("- name: Alice"))
+    expectTrue(yaml->String.includes("  age: 30"))
+  })
 })

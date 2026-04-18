@@ -17,7 +17,7 @@
     "res:clean": "rescript clean",
     "ts:stream": "tsc -p tsconfig.stream.json",
     "res:test": "retest \"./test/res/**/*.res.mjs\"",
-    "test:cli": "pnpm build && node --test test/cli.test.mjs test/readers.test.mjs test/formatters.test.mjs test/dsv-parser.test.mjs",
+    "test:cli": "pnpm build && node --test test/cli.test.ts",
     "test": "pnpm res:test && pnpm test:cli",
     "bundle": "rolldown -c",
     "build": "rescript && pnpm ts:stream && rolldown -c",

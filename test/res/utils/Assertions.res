@@ -7,7 +7,7 @@ open Test
  * @param {string=} message - Optional custom message to display on assertion failure
  * @returns {unit}
  */
-let isTextEqualTo: (string, string, ~message: string=?) => unit = (
+let expectTextEqual: (string, string, ~message: string=?) => unit = (
   originalText,
   textToCompare,
   ~message as msg="",
@@ -26,7 +26,7 @@ let isTextEqualTo: (string, string, ~message: string=?) => unit = (
  * @param {string=} message - Optional custom message to display on assertion failure
  * @returns {unit}
  */
-let isTruthy: (bool, ~message: string=?) => unit = (a, ~message as msg="") =>
+let expectTrue: (bool, ~message: string=?) => unit = (a, ~message as msg="") =>
   assertion((a, b) => a == b, a, true, ~operator="Equals to true", ~message=msg)
 
 /**
@@ -36,7 +36,7 @@ let isTruthy: (bool, ~message: string=?) => unit = (a, ~message as msg="") =>
  * @param {string=} message - Optional custom message to display on assertion failure
  * @returns {unit}
  */
-let isIntEqualTo: (int, int, ~message: string=?) => unit = (a, b, ~message as msg="") =>
+let expectIntEqual: (int, int, ~message: string=?) => unit = (a, b, ~message as msg="") =>
   assertion((a, b) => a == b, a, b, ~operator="Integer equals to", ~message=msg)
 
 /**
@@ -44,7 +44,7 @@ let isIntEqualTo: (int, int, ~message: string=?) => unit = (a, b, ~message as ms
  * @param {string} message - Success message to display
  * @returns {unit}
  */
-let passWith: string => unit = message => isTruthy(true, ~message)
+let passTest: string => unit = message => expectTrue(true, ~message)
 
 /**
  * Explicitly fails a test with a custom message.
@@ -52,4 +52,4 @@ let passWith: string => unit = message => isTruthy(true, ~message)
  * @returns {unit}
  * @throws Will throw an exception to fail the current test
  */
-let failWith: string => unit = message => isTruthy(false, ~message)
+let failTest: string => unit = message => expectTrue(false, ~message)

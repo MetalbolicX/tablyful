@@ -5,7 +5,15 @@
  * @param {string=} message - Optional custom message to display on assertion failure
  * @returns {unit}
  */
-let isTextEqualTo: (string, string, ~message: string=?) => unit
+let expectTextEqual: (string, string, ~message: string=?) => unit
+
+/**
+ * Asserts that a boolean value is true.
+ * @param {bool} value - The boolean value to test
+ * @param {string=} message - Optional custom message to display on assertion failure
+ * @returns {unit}
+ */
+let expectTrue: (bool, ~message: string=?) => unit
 
 /**
  * Asserts that an integer value matches an expected integer.
@@ -14,14 +22,14 @@ let isTextEqualTo: (string, string, ~message: string=?) => unit
  * @param {string=} message - Optional custom message to display on assertion failure
  * @returns {unit}
  */
-let isIntEqualTo: (int, int, ~message: string=?) => unit
+let expectIntEqual: (int, int, ~message: string=?) => unit
 
 /**
  * Explicitly marks a test as passed with a custom message.
  * @param {string} message - Success message to display
  * @returns {unit}
  */
-let passWith: string => unit
+let passTest: string => unit
 
 /**
  * Explicitly fails a test with a custom message.
@@ -29,4 +37,4 @@ let passWith: string => unit
  * @returns {unit}
  * @throws Will throw an exception to fail the current test
  */
-let failWith: string => unit
+let failTest: string => unit
