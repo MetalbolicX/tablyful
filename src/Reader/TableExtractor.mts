@@ -463,16 +463,16 @@ export function extractYamlTable(input: string): ExtractedTable {
     if (arrayEntries.length > 0) {
       const headers = arrayEntries.map(([k]) => k);
       const maxLen = Math.max(...arrayEntries.map(([, v]) => (v as unknown[]).length));
-      const rows: Record<string, string>[] = [];
-      for (let i = 0; i < maxLen; i++) {
-        const row: Record<string, string> = {};
-        for (const [key, values] of arrayEntries) {
-          const arr = values as unknown[];
-          const val = i < arr.length ? arr[i] : undefined;
-          row[key] = val === null || val === undefined ? "" : String(val);
-        }
-        rows.push(row);
-      }
+      const rows: Record<string, string>[] = Array.from(
+        { length: maxLen },
+        (_, i) =>
+          arrayEntries.reduce<Record<string, string>>((row, [key, values]) => {
+        const arr = values as unknown[];
+        const val = i < arr.length ? arr[i] : undefined;
+        row[key] = val === null || val === undefined ? "" : String(val);
+        return row;
+          }, {}),
+      );
       return { headers, rows };
     }
   }
@@ -483,8 +483,31 @@ export function extractYamlTable(input: string): ExtractedTable {
 // ── XML extraction ──────────────────────────────────────────────────────────
 
 /**
- * Recursively searches an XML parsed tree for the first array of flat objects.
- * "Flat" means all values are primitives (string, number, boolean) or null.
+ * Recursively searches the given value for the first "flat" array of objects and returns it.
+ *
+ * A "flat" array matches all of the following:
+ * - The value is an Array.
+ * - Every element is a non-null, non-Array object (i.e. Record<string, unknown>).
+ * - For every object element, each property value is either null or not of type "object"
+ *   (e.g. primitives or functions — any typeof !== "object").
+ *
+ * The search is depth-first and visits object entries (or array indices) in their natural order.
+ * The function returns the original array reference (no cloning).
+ *
+ * @param node - Any value to search through.
+ * @returns The first array satisfying the "flat" criteria, or null if none is found.
+ *
+ * @example
+ * ```ts
+ * const data = {
+ *   meta: { count: 2 },
+ *   items: [
+ *     { id: 1, name: "Alice" },
+ *     { id: 2, name: "Bob" },
+ *   ],
+ * };
+ * findFirstFlatArray(data); // returns the items array
+ * ```
  */
 const findFirstFlatArray = (node: unknown): Record<string, unknown>[] | null => {
   if (Array.isArray(node)) {
@@ -518,14 +541,24 @@ const findFirstFlatArray = (node: unknown): Record<string, unknown>[] | null => 
 };
 
 /**
- * Extracts a table from XML content.
+ * Extracts a tabular representation from an XML string.
  *
- * Uses fast-xml-parser to parse the XML, then recursively searches
- * for the first array of flat objects (all leaf values are primitives).
+ * Parses the provided XML and locates the first repeated element sequence that represents
+ * a table (i.e., an array of objects with flat child elements). It collects the union of
+ * child element names as headers and constructs rows where every cell is converted to a string.
  *
- * @param input - Raw XML string.
- * @returns An ExtractedTable with headers and rows.
- * @throws Error when no table-like structure is found.
+ * @param input - XML content to parse.
+ * @returns An ExtractedTable with:
+ *  - headers: string[] — list of column names derived from the union of keys across records.
+ *  - rows: Record<string, string>[] — array of row objects mapping each header to a string value
+ *    (null/undefined values are converted to the empty string).
+ *
+ * Behavior notes:
+ *  - XML attributes are ignored during parsing.
+ *  - Non-leaf nodes are treated as arrays when detecting repeated record elements.
+ *  - Header order reflects insertion order based on encountered keys but is not otherwise guaranteed.
+ *
+ * @throws Error If no table-like structure (repeated elements with flat children) is found or if the detected table is empty.
  */
 export function extractXmlTable(input: string): ExtractedTable {
   const parser = new XMLParser({
@@ -561,10 +594,34 @@ export function extractXmlTable(input: string): ExtractedTable {
 // ── SQL extraction ──────────────────────────────────────────────────────────
 
 /**
- * Parses a SQL value literal from a string starting at position `pos`.
- * Returns the parsed value as a string and the new position after the value.
+ * Parse a single SQL value starting at the given position in a SQL string.
  *
- * Handles: single-quoted strings (with '' escape), NULL, TRUE, FALSE, numbers.
+ * Skips leading whitespace from startPos, then parses either:
+ * - A single-quoted string (handles SQL-style escaped quotes as two single quotes: `''`),
+ *   returning the unescaped string and the index immediately after the closing quote
+ *   (or end-of-input if the quote is unterminated).
+ * - An unquoted token which ends at a comma, closing parenthesis, or any whitespace.
+ *   Unquoted tokens may be identifiers, numbers, placeholders like `?`, or literals.
+ *   Special-case mappings (case-insensitive):
+ *     - `NULL` -> `""` (empty string)
+ *     - `TRUE` -> `"true"`
+ *     - `FALSE` -> `"false"`
+ *
+ * If startPos is at or past the end of the input, returns an empty value and the
+ * original/advanced position.
+ *
+ * @param sql - The full SQL string to parse from.
+ * @param startPos - The index within `sql` at which to begin parsing.
+ * @returns A tuple where:
+ *   - [0] is the parsed value as a string (unescaped for quoted strings; mapped for NULL/TRUE/FALSE),
+ *   - [1] is the index in `sql` immediately after the parsed token (for quoted strings, after the closing quote;
+ *         for unquoted tokens, at the delimiter which stopped the scan).
+ *
+ * @example
+ * ```ts
+ * parseSqlValue("  'O''Reilly', next", 0) // returns ["O'Reilly", 12]
+ * parseSqlValue("  NULL, next", 0) // returns ["", 6]
+ * ```
  */
 const parseSqlValue = (sql: string, startPos: number): [string, number] => {
   let pos = startPos;
@@ -615,8 +672,24 @@ const parseSqlValue = (sql: string, startPos: number): [string, number] => {
 };
 
 /**
- * Parses a single VALUES tuple like `(val1, val2, val3)` from SQL.
- * Returns the parsed values and the position after the closing paren.
+ * Parses a parenthesized SQL tuple from a SQL string starting at a given index.
+ *
+ * Finds the next '(' at or after `startPos`, then reads a comma-separated list of
+ * values using `parseSqlValue`, skipping whitespace between tokens. Parsing stops when
+ * a matching closing ')' is encountered.
+ *
+ * @param sql - The SQL input string to parse.
+ * @param startPos - The index in `sql` at which to begin searching for the opening '('.
+ * @returns A tuple `[values, nextPos]` where:
+ *  - `values` is an array of strings produced by `parseSqlValue` for each tuple element.
+ *  - `nextPos` is the index in `sql` immediately after the closing ')' if one was found.
+ *    If no opening '(' is found, an empty array and the position where the search ended is returned.
+ *    If the tuple is unterminated, `nextPos` will typically be `sql.length`.
+ *
+ * @remarks
+ * - Whitespace around tokens and commas is ignored.
+ * - The function itself does not interpret value contents; handling of quoted strings,
+ *   nested structures, or other SQL value forms depends on `parseSqlValue`.
  */
 const parseSqlTuple = (sql: string, startPos: number): [string[], number] => {
   let pos = startPos;
@@ -650,8 +723,22 @@ const parseSqlTuple = (sql: string, startPos: number): [string[], number] => {
 };
 
 /**
- * Extracts column names from an INSERT statement's column list.
- * Handles both quoted and unquoted identifiers.
+ * Parse a comma-separated list of column identifiers (as found in an INSERT statement)
+ * into an array of cleaned column names.
+ *
+ * Trims whitespace around each entry and removes surrounding identifier delimiters:
+ * double quotes ("..."), backticks (`...`) and square brackets ([...]) when both
+ * the opening and closing characters are present.
+ *
+ * @param columnsPart - Comma-separated column list (e.g. `id, "name", \`age\`, [email]`)
+ * @returns An array of column names with surrounding quotes/backticks/brackets removed and whitespace trimmed.
+ *
+ * @example
+ * parseInsertColumns('id, "first name", `last`, [age]') // -> ['id', 'first name', 'last', 'age']
+ *
+ * @remarks
+ * - Does not remove delimiters if only one side is present.
+ * - Does not handle escaped delimiters or commas inside quoted identifiers.
  */
 const parseInsertColumns = (columnsPart: string): string[] =>
   columnsPart.split(",").map((col) => {
@@ -670,19 +757,27 @@ const parseInsertColumns = (columnsPart: string): string[] =>
   });
 
 /**
- * Extracts table data from SQL INSERT statements.
+ * Extracts column headers and row data from SQL INSERT statements or specially-formatted comment tuples.
  *
- * Handles two modes produced by the tablyful SQL formatter:
- * 1. Placeholder mode (batchSize=1): `INSERT INTO t (cols) VALUES (?);`
- *    with `-- VALUES: (real, values)` comments containing actual data.
- * 2. Inline mode (batchSize>1): `INSERT INTO t (cols) VALUES (v1), (v2);`
- *    with literal values directly in the VALUES clause.
+ * This function performs two passes over the provided SQL text:
+ * 1. Comment mode: looks for `-- VALUES: (...)` comments and an `INSERT INTO ... (cols) VALUES` header; if both are found the comment tuples are used.
+ * 2. Inline mode: finds an `INSERT INTO ... (cols) VALUES` header and parses tuples that follow `VALUES` clauses in the SQL body.
  *
- * Also handles standard SQL INSERT statements from other tools.
+ * Key behavior and assumptions:
+ * - Column names are taken from the first matching `INSERT INTO <table> (col1, col2, ...) VALUES` clause (parsed with `parseInsertColumns`).
+ * - Tuples are parsed with `parseSqlTuple`.
+ * - Placeholder tuples such as `(?)` are ignored.
+ * - If a row has fewer values than headers, missing values are filled with empty strings.
+ * - Whitespace and multi-line `VALUES` clauses are supported to a reasonable extent.
  *
- * @param input - SQL text containing INSERT statements.
- * @returns An ExtractedTable with headers and rows.
- * @throws Error when no INSERT statements are found.
+ * @param input - The SQL text to parse.
+ * @returns An `ExtractedTable` object containing `headers: string[]` and `rows: Record<string, string>[]`.
+ *
+ * @throws If no `INSERT INTO ... (columns) VALUES` header is found.
+ * @throws If no data rows are found when parsing inline `VALUES` clauses.
+ *
+ * @remarks
+ * Depends on `parseInsertColumns` and `parseSqlTuple` to perform low-level parsing. Intended for straightforward INSERT statements and comment-embedded tuples; very complex or nonstandard SQL may not be handled.
  */
 export function extractSqlTable(input: string): ExtractedTable {
   const lines = input.split("\n");

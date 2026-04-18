@@ -205,11 +205,12 @@ const toComparableString = (value: unknown): string => {
  * ```
  */
 const escapeHtml = (value: string): string =>
-  value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+  value.replace(/[&<>"]/g, (char) => {
+    if (char === "&") return "&amp;";
+    if (char === "<") return "&lt;";
+    if (char === ">") return "&gt;";
+    return "&quot;";
+  });
 
 /**
  * Convert an arbitrary value to a string suitable for insertion into an HTML cell.
@@ -756,7 +757,6 @@ const projectRow = (
  * Process a single input value: build a row from the value using the detected shape and source headers,
  * apply predicate filters, project the row to the requested output headers, and emit it to the provided stream.
  *
- * @param stream - Writable stream to which the emitted row will be written.
  * @param value - The raw input value to convert into a row.
  * @param sourceHeaders - Source column headers used when building the row representation.
  * @param outputHeaders - Desired output column headers used when projecting the row.
@@ -764,14 +764,14 @@ const projectRow = (
  * @param predicates - Array of predicate functions used to filter rows; if any predicate fails, the row is skipped.
  * @param config - Streaming CLI configuration that controls projection and emission behavior.
  * @param rowNumber - Index of the current row in the input sequence (used for projection/metadata).
- * @returns A promise that resolves to true if the row was emitted, or false if it was filtered out.
+ * @param emitProjectedRow - Callback used to emit or buffer the projected row.
+ * @returns A promise that resolves to true if the row passed filtering, or false if it was filtered out.
  *
  * @remarks
  * - The function awaits emission to the stream and may reject if emission or stream I/O fails.
  * - Side effects: writes to the provided stream when a row passes filtering.
  */
 const processRowValue = async (
-  stream: Writable,
   value: unknown,
   sourceHeaders: ReadonlyArray<string>,
   outputHeaders: ReadonlyArray<string>,
@@ -779,6 +779,7 @@ const processRowValue = async (
   predicates: ReadonlyArray<Predicate>,
   config: StreamCliConfig,
   rowNumber: number,
+  emitProjectedRow: (row: Row) => Promise<void>,
 ): Promise<boolean> => {
   const row = buildRowFromValue(shape, sourceHeaders, value);
   if (!rowMatchesFilters(row, predicates)) {
@@ -786,7 +787,7 @@ const processRowValue = async (
   }
 
   const projected = projectRow(row, outputHeaders, config, rowNumber);
-  await emitRow(stream, outputHeaders, projected, config);
+  await emitProjectedRow(projected);
   return true;
 };
 
@@ -1170,18 +1171,29 @@ const run = async (config: StreamCliConfig): Promise<void> => {
       sourceHeaders,
       outputHeaders,
     );
-    const row = buildRowFromValue(detectedShape as DetectedShape, sh, value);
-    if (!rowMatchesFilters(row, predicates)) return;
-    const projected = projectRow(row, oh, configWithLineBreak, writtenRows + 1);
-    if (useSqlBatch) {
-      sqlBatch.push(projected);
-      if (sqlBatch.length >= sqlBatchSize) {
-        await flushSqlBatch();
-      }
-    } else {
-      await emitRow(output, oh, projected, configWithLineBreak);
+    const wasProcessed = await processRowValue(
+      value,
+      sh,
+      oh,
+      detectedShape as DetectedShape,
+      predicates,
+      configWithLineBreak,
+      writtenRows + 1,
+      async (projected) => {
+        if (useSqlBatch) {
+          sqlBatch.push(projected);
+          if (sqlBatch.length >= sqlBatchSize) {
+            await flushSqlBatch();
+          }
+        } else {
+          await emitRow(output, oh, projected, configWithLineBreak);
+        }
+      },
+    );
+
+    if (wasProcessed) {
+      writtenRows++;
     }
-    writtenRows++;
   };
 
   for await (const entry of jsonStream) {

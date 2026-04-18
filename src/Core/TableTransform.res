@@ -30,13 +30,17 @@ let invalidTransform = (message: string): Common.result<'a> => {
 }
 
 let uniqueStrings = (values: array<string>): array<string> => {
-  values->Array.reduce([], (acc, value) => {
-    if acc->Array.includes(value) {
-      acc
-    } else {
-      Array.concat(acc, [value])
+  let seen: dict<bool> = Dict.make()
+  let unique = ref(list{})
+
+  values->Array.forEach(value => {
+    if seen->Dict.get(value)->Option.isNone {
+      seen->Dict.set(value, true)
+      unique.contents = list{value, ...unique.contents}
     }
   })
+
+  unique.contents->List.reverse->List.toArray
 }
 
 let stripQuotes = (value: string): string => {
@@ -75,40 +79,34 @@ let splitAt = (~input: string, ~token: string, ~caseInsensitive=false): option<(
 
 let parsePredicate = (expression: string): Common.result<predicate> => {
   let expr = expression->String.trim
+  let operators: array<(string, filterOp, bool)> = [
+    (" like ", Like, true),
+    (">=", Gte, false),
+    ("<=", Lte, false),
+    ("!=", Neq, false),
+    ("=", Eq, false),
+    (">", Gt, false),
+    ("<", Lt, false),
+  ]
+
+  let rec parseWithOperators = (index: int): Common.result<predicate> => {
+    if index >= operators->Array.length {
+      invalidTransform(
+        `Invalid filter expression: ${expression}. Expected operators: =, !=, >, <, >=, <=, LIKE.`,
+      )
+    } else {
+      let (token, op, caseInsensitive) = operators->Array.getUnsafe(index)
+      switch splitAt(~input=expr, ~token, ~caseInsensitive) {
+      | Some((column, value)) => Ok({column, op, value: value->stripQuotes})
+      | None => parseWithOperators(index + 1)
+      }
+    }
+  }
+
   if expr === "" {
     invalidTransform("Filter expression cannot be empty.")
   } else {
-    switch splitAt(~input=expr, ~token=" like ", ~caseInsensitive=true) {
-    | Some((column, value)) => Ok({column, op: Like, value: value->stripQuotes})
-    | None =>
-      switch splitAt(~input=expr, ~token=">=") {
-      | Some((column, value)) => Ok({column, op: Gte, value: value->stripQuotes})
-      | None =>
-        switch splitAt(~input=expr, ~token="<=") {
-        | Some((column, value)) => Ok({column, op: Lte, value: value->stripQuotes})
-        | None =>
-          switch splitAt(~input=expr, ~token="!=") {
-          | Some((column, value)) => Ok({column, op: Neq, value: value->stripQuotes})
-          | None =>
-            switch splitAt(~input=expr, ~token="=") {
-            | Some((column, value)) => Ok({column, op: Eq, value: value->stripQuotes})
-            | None =>
-              switch splitAt(~input=expr, ~token=">") {
-              | Some((column, value)) => Ok({column, op: Gt, value: value->stripQuotes})
-              | None =>
-                switch splitAt(~input=expr, ~token="<") {
-                | Some((column, value)) => Ok({column, op: Lt, value: value->stripQuotes})
-                | None =>
-                  invalidTransform(
-                    `Invalid filter expression: ${expression}. Expected operators: =, !=, >, <, >=, <=, LIKE.`,
-                  )
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+    parseWithOperators(0)
   }
 }
 
@@ -250,14 +248,24 @@ let selectColumns = (table: TableData.t, requestedColumns: array<string>): Commo
 }
 
 let applyFilters = (table: TableData.t, expressions: array<string>): Common.result<TableData.t> => {
+  let parsePredicates = (): Common.result<array<predicate>> => {
+    let rec loop = (index: int, acc: list<predicate>): Common.result<array<predicate>> => {
+      if index >= expressions->Array.length {
+        Ok(acc->List.reverse->List.toArray)
+      } else {
+        parsePredicate(expressions->Array.getUnsafe(index))->Result.flatMap(predicate => {
+          loop(index + 1, list{predicate, ...acc})
+        })
+      }
+    }
+
+    loop(0, list{})
+  }
+
   if expressions->Array.length === 0 {
     Ok(table)
   } else {
-    expressions->Array.reduce(Ok([]), (acc, expression) => {
-      acc->Result.flatMap(predicates => {
-        parsePredicate(expression)->Result.map(predicate => Array.concat(predicates, [predicate]))
-      })
-    })->Result.flatMap(predicates => {
+    parsePredicates()->Result.flatMap(predicates => {
       let missingColumns =
         predicates
         ->Array.map(predicate => predicate.column)

@@ -3,12 +3,17 @@ open Types
 @val
 external version: string = "__VERSION__"
 
+let stdoutFd = 1
+let stderrFd = 2
+let supportedOutputFormats = "csv, tsv, psv, json, markdown, html, latex, sql, yaml"
+let streamableOutputFormats = "csv, tsv, psv, sql, html, yaml"
+
 let writeStdout = (text: string): unit => {
-  ignore(Bindings.Fs.writeSyncFd(1, text))
+  ignore(Bindings.Fs.writeSyncFd(stdoutFd, text))
 }
 
 let writeStderr = (text: string): unit => {
-  ignore(Bindings.Fs.writeSyncFd(2, text))
+  ignore(Bindings.Fs.writeSyncFd(stderrFd, text))
 }
 
 let showHelp = (): unit => {
@@ -231,6 +236,11 @@ type cliFlags = {
 
 let printError = (error: TablyfulError.t): unit => {
   writeStderr(TablyfulError.toString(error) ++ "\n")
+}
+
+let exitWithError = (~code: int, error: TablyfulError.t): unit => {
+  printError(error)
+  Bindings.Process.exit(code)
 }
 
 let parseJsonInput = (inputText: string): Common.result<JSON.t> => {
@@ -538,13 +548,38 @@ let applySetOverrides = (options: t, pairs: array<(string, string)>): Common.res
 }
 
 let overrideWithCliFlags = (options: t, flags: cliFlags): Common.result<t> => {
+  let disableDelimitedHeaders = (opts: t): t => {
+    switch opts.outputFormat {
+    | Csv =>
+      switch opts.formatOptions {
+      | CsvOptions(csv) => {
+          ...opts,
+          formatOptions: CsvOptions({...csv, includeHeaders: false}),
+        }
+      | _ => {
+          ...opts,
+          formatOptions: CsvOptions({...Defaults.defaultCsvOptions, includeHeaders: false}),
+        }
+      }
+    | Tsv => {
+        ...opts,
+        formatOptions: TsvOptions({includeHeaders: false}),
+      }
+    | Psv => {
+        ...opts,
+        formatOptions: PsvOptions({includeHeaders: false}),
+      }
+    | _ => opts
+    }
+  }
+
   let outputFormat = switch flags.formatArg {
   | Some(value) =>
     switch Types.formatFromString(value) {
     | Some(format) => Ok(format)
     | None =>
       TablyfulError.validationError(
-        `Invalid format: ${value}. Expected one of: csv, tsv, psv, json, markdown, html, latex, sql, yaml.`,
+        `Invalid format: ${value}. Expected one of: ${supportedOutputFormats}.`,
       )->TablyfulError.toResult
     }
   | None => Ok(options.outputFormat)
@@ -575,48 +610,7 @@ let overrideWithCliFlags = (options: t, flags: cliFlags): Common.result<t> => {
     }
 
     if flags.noHeaders {
-      switch withDelimiter.outputFormat {
-      | Csv =>
-        switch withDelimiter.formatOptions {
-        | CsvOptions(csv) =>
-          {
-            ...withDelimiter,
-            formatOptions: CsvOptions({...csv, includeHeaders: false}),
-          }
-        | _ =>
-          {
-            ...withDelimiter,
-            formatOptions: CsvOptions({...Defaults.defaultCsvOptions, includeHeaders: false}),
-          }
-        }
-      | Tsv =>
-        switch withDelimiter.formatOptions {
-        | TsvOptions(_) =>
-          {
-            ...withDelimiter,
-            formatOptions: TsvOptions({includeHeaders: false}),
-          }
-        | _ =>
-          {
-            ...withDelimiter,
-            formatOptions: TsvOptions({includeHeaders: false}),
-          }
-        }
-      | Psv =>
-        switch withDelimiter.formatOptions {
-        | PsvOptions(_) =>
-          {
-            ...withDelimiter,
-            formatOptions: PsvOptions({includeHeaders: false}),
-          }
-        | _ =>
-          {
-            ...withDelimiter,
-            formatOptions: PsvOptions({includeHeaders: false}),
-          }
-        }
-      | _ => withDelimiter
-      }
+      disableDelimitedHeaders(withDelimiter)
     } else {
       withDelimiter
     }
@@ -627,6 +621,72 @@ let resolveOptions = (flags: cliFlags): Common.result<t> => {
   mergeConfig(~configPath=flags.configPath)
   ->Result.flatMap(configOptions => applySetOverrides(configOptions, flags.setPairs))
   ->Result.flatMap(withSetOverrides => overrideWithCliFlags(withSetOverrides, flags))
+}
+
+let applyColumnSelection = (
+  tableData: TableData.t,
+  columnsArg: option<array<string>>,
+): Common.result<TableData.t> => {
+  switch columnsArg {
+  | Some(columns) => TableTransform.selectColumns(tableData, columns)
+  | None => Ok(tableData)
+  }
+}
+
+let formatTableData = (tableData: TableData.t, options: t): Common.result<(TableData.t, string)> => {
+  let formatName = options.outputFormat->Types.formatToString
+  FormatterRegistry.format(formatName, tableData, options)->Result.map(output => {
+    (tableData, output)
+  })
+}
+
+let processTableData = (
+  tableData: TableData.t,
+  flags: cliFlags,
+  options: t,
+): Common.result<(TableData.t, string)> => {
+  TableTransform.applyFilters(tableData, flags.filterExprs)
+  ->Result.flatMap(filteredData => applyColumnSelection(filteredData, flags.columnsArg))
+  ->Result.flatMap(finalData => formatTableData(finalData, options))
+}
+
+let writeOutput = (outputPath: option<string>, output: string): Common.result<unit> => {
+  switch outputPath {
+  | Some(path) =>
+    try {
+      Bindings.Fs.writeFileSyncUtf8(path, output ++ "\n")
+      Ok(())
+    } catch {
+    | JsExn(e) =>
+      TablyfulError.ioError(
+        `Failed to write output file: ${e->JsExn.message->Option.getOr("unknown error")}`,
+      )->TablyfulError.toResult
+    }
+  | None =>
+    writeStdout(output ++ "\n")
+    Ok(())
+  }
+}
+
+let printStats = (tableData: TableData.t, options: t): unit => {
+  let formatName = options.outputFormat->Types.formatToString
+  writeStderr(
+    `[tablyful] rows: ${tableData.metadata.rowCount->Int.toString}, columns: ${
+      tableData.metadata.columnCount->Int.toString
+    }, detected: ${tableData.metadata.sourceFormat}, format: ${formatName}\n`,
+  )
+}
+
+let finalizeConversion = (
+  tableData: TableData.t,
+  output: string,
+  flags: cliFlags,
+  options: t,
+): Common.result<unit> => {
+  if flags.stats {
+    printStats(tableData, options)
+  }
+  writeOutput(flags.outputPath, output)
 }
 
 let makeBaseStreamConfig = (
@@ -663,85 +723,79 @@ let makeBaseStreamConfig = (
   }
 }
 
-let runStreamMode = (~inputPath: option<string>, flags: cliFlags): unit => {
-  switch resolveOptions(flags) {
-  | Error(error) =>
-    printError(error)
-    Bindings.Process.exit(2)
-  | Ok(options) =>
-    let baseConfig = makeBaseStreamConfig(~inputPath, flags, options)
+let runStreamMode = (~inputPath: option<string>, flags: cliFlags, options: t): unit => {
+  let baseConfig = makeBaseStreamConfig(~inputPath, flags, options)
 
-    let streamConfig = switch options.outputFormat {
-    | Csv => {
-        let csv = Defaults.getCsvOptions(options)
-        Some({
-          ...baseConfig,
-          outputFormat: "csv",
-          delimiter: csv.delimiter,
-          quote: csv.quote,
-          escape: csv.escape,
-          lineBreak: csv.lineBreak,
-          includeHeaders: csv.includeHeaders,
-        })
-      }
-    | Tsv => {
-        let tsv = Defaults.getTsvOptions(options)
-        Some({...baseConfig, outputFormat: "tsv", delimiter: "\t", includeHeaders: tsv.includeHeaders})
-      }
-    | Psv => {
-        let psv = Defaults.getPsvOptions(options)
-        Some({...baseConfig, outputFormat: "psv", delimiter: "|", includeHeaders: psv.includeHeaders})
-      }
-    | Sql => {
-        let sql = Defaults.getSqlOptions(options)
-        Some({
-          ...baseConfig,
-          outputFormat: "sql",
-          includeHeaders: false,
-          sqlTableName: sql.tableName,
-          sqlIdentifierQuote: sql.identifierQuote,
-          sqlIncludeCreateTable: sql.includeCreateTable,
-          sqlInsertBatchSize: sql.insertBatchSize,
-        })
-      }
-    | Html => {
-        let html = Defaults.getHtmlOptions(options)
-        Some({
-          ...baseConfig,
-          outputFormat: "html",
-          includeHeaders: true,
-          htmlTableClass: html.tableClass,
-          htmlTheadClass: html.theadClass,
-          htmlTbodyClass: html.tbodyClass,
-          htmlId: html.id,
-          htmlCaption: html.caption,
-        })
-      }
-    | Yaml => {
-        let yaml = Defaults.getYamlOptions(options)
-        Some({
-          ...baseConfig,
-          outputFormat: "yaml",
-          includeHeaders: true,
-          lineBreak: yaml.lineBreak,
-          yamlIndent: yaml.indent,
-          yamlQuoteStrings: yaml.quoteStrings,
-        })
-      }
-    | _ =>
-      printError(
-        TablyfulError.validationError(
-          "Automatic streaming currently supports output formats: csv, tsv, psv, sql, html, yaml.",
-        ),
-      )
-      Bindings.Process.exit(2)
-      None
+  let streamConfig = switch options.outputFormat {
+  | Csv => {
+      let csv = Defaults.getCsvOptions(options)
+      Some({
+        ...baseConfig,
+        outputFormat: "csv",
+        delimiter: csv.delimiter,
+        quote: csv.quote,
+        escape: csv.escape,
+        lineBreak: csv.lineBreak,
+        includeHeaders: csv.includeHeaders,
+      })
     }
+  | Tsv => {
+      let tsv = Defaults.getTsvOptions(options)
+      Some({...baseConfig, outputFormat: "tsv", delimiter: "\t", includeHeaders: tsv.includeHeaders})
+    }
+  | Psv => {
+      let psv = Defaults.getPsvOptions(options)
+      Some({...baseConfig, outputFormat: "psv", delimiter: "|", includeHeaders: psv.includeHeaders})
+    }
+  | Sql => {
+      let sql = Defaults.getSqlOptions(options)
+      Some({
+        ...baseConfig,
+        outputFormat: "sql",
+        includeHeaders: false,
+        sqlTableName: sql.tableName,
+        sqlIdentifierQuote: sql.identifierQuote,
+        sqlIncludeCreateTable: sql.includeCreateTable,
+        sqlInsertBatchSize: sql.insertBatchSize,
+      })
+    }
+  | Html => {
+      let html = Defaults.getHtmlOptions(options)
+      Some({
+        ...baseConfig,
+        outputFormat: "html",
+        includeHeaders: true,
+        htmlTableClass: html.tableClass,
+        htmlTheadClass: html.theadClass,
+        htmlTbodyClass: html.tbodyClass,
+        htmlId: html.id,
+        htmlCaption: html.caption,
+      })
+    }
+  | Yaml => {
+      let yaml = Defaults.getYamlOptions(options)
+      Some({
+        ...baseConfig,
+        outputFormat: "yaml",
+        includeHeaders: true,
+        lineBreak: yaml.lineBreak,
+        yamlIndent: yaml.indent,
+        yamlQuoteStrings: yaml.quoteStrings,
+      })
+    }
+  | _ =>
+    exitWithError(
+      ~code=2,
+      TablyfulError.validationError(
+        `Automatic streaming currently supports output formats: ${streamableOutputFormats}.`,
+      ),
+    )
+    None
+  }
 
-    switch streamConfig {
-    | Some(config) => Bindings.StreamMode.run(config)
-    | None => ()
-    }
+  switch streamConfig {
+  | Some(config) => Bindings.StreamMode.run(config)
+  | None => ()
   }
 }
 
@@ -758,135 +812,38 @@ let runConversion = (inputText: string, flags: cliFlags, ~inputPath: option<stri
   | _ => false
   }
 
-  if isReaderFormat {
-    // Non-JSON input: use ReaderRegistry
-    let format = detectedFormat->Option.getOrThrow(~message="unreachable: isReaderFormat was true")
-    switch resolveOptions(flags) {
-    | Error(error) =>
-      printError(error)
-      Bindings.Process.exit(2)
-    | Ok(options) =>
-      switch ReaderRegistry.read(~format, inputText, options) {
-      | Error(error) =>
-        printError(error)
-        Bindings.Process.exit(1)
-      | Ok(tableData) =>
-        switch TableTransform.applyFilters(tableData, flags.filterExprs) {
-        | Error(error) =>
-          printError(error)
-          Bindings.Process.exit(1)
-        | Ok(filteredData) =>
-          let conversionResult =
-            switch flags.columnsArg {
-            | Some(columns) => TableTransform.selectColumns(filteredData, columns)
-            | None => Ok(filteredData)
-            }
-            ->Result.flatMap(finalData => {
-              let formatName = options.outputFormat->Types.formatToString
-              FormatterRegistry.format(formatName, finalData, options)->Result.map(output => {
-                (finalData, output)
-              })
-            })
-
-          switch conversionResult {
-          | Error(error) =>
-            printError(error)
-            Bindings.Process.exit(1)
-          | Ok((finalData, output)) =>
-            if flags.stats {
-              let formatName = options.outputFormat->Types.formatToString
-              writeStderr(
-                `[tablyful] rows: ${finalData.metadata.rowCount->Int.toString}, columns: ${
-                  finalData.metadata.columnCount->Int.toString
-                }, detected: ${finalData.metadata.sourceFormat}, format: ${formatName}\n`,
-              )
-            }
-            switch flags.outputPath {
-            | Some(path) =>
-              try {
-                Bindings.Fs.writeFileSyncUtf8(path, output ++ "\n")
-              } catch {
-              | JsExn(e) =>
-                printError(
-                  TablyfulError.ioError(
-                    `Failed to write output file: ${e->JsExn.message->Option.getOr("unknown error")}`,
-                  ),
-                )
-                Bindings.Process.exit(1)
-              }
-            | None => writeStdout(output ++ "\n")
-            }
-            Bindings.Process.exit(0)
-          }
+  let handleTableResult = (tableResult: Common.result<TableData.t>, options: t): unit => {
+    switch tableResult {
+    | Error(error) => exitWithError(~code=1, error)
+    | Ok(tableData) =>
+      switch processTableData(tableData, flags, options) {
+      | Error(error) => exitWithError(~code=1, error)
+      | Ok((finalData, output)) =>
+        switch finalizeConversion(finalData, output, flags, options) {
+        | Error(error) => exitWithError(~code=1, error)
+        | Ok(()) => Bindings.Process.exit(0)
         }
       }
     }
-  } else {
-    // JSON input (or undetected): use existing parser pipeline
-    switch parseJsonInput(inputText) {
-    | Error(error) =>
-      printError(error)
-      Bindings.Process.exit(1)
-    | Ok(jsonInput) =>
-      switch resolveOptions(flags) {
-      | Error(error) =>
-        printError(error)
-        Bindings.Process.exit(2)
-      | Ok(options) =>
-        switch ParserRegistry.parse(~format=?flags.inputArg, jsonInput, options) {
-        | Error(error) =>
-          printError(error)
-          Bindings.Process.exit(1)
-        | Ok(tableData) =>
-          switch TableTransform.applyFilters(tableData, flags.filterExprs) {
-          | Error(error) =>
-            printError(error)
-            Bindings.Process.exit(1)
-          | Ok(filteredData) =>
-            let conversionResult =
-              switch flags.columnsArg {
-              | Some(columns) => TableTransform.selectColumns(filteredData, columns)
-              | None => Ok(filteredData)
-              }
-              ->Result.flatMap(finalData => {
-                let formatName = options.outputFormat->Types.formatToString
-                FormatterRegistry.format(formatName, finalData, options)->Result.map(output => {
-                  (finalData, output)
-                })
-              })
+  }
 
-            switch conversionResult {
-            | Error(error) =>
-              printError(error)
-              Bindings.Process.exit(1)
-            | Ok((finalData, output)) =>
-              if flags.stats {
-                let formatName = options.outputFormat->Types.formatToString
-                writeStderr(
-                  `[tablyful] rows: ${finalData.metadata.rowCount->Int.toString}, columns: ${
-                    finalData.metadata.columnCount->Int.toString
-                  }, detected: ${finalData.metadata.sourceFormat}, format: ${formatName}\n`,
-                )
-              }
-              switch flags.outputPath {
-              | Some(path) =>
-                try {
-                  Bindings.Fs.writeFileSyncUtf8(path, output ++ "\n")
-                } catch {
-                | JsExn(e) =>
-                  printError(
-                    TablyfulError.ioError(
-                      `Failed to write output file: ${e->JsExn.message->Option.getOr("unknown error")}`,
-                    ),
-                  )
-                  Bindings.Process.exit(1)
-                }
-              | None => writeStdout(output ++ "\n")
-              }
-              Bindings.Process.exit(0)
-            }
-          }
-        }
+  switch resolveOptions(flags) {
+  | Error(error) => exitWithError(~code=2, error)
+  | Ok(options) =>
+    if isReaderFormat {
+      switch detectedFormat {
+      | Some(format) => handleTableResult(ReaderRegistry.read(~format, inputText, options), options)
+      | None =>
+        exitWithError(
+          ~code=1,
+          TablyfulError.parseError("Failed to detect a reader format for non-JSON input."),
+        )
+      }
+    } else {
+      switch parseJsonInput(inputText) {
+      | Error(error) => exitWithError(~code=1, error)
+      | Ok(jsonInput) =>
+        handleTableResult(ParserRegistry.parse(~format=?flags.inputArg, jsonInput, options), options)
       }
     }
   }
@@ -966,7 +923,7 @@ let main = (): unit => {
       | None =>
         printError(
           TablyfulError.validationError(
-            `Invalid format for --list-set-keys-format: ${formatStr}. Expected one of: csv, tsv, psv, json, markdown, html, latex, sql, yaml.`,
+            `Invalid format for --list-set-keys-format: ${formatStr}. Expected one of: ${supportedOutputFormats}.`,
           ),
         )
         Bindings.Process.exit(2)
@@ -1069,7 +1026,7 @@ let main = (): unit => {
         switch options.outputFormat {
         | Csv | Tsv | Psv | Sql | Html | Yaml =>
           switch inputPath {
-          | Some(_) => runStreamMode(~inputPath, flags)
+          | Some(_) => runStreamMode(~inputPath, flags, options)
           | None =>
             // stdin without --input: use batch mode so runConversion can
             // content-sniff the format (stream mode only handles JSON).
