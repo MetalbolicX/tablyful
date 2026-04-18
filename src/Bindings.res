@@ -109,6 +109,22 @@ module Util = {
   @module("node:util") external parseArgs: parseConfig => parseArgsResult = "parseArgs"
 }
 
+module TableExtractor = {
+  type extractedTable = {
+    headers: array<string>,
+    rows: array<dict<string>>,
+  }
+
+  @module("./Reader/TableExtractor.mjs")
+  external extractHtmlTable: string => extractedTable = "extractHtmlTable"
+
+  @module("./Reader/TableExtractor.mjs")
+  external extractMarkdownTable: string => extractedTable = "extractMarkdownTable"
+
+  @module("./Reader/TableExtractor.mjs")
+  external extractLatexTable: string => extractedTable = "extractLatexTable"
+}
+
 module StreamMode = {
   type config = {
     inputPath: string,

@@ -18,7 +18,7 @@ Convert tabular data between formats.
 
 Options:
   -f, --format <format>   Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
-  -i, --input <format>    Input format (optional; auto-detected when omitted)
+  -i, --input <format>    Input format (json|html|markdown|latex; auto-detected when omitted)
   -o, --output <path>     Write output to file instead of stdout
       --set <key=value>   Override format option (repeatable, e.g. --set json.pretty=false)
       --list-set-keys      Print allowed --set keys and defaults
@@ -34,6 +34,8 @@ Options:
   -v, --version           Show version
 
 Input is read from [file] when provided, otherwise from stdin when piped.
+Input format is auto-detected from file extension or content. Use --input to override.
+Supported input formats: json, html, markdown, latex.
 
 Examples:
   cat data.json | tablyful --format csv --set csv.delimiter=';'
@@ -41,6 +43,9 @@ Examples:
   cat data.json | tablyful --format yaml --filter 'name LIKE ali%' --columns name,age
   cat data.json | tablyful --format sql --set sql.tableName=users --stats
   tablyful data.json --format csv --output out.csv
+  tablyful data.html --format csv
+  tablyful table.md --format json
+  cat table.tex | tablyful --input latex --format csv
   tablyful --list-set-keys
   tablyful --list-set-keys-format csv
   cat data.json | tablyful --format csv --delimiter ';' --config conf.json
@@ -735,18 +740,28 @@ let runStreamMode = (~inputPath: option<string>, flags: cliFlags): unit => {
   }
 }
 
-let runConversion = (inputText: string, flags: cliFlags): unit => {
-  switch parseJsonInput(inputText) {
-  | Error(error) =>
-    printError(error)
-    Bindings.Process.exit(1)
-  | Ok(jsonInput) =>
+let runConversion = (inputText: string, flags: cliFlags, ~inputPath: option<string>=?): unit => {
+  // Detect input format: --input flag > file extension > content sniffing
+  let detectedFormat = switch flags.inputArg {
+  | Some(fmt) => Some(fmt->String.toLowerCase)
+  | None => FormatDetector.detect(~path=?inputPath, ~content=inputText, ())
+  }
+
+  // Decide whether to use a reader (non-JSON) or the existing JSON parser pipeline
+  let isReaderFormat = switch detectedFormat {
+  | Some("html") | Some("markdown") | Some("latex") => true
+  | _ => false
+  }
+
+  if isReaderFormat {
+    // Non-JSON input: use ReaderRegistry
+    let format = detectedFormat->Option.getOrThrow(~message="unreachable: isReaderFormat was true")
     switch resolveOptions(flags) {
     | Error(error) =>
       printError(error)
       Bindings.Process.exit(2)
     | Ok(options) =>
-      switch ParserRegistry.parse(~format=?flags.inputArg, jsonInput, options) {
+      switch ReaderRegistry.read(~format, inputText, options) {
       | Error(error) =>
         printError(error)
         Bindings.Process.exit(1)
@@ -797,6 +812,74 @@ let runConversion = (inputText: string, flags: cliFlags): unit => {
             | None => writeStdout(output ++ "\n")
             }
             Bindings.Process.exit(0)
+          }
+        }
+      }
+    }
+  } else {
+    // JSON input (or undetected): use existing parser pipeline
+    switch parseJsonInput(inputText) {
+    | Error(error) =>
+      printError(error)
+      Bindings.Process.exit(1)
+    | Ok(jsonInput) =>
+      switch resolveOptions(flags) {
+      | Error(error) =>
+        printError(error)
+        Bindings.Process.exit(2)
+      | Ok(options) =>
+        switch ParserRegistry.parse(~format=?flags.inputArg, jsonInput, options) {
+        | Error(error) =>
+          printError(error)
+          Bindings.Process.exit(1)
+        | Ok(tableData) =>
+          switch TableTransform.applyFilters(tableData, flags.filterExprs) {
+          | Error(error) =>
+            printError(error)
+            Bindings.Process.exit(1)
+          | Ok(filteredData) =>
+            let conversionResult =
+              switch flags.columnsArg {
+              | Some(columns) => TableTransform.selectColumns(filteredData, columns)
+              | None => Ok(filteredData)
+              }
+              ->Result.flatMap(finalData => {
+                let formatName = options.outputFormat->Types.formatToString
+                FormatterRegistry.format(formatName, finalData, options)->Result.map(output => {
+                  (finalData, output)
+                })
+              })
+
+            switch conversionResult {
+            | Error(error) =>
+              printError(error)
+              Bindings.Process.exit(1)
+            | Ok((finalData, output)) =>
+              if flags.stats {
+                let formatName = options.outputFormat->Types.formatToString
+                writeStderr(
+                  `[tablyful] rows: ${finalData.metadata.rowCount->Int.toString}, columns: ${
+                    finalData.metadata.columnCount->Int.toString
+                  }, detected: ${finalData.metadata.sourceFormat}, format: ${formatName}\n`,
+                )
+              }
+              switch flags.outputPath {
+              | Some(path) =>
+                try {
+                  Bindings.Fs.writeFileSyncUtf8(path, output ++ "\n")
+                } catch {
+                | JsExn(e) =>
+                  printError(
+                    TablyfulError.ioError(
+                      `Failed to write output file: ${e->JsExn.message->Option.getOr("unknown error")}`,
+                    ),
+                  )
+                  Bindings.Process.exit(1)
+                }
+              | None => writeStdout(output ++ "\n")
+              }
+              Bindings.Process.exit(0)
+            }
           }
         }
       }
@@ -945,7 +1028,7 @@ let main = (): unit => {
           Bindings.Process.exit(1)
           ""
         }
-        runConversion(inputText, flags)
+        runConversion(inputText, flags, ~inputPath=filePath)
       | None =>
         if Bindings.Process.stdin.isTTY !== Some(true) {
           readInputFromStdin(flags)
@@ -956,7 +1039,21 @@ let main = (): unit => {
       }
     }
 
-    if flags.inputArg->Option.isSome {
+    // Determine if input is a non-JSON reader format (always batch mode)
+    let isReaderInput = switch flags.inputArg {
+    | Some("html") | Some("markdown") | Some("latex") => true
+    | _ =>
+      switch inputPath {
+      | Some(p) =>
+        switch FormatDetector.fromExtension(p) {
+        | Some("html") | Some("markdown") | Some("latex") => true
+        | _ => false
+        }
+      | None => false
+      }
+    }
+
+    if flags.inputArg->Option.isSome || isReaderInput {
       runBatchMode()
     } else {
       switch resolveOptions(flags) {
@@ -969,8 +1066,10 @@ let main = (): unit => {
           switch inputPath {
           | Some(_) => runStreamMode(~inputPath, flags)
           | None =>
+            // stdin without --input: use batch mode so runConversion can
+            // content-sniff the format (stream mode only handles JSON).
             if Bindings.Process.stdin.isTTY !== Some(true) {
-              runStreamMode(~inputPath, flags)
+              readInputFromStdin(flags)
             } else {
               showHelp()
               Bindings.Process.exit(0)

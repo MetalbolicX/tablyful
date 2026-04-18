@@ -13,6 +13,12 @@ const shared = {
     /^node:.*/, // all node: built-ins (node:fs, node:url, etc.)
     /^@rescript\/runtime(\/.*)?$/, // ReScript runtime (including subpath imports)
     /^stream-json(\/.*)?$/, // stream-json and its internal submodules
+    /^unified$/, // unified processor
+    /^rehype-parse$/, // HTML parser
+    /^remark-parse$/, // Markdown parser
+    /^remark-gfm$/, // GFM (tables) support
+    /^hast-util-to-text$/, // HAST text extraction
+    /^mdast-util-gfm-table$/, // mdast GFM table utilities
   ],
   transform: {
     define: {

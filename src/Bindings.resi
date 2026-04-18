@@ -84,6 +84,17 @@ module Util: {
   let parseArgs: parseConfig => parseArgsResult
 }
 
+module TableExtractor: {
+  type extractedTable = {
+    headers: array<string>,
+    rows: array<dict<string>>,
+  }
+
+  let extractHtmlTable: string => extractedTable
+  let extractMarkdownTable: string => extractedTable
+  let extractLatexTable: string => extractedTable
+}
+
 module StreamMode: {
   type config = {
     inputPath: string,

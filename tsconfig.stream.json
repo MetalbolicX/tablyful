@@ -10,5 +10,5 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["src/Cli/StreamMode.mts"]
+  "include": ["src/Cli/StreamMode.mts", "src/Reader/TableExtractor.mts"]
 }
