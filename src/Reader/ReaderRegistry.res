@@ -61,13 +61,13 @@ let all: array<readerEntry> = [
 
 // Get reader by format name
 let getByName = (name: string): option<readerEntry> => {
-  all->Array.find(reader => reader.name === name->String.toLowerCase)
+  RegistryUtils.findByName(~name, ~getName=reader => reader.name, all)
 }
 
 // Get reader by file extension
 let getByExtension = (ext: string): option<readerEntry> => {
   let lowerExt = ext->String.toLowerCase
-  all->Array.find(reader => reader.extensions->Array.includes(lowerExt))
+  RegistryUtils.findFirst(~predicate=reader => reader.extensions->Array.includes(lowerExt), all)
 }
 
 // Read with a specific reader (by name)
@@ -90,5 +90,5 @@ let hasReader = (format: string): bool => {
 
 // Get all reader names
 let getNames = (): array<string> => {
-  all->Array.map(reader => reader.name)
+  RegistryUtils.getNames(~getName=reader => reader.name, all)
 }

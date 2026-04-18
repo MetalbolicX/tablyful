@@ -5,6 +5,30 @@ import remarkGfm from "remark-gfm";
 import { toText } from "hast-util-to-text";
 import { parse as parseYaml } from "yaml";
 import { XMLParser } from "fast-xml-parser";
+let htmlProcessor = null;
+let markdownProcessor = null;
+let xmlParser = null;
+const getHtmlProcessor = () => {
+    if (htmlProcessor !== null)
+        return htmlProcessor;
+    htmlProcessor = unified().use(rehypeParse, { fragment: false });
+    return htmlProcessor;
+};
+const getMarkdownProcessor = () => {
+    if (markdownProcessor !== null)
+        return markdownProcessor;
+    markdownProcessor = unified().use(remarkParse).use(remarkGfm);
+    return markdownProcessor;
+};
+const getXmlParser = () => {
+    if (xmlParser !== null)
+        return xmlParser;
+    xmlParser = new XMLParser({
+        ignoreAttributes: true,
+        isArray: (_name, _jpath, isLeafNode) => !isLeafNode,
+    });
+    return xmlParser;
+};
 /**
  * Recursively collects all nodes in a HAST subtree whose tagName matches the given tag.
  *
@@ -62,9 +86,7 @@ const hastText = (node) => {
  * @throws Error when no `<table>` element is found.
  */
 export function extractHtmlTable(html) {
-    const tree = unified()
-        .use(rehypeParse, { fragment: false })
-        .parse(html);
+    const tree = getHtmlProcessor().parse(html);
     const tables = findAll(tree, "table");
     if (tables.length === 0) {
         throw new Error("No <table> element found in HTML input.");
@@ -201,10 +223,7 @@ const mdastText = (node) => {
  * ```
  */
 export function extractMarkdownTable(md) {
-    const tree = unified()
-        .use(remarkParse)
-        .use(remarkGfm)
-        .parse(md);
+    const tree = getMarkdownProcessor().parse(md);
     const tables = mdastFindAll(tree, "table");
     if (tables.length === 0) {
         throw new Error("No table found in Markdown input.");
@@ -470,11 +489,7 @@ const findFirstFlatArray = (node) => {
  * @throws Error If no table-like structure (repeated elements with flat children) is found or if the detected table is empty.
  */
 export function extractXmlTable(input) {
-    const parser = new XMLParser({
-        ignoreAttributes: true,
-        isArray: (_name, _jpath, isLeafNode) => !isLeafNode,
-    });
-    const parsed = parser.parse(input);
+    const parsed = getXmlParser().parse(input);
     const records = findFirstFlatArray(parsed);
     if (!records || records.length === 0) {
         throw new Error("No table-like structure found in XML input (expected repeated elements with flat children).");

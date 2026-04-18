@@ -13,6 +13,35 @@ interface ExtractedTable {
   rows: Record<string, string>[];
 }
 
+interface ParserProcessor {
+  parse: (input: string) => unknown;
+}
+
+let htmlProcessor: ParserProcessor | null = null;
+let markdownProcessor: ParserProcessor | null = null;
+let xmlParser: XMLParser | null = null;
+
+const getHtmlProcessor = (): ParserProcessor => {
+  if (htmlProcessor !== null) return htmlProcessor;
+  htmlProcessor = unified().use(rehypeParse, { fragment: false }) as unknown as ParserProcessor;
+  return htmlProcessor;
+};
+
+const getMarkdownProcessor = (): ParserProcessor => {
+  if (markdownProcessor !== null) return markdownProcessor;
+  markdownProcessor = unified().use(remarkParse).use(remarkGfm) as unknown as ParserProcessor;
+  return markdownProcessor;
+};
+
+const getXmlParser = (): XMLParser => {
+  if (xmlParser !== null) return xmlParser;
+  xmlParser = new XMLParser({
+    ignoreAttributes: true,
+    isArray: (_name, _jpath, isLeafNode) => !isLeafNode,
+  });
+  return xmlParser;
+};
+
 // ── HAST helpers (HTML) ───────────────────────────────────────────────────────
 
 interface HastNode {
@@ -84,9 +113,7 @@ const hastText = (node: HastNode): string => {
  * @throws Error when no `<table>` element is found.
  */
 export function extractHtmlTable(html: string): ExtractedTable {
-  const tree = unified()
-    .use(rehypeParse, { fragment: false })
-    .parse(html) as unknown as HastNode;
+  const tree = getHtmlProcessor().parse(html) as unknown as HastNode;
 
   const tables = findAll(tree, "table");
   if (tables.length === 0) {
@@ -245,10 +272,7 @@ const mdastText = (node: MdastNode): string => {
  * ```
  */
 export function extractMarkdownTable(md: string): ExtractedTable {
-  const tree = unified()
-    .use(remarkParse)
-    .use(remarkGfm)
-    .parse(md) as unknown as MdastNode;
+  const tree = getMarkdownProcessor().parse(md) as unknown as MdastNode;
 
   const tables = mdastFindAll(tree, "table");
   if (tables.length === 0) {
@@ -561,11 +585,7 @@ const findFirstFlatArray = (node: unknown): Record<string, unknown>[] | null => 
  * @throws Error If no table-like structure (repeated elements with flat children) is found or if the detected table is empty.
  */
 export function extractXmlTable(input: string): ExtractedTable {
-  const parser = new XMLParser({
-    ignoreAttributes: true,
-    isArray: (_name, _jpath, isLeafNode) => !isLeafNode,
-  });
-  const parsed: unknown = parser.parse(input);
+  const parsed: unknown = getXmlParser().parse(input);
 
   const records = findFirstFlatArray(parsed);
   if (!records || records.length === 0) {

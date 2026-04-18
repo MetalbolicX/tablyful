@@ -73,74 +73,126 @@ let t: t = {
   formatOptions: CsvOptions(defaultCsvOptions),
 }
 
+let getFromFormatOptions = (~extract: formatOptions => option<'a>, ~defaultValue: 'a, opts: t): 'a => {
+  switch extract(opts.formatOptions) {
+  | Some(value) => value
+  | None => defaultValue
+  }
+}
+
 // Get CSV options from format options
 let getCsvOptions = (opts: t): csvOptions => {
-  switch opts.formatOptions {
-  | CsvOptions(csv) => csv
-  | _ => defaultCsvOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | CsvOptions(csv) => Some(csv)
+      | _ => None
+      },
+    ~defaultValue=defaultCsvOptions,
+    opts,
+  )
 }
 
 // Get TSV options from format options
 let getTsvOptions = (opts: t): tsvOptions => {
-  switch opts.formatOptions {
-  | TsvOptions(tsv) => tsv
-  | _ => defaultTsvOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | TsvOptions(tsv) => Some(tsv)
+      | _ => None
+      },
+    ~defaultValue=defaultTsvOptions,
+    opts,
+  )
 }
 
 // Get PSV options from format options
 let getPsvOptions = (opts: t): psvOptions => {
-  switch opts.formatOptions {
-  | PsvOptions(psv) => psv
-  | _ => defaultPsvOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | PsvOptions(psv) => Some(psv)
+      | _ => None
+      },
+    ~defaultValue=defaultPsvOptions,
+    opts,
+  )
 }
 
 // Get JSON options from format options
 let getJsonOptions = (opts: t): jsonOptions => {
-  switch opts.formatOptions {
-  | JsonOptions(json) => json
-  | _ => defaultJsonOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | JsonOptions(json) => Some(json)
+      | _ => None
+      },
+    ~defaultValue=defaultJsonOptions,
+    opts,
+  )
 }
 
 // Get Markdown options from format options
 let getMarkdownOptions = (opts: t): markdownOptions => {
-  switch opts.formatOptions {
-  | MarkdownOptions(md) => md
-  | _ => defaultMarkdownOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | MarkdownOptions(md) => Some(md)
+      | _ => None
+      },
+    ~defaultValue=defaultMarkdownOptions,
+    opts,
+  )
 }
 
 // Get HTML options from format options
 let getHtmlOptions = (opts: t): htmlOptions => {
-  switch opts.formatOptions {
-  | HtmlOptions(html) => html
-  | _ => defaultHtmlOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | HtmlOptions(html) => Some(html)
+      | _ => None
+      },
+    ~defaultValue=defaultHtmlOptions,
+    opts,
+  )
 }
 
 // Get LaTeX options from format options
 let getLatexOptions = (opts: t): latexOptions => {
-  switch opts.formatOptions {
-  | LatexOptions(latex) => latex
-  | _ => defaultLatexOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | LatexOptions(latex) => Some(latex)
+      | _ => None
+      },
+    ~defaultValue=defaultLatexOptions,
+    opts,
+  )
 }
 
 // Get SQL options from format options
 let getSqlOptions = (opts: t): sqlOptions => {
-  switch opts.formatOptions {
-  | SqlOptions(sql) => sql
-  | _ => defaultSqlOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | SqlOptions(sql) => Some(sql)
+      | _ => None
+      },
+    ~defaultValue=defaultSqlOptions,
+    opts,
+  )
 }
 
 // Get YAML options from format options
 let getYamlOptions = (opts: t): yamlOptions => {
-  switch opts.formatOptions {
-  | YamlOptions(yaml) => yaml
-  | _ => defaultYamlOptions
-  }
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | YamlOptions(yaml) => Some(yaml)
+      | _ => None
+      },
+    ~defaultValue=defaultYamlOptions,
+    opts,
+  )
 }

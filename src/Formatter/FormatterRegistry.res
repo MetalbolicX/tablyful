@@ -59,7 +59,7 @@ let all: array<formatterEntry> = [
 
 // Get formatter by name
 let get = (name: string): option<formatterEntry> => {
-  all->Array.find(formatter => formatter.name === name->String.toLowerCase)
+  RegistryUtils.findByName(~name, ~getName=formatter => formatter.name, all)
 }
 
 // Format with specific formatter
@@ -77,5 +77,5 @@ let format = (name: string, data: TableData.t, options: Types.t): TablyfulError.
 
 // Get all formatter names
 let getNames = (): array<string> => {
-  all->Array.map(formatter => formatter.name)
+  RegistryUtils.getNames(~getName=formatter => formatter.name, all)
 }

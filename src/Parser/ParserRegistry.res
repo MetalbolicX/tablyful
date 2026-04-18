@@ -81,12 +81,12 @@ let all: array<parserEntry> = [
 
 // Detect which parser can handle the data
 let detect = (json: JSON.t): option<parserEntry> => {
-  all->Array.find(parser => parser.canParse(json))
+  RegistryUtils.findFirst(~predicate=parser => parser.canParse(json), all)
 }
 
 // Get parser by name
 let getByName = (name: string): option<parserEntry> => {
-  all->Array.find(parser => parser.name === name->String.toLowerCase)
+  RegistryUtils.findByName(~name, ~getName=parser => parser.name, all)
 }
 
 // Parse with optional format override (auto-detects when no format given)
@@ -106,5 +106,5 @@ let parse = (~format=?, json: JSON.t, options: Types.t): TablyfulError.result<Ta
 
 // Get all parser names
 let getNames = (): array<string> => {
-  all->Array.map(parser => parser.name)
+  RegistryUtils.getNames(~getName=parser => parser.name, all)
 }
