@@ -7,6 +7,7 @@
 @send external lastIndexOf: (string, string) => int = "lastIndexOf"
 @send external sliceFrom: (string, int) => string = "slice"
 @send external trimStart: string => string = "trimStart"
+@send external test: (RegExp.t, string) => bool = "test"
 
 // Detect format from file extension
 let fromExtension = (path: string): option<string> => {
@@ -24,6 +25,7 @@ let fromExtension = (path: string): option<string> => {
     | ".tsv" => Some("tsv")
     | ".psv" => Some("psv")
     | ".yaml" | ".yml" => Some("yaml")
+    | ".xml" => Some("xml")
     | ".sql" => Some("sql")
     | _ => None
     }
@@ -58,6 +60,15 @@ let fromContent = (content: string): option<string> => {
   } else if trimmed->String.startsWith("[") || trimmed->String.startsWith("{") {
     // JSON: starts with [ or {
     Some("json")
+  } else if trimmed->String.startsWith("<?xml") || trimmed->String.startsWith("<") && test(%re("/^<[a-zA-Z]/"), trimmed) {
+    // XML: starts with <?xml or < followed by a tag name (but not <table which is HTML)
+    Some("xml")
+  } else if trimmed->String.startsWith("---\n") || trimmed->String.startsWith("---\r\n") {
+    // YAML: starts with document separator ---
+    Some("yaml")
+  } else if test(%re("/INSERT\s+INTO/i"), trimmed) {
+    // SQL: contains INSERT INTO
+    Some("sql")
   } else {
     None
   }

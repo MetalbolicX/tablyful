@@ -123,6 +123,15 @@ module TableExtractor = {
 
   @module("./Reader/TableExtractor.mjs")
   external extractLatexTable: string => extractedTable = "extractLatexTable"
+
+  @module("./Reader/TableExtractor.mjs")
+  external extractYamlTable: string => extractedTable = "extractYamlTable"
+
+  @module("./Reader/TableExtractor.mjs")
+  external extractXmlTable: string => extractedTable = "extractXmlTable"
+
+  @module("./Reader/TableExtractor.mjs")
+  external extractSqlTable: string => extractedTable = "extractSqlTable"
 }
 
 module StreamMode = {

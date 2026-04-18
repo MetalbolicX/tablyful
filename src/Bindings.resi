@@ -93,6 +93,9 @@ module TableExtractor: {
   let extractHtmlTable: string => extractedTable
   let extractMarkdownTable: string => extractedTable
   let extractLatexTable: string => extractedTable
+  let extractYamlTable: string => extractedTable
+  let extractXmlTable: string => extractedTable
+  let extractSqlTable: string => extractedTable
 }
 
 module StreamMode: {

@@ -18,7 +18,7 @@ Convert tabular data between formats.
 
 Options:
   -f, --format <format>   Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
-  -i, --input <format>    Input format (json|html|markdown|latex; auto-detected when omitted)
+  -i, --input <format>    Input format (json|csv|tsv|psv|html|markdown|latex|yaml|xml|sql; auto-detected when omitted)
   -o, --output <path>     Write output to file instead of stdout
       --set <key=value>   Override format option (repeatable, e.g. --set json.pretty=false)
       --list-set-keys      Print allowed --set keys and defaults
@@ -35,7 +35,7 @@ Options:
 
 Input is read from [file] when provided, otherwise from stdin when piped.
 Input format is auto-detected from file extension or content. Use --input to override.
-Supported input formats: json, html, markdown, latex.
+Supported input formats: json, csv, tsv, psv, html, markdown, latex, yaml, xml, sql.
 
 Examples:
   cat data.json | tablyful --format csv --set csv.delimiter=';'
@@ -45,7 +45,12 @@ Examples:
   tablyful data.json --format csv --output out.csv
   tablyful data.html --format csv
   tablyful table.md --format json
+  tablyful data.csv --format json
+  tablyful data.yaml --format markdown
+  tablyful data.xml --format csv
+  tablyful data.sql --format yaml
   cat table.tex | tablyful --input latex --format csv
+  cat data.tsv | tablyful --input tsv --format json
   tablyful --list-set-keys
   tablyful --list-set-keys-format csv
   cat data.json | tablyful --format csv --delimiter ';' --config conf.json
@@ -749,7 +754,7 @@ let runConversion = (inputText: string, flags: cliFlags, ~inputPath: option<stri
 
   // Decide whether to use a reader (non-JSON) or the existing JSON parser pipeline
   let isReaderFormat = switch detectedFormat {
-  | Some("html") | Some("markdown") | Some("latex") => true
+  | Some(fmt) => ReaderRegistry.hasReader(fmt)
   | _ => false
   }
 
@@ -1041,12 +1046,12 @@ let main = (): unit => {
 
     // Determine if input is a non-JSON reader format (always batch mode)
     let isReaderInput = switch flags.inputArg {
-    | Some("html") | Some("markdown") | Some("latex") => true
+    | Some(fmt) => ReaderRegistry.hasReader(fmt)
     | _ =>
       switch inputPath {
       | Some(p) =>
         switch FormatDetector.fromExtension(p) {
-        | Some("html") | Some("markdown") | Some("latex") => true
+        | Some(fmt) => ReaderRegistry.hasReader(fmt)
         | _ => false
         }
       | None => false

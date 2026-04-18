@@ -27,6 +27,36 @@ let all: array<readerEntry> = [
     extensions: LatexReader.extensions,
     read: LatexReader.read,
   },
+  {
+    name: CsvReader.name,
+    extensions: CsvReader.extensions,
+    read: CsvReader.read,
+  },
+  {
+    name: TsvReader.name,
+    extensions: TsvReader.extensions,
+    read: TsvReader.read,
+  },
+  {
+    name: PsvReader.name,
+    extensions: PsvReader.extensions,
+    read: PsvReader.read,
+  },
+  {
+    name: YamlReader.name,
+    extensions: YamlReader.extensions,
+    read: YamlReader.read,
+  },
+  {
+    name: XmlReader.name,
+    extensions: XmlReader.extensions,
+    read: XmlReader.read,
+  },
+  {
+    name: SqlReader.name,
+    extensions: SqlReader.extensions,
+    read: SqlReader.read,
+  },
 ]
 
 // Get reader by format name

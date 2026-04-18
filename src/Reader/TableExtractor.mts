@@ -3,6 +3,8 @@ import rehypeParse from "rehype-parse";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import { toText } from "hast-util-to-text";
+import { parse as parseYaml } from "yaml";
+import { XMLParser } from "fast-xml-parser";
 
 // ── Shared types ──────────────────────────────────────────────────────────────
 
@@ -413,6 +415,396 @@ export function extractLatexTable(tex: string): ExtractedTable {
         return row;
       }, {});
     });
+
+  return { headers, rows };
+}
+
+// ── YAML extraction ─────────────────────────────────────────────────────────
+
+/**
+ * Extracts a table from YAML content.
+ *
+ * Supported shapes:
+ * 1. Array of objects: `[{ name: "Alice", age: 30 }, ...]`
+ * 2. Object of arrays: `{ name: ["Alice", "Bob"], age: [30, 25] }`
+ *
+ * @param input - Raw YAML string.
+ * @returns An ExtractedTable with headers and rows.
+ * @throws Error when the YAML does not contain a recognizable table shape.
+ */
+export function extractYamlTable(input: string): ExtractedTable {
+  const data: unknown = parseYaml(input);
+
+  // Shape 1: array of objects
+  if (Array.isArray(data) && data.length > 0 && typeof data[0] === "object" && data[0] !== null && !Array.isArray(data[0])) {
+    const records = data as Record<string, unknown>[];
+    const headerSet = new Set<string>();
+    for (const row of records) {
+      for (const key of Object.keys(row)) {
+        headerSet.add(key);
+      }
+    }
+    const headers = [...headerSet];
+    const rows: Record<string, string>[] = records.map((record) =>
+      headers.reduce<Record<string, string>>((row, header) => {
+        const val = record[header];
+        row[header] = val === null || val === undefined ? "" : String(val);
+        return row;
+      }, {}),
+    );
+    return { headers, rows };
+  }
+
+  // Shape 2: object of arrays
+  if (typeof data === "object" && data !== null && !Array.isArray(data)) {
+    const obj = data as Record<string, unknown>;
+    const entries = Object.entries(obj);
+    const arrayEntries = entries.filter(([, v]) => Array.isArray(v));
+    if (arrayEntries.length > 0) {
+      const headers = arrayEntries.map(([k]) => k);
+      const maxLen = Math.max(...arrayEntries.map(([, v]) => (v as unknown[]).length));
+      const rows: Record<string, string>[] = [];
+      for (let i = 0; i < maxLen; i++) {
+        const row: Record<string, string> = {};
+        for (const [key, values] of arrayEntries) {
+          const arr = values as unknown[];
+          const val = i < arr.length ? arr[i] : undefined;
+          row[key] = val === null || val === undefined ? "" : String(val);
+        }
+        rows.push(row);
+      }
+      return { headers, rows };
+    }
+  }
+
+  throw new Error("YAML content does not contain a recognizable table (expected array of objects or object of arrays).");
+}
+
+// ── XML extraction ──────────────────────────────────────────────────────────
+
+/**
+ * Recursively searches an XML parsed tree for the first array of flat objects.
+ * "Flat" means all values are primitives (string, number, boolean) or null.
+ */
+const findFirstFlatArray = (node: unknown): Record<string, unknown>[] | null => {
+  if (Array.isArray(node)) {
+    if (
+      node.length > 0 &&
+      node.every(
+        (item) =>
+          typeof item === "object" &&
+          item !== null &&
+          !Array.isArray(item) &&
+          Object.values(item as Record<string, unknown>).every(
+            (v) => v === null || typeof v !== "object",
+          ),
+      )
+    ) {
+      return node as Record<string, unknown>[];
+    }
+  }
+
+  if (typeof node === "object" && node !== null) {
+    const entries = Array.isArray(node)
+      ? node.map((v, i) => [String(i), v] as const)
+      : Object.entries(node as Record<string, unknown>);
+    for (const [, value] of entries) {
+      const result = findFirstFlatArray(value);
+      if (result) return result;
+    }
+  }
+
+  return null;
+};
+
+/**
+ * Extracts a table from XML content.
+ *
+ * Uses fast-xml-parser to parse the XML, then recursively searches
+ * for the first array of flat objects (all leaf values are primitives).
+ *
+ * @param input - Raw XML string.
+ * @returns An ExtractedTable with headers and rows.
+ * @throws Error when no table-like structure is found.
+ */
+export function extractXmlTable(input: string): ExtractedTable {
+  const parser = new XMLParser({
+    ignoreAttributes: true,
+    isArray: (_name, _jpath, isLeafNode) => !isLeafNode,
+  });
+  const parsed: unknown = parser.parse(input);
+
+  const records = findFirstFlatArray(parsed);
+  if (!records || records.length === 0) {
+    throw new Error("No table-like structure found in XML input (expected repeated elements with flat children).");
+  }
+
+  const headerSet = new Set<string>();
+  for (const row of records) {
+    for (const key of Object.keys(row)) {
+      headerSet.add(key);
+    }
+  }
+  const headers = [...headerSet];
+
+  const rows: Record<string, string>[] = records.map((record) =>
+    headers.reduce<Record<string, string>>((row, header) => {
+      const val = record[header];
+      row[header] = val === null || val === undefined ? "" : String(val);
+      return row;
+    }, {}),
+  );
+
+  return { headers, rows };
+}
+
+// ── SQL extraction ──────────────────────────────────────────────────────────
+
+/**
+ * Parses a SQL value literal from a string starting at position `pos`.
+ * Returns the parsed value as a string and the new position after the value.
+ *
+ * Handles: single-quoted strings (with '' escape), NULL, TRUE, FALSE, numbers.
+ */
+const parseSqlValue = (sql: string, startPos: number): [string, number] => {
+  let pos = startPos;
+  const len = sql.length;
+
+  // Skip whitespace
+  while (pos < len && (sql[pos] === " " || sql[pos] === "\t" || sql[pos] === "\n" || sql[pos] === "\r")) {
+    pos++;
+  }
+
+  if (pos >= len) return ["", pos];
+
+  // Single-quoted string
+  if (sql[pos] === "'") {
+    pos++; // skip opening quote
+    let value = "";
+    while (pos < len) {
+      if (sql[pos] === "'") {
+        // Check for escaped quote ''
+        if (pos + 1 < len && sql[pos + 1] === "'") {
+          value += "'";
+          pos += 2;
+        } else {
+          pos++; // skip closing quote
+          return [value, pos];
+        }
+      } else {
+        value += sql[pos];
+        pos++;
+      }
+    }
+    return [value, pos];
+  }
+
+  // Unquoted token: NULL, TRUE, FALSE, number, or ? placeholder
+  let token = "";
+  while (pos < len && sql[pos] !== "," && sql[pos] !== ")" && sql[pos] !== " " && sql[pos] !== "\t" && sql[pos] !== "\n" && sql[pos] !== "\r") {
+    token += sql[pos];
+    pos++;
+  }
+
+  const upper = token.toUpperCase();
+  if (upper === "NULL") return ["", pos];
+  if (upper === "TRUE") return ["true", pos];
+  if (upper === "FALSE") return ["false", pos];
+
+  return [token, pos];
+};
+
+/**
+ * Parses a single VALUES tuple like `(val1, val2, val3)` from SQL.
+ * Returns the parsed values and the position after the closing paren.
+ */
+const parseSqlTuple = (sql: string, startPos: number): [string[], number] => {
+  let pos = startPos;
+  const len = sql.length;
+
+  // Find opening paren
+  while (pos < len && sql[pos] !== "(") pos++;
+  if (pos >= len) return [[], pos];
+  pos++; // skip '('
+
+  const values: string[] = [];
+  while (pos < len) {
+    // Skip whitespace
+    while (pos < len && (sql[pos] === " " || sql[pos] === "\t" || sql[pos] === "\n" || sql[pos] === "\r")) pos++;
+
+    if (sql[pos] === ")") {
+      pos++; // skip ')'
+      return [values, pos];
+    }
+
+    const [value, newPos] = parseSqlValue(sql, pos);
+    values.push(value);
+    pos = newPos;
+
+    // Skip whitespace and comma
+    while (pos < len && (sql[pos] === " " || sql[pos] === "\t" || sql[pos] === "\n" || sql[pos] === "\r")) pos++;
+    if (sql[pos] === ",") pos++;
+  }
+
+  return [values, pos];
+};
+
+/**
+ * Extracts column names from an INSERT statement's column list.
+ * Handles both quoted and unquoted identifiers.
+ */
+const parseInsertColumns = (columnsPart: string): string[] =>
+  columnsPart.split(",").map((col) => {
+    const trimmed = col.trim();
+    // Remove surrounding quotes (", `, [])
+    if (
+      (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("`") && trimmed.endsWith("`"))
+    ) {
+      return trimmed.slice(1, -1);
+    }
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      return trimmed.slice(1, -1);
+    }
+    return trimmed;
+  });
+
+/**
+ * Extracts table data from SQL INSERT statements.
+ *
+ * Handles two modes produced by the tablyful SQL formatter:
+ * 1. Placeholder mode (batchSize=1): `INSERT INTO t (cols) VALUES (?);`
+ *    with `-- VALUES: (real, values)` comments containing actual data.
+ * 2. Inline mode (batchSize>1): `INSERT INTO t (cols) VALUES (v1), (v2);`
+ *    with literal values directly in the VALUES clause.
+ *
+ * Also handles standard SQL INSERT statements from other tools.
+ *
+ * @param input - SQL text containing INSERT statements.
+ * @returns An ExtractedTable with headers and rows.
+ * @throws Error when no INSERT statements are found.
+ */
+export function extractSqlTable(input: string): ExtractedTable {
+  const lines = input.split("\n");
+  let headers: string[] = [];
+  const rows: Record<string, string>[] = [];
+
+  // First pass: try to extract from -- VALUES: comments (placeholder mode)
+  const commentValueRows: string[][] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Extract headers from INSERT INTO ... (columns) ...
+    if (headers.length === 0) {
+      const insertMatch = trimmed.match(
+        /INSERT\s+INTO\s+\S+\s*\(([^)]+)\)\s*VALUES/i,
+      );
+      if (insertMatch) {
+        headers = parseInsertColumns(insertMatch[1]);
+      }
+    }
+
+    // Extract values from -- VALUES: (...) comments
+    const commentMatch = trimmed.match(/^--\s*VALUES:\s*(.+)$/);
+    if (commentMatch) {
+      const valuesStr = commentMatch[1];
+      // Parse all tuples in the comment
+      let pos = 0;
+      while (pos < valuesStr.length) {
+        while (pos < valuesStr.length && valuesStr[pos] !== "(") pos++;
+        if (pos >= valuesStr.length) break;
+        const [values, newPos] = parseSqlTuple(valuesStr, pos);
+        if (values.length > 0) {
+          commentValueRows.push(values);
+        }
+        pos = newPos;
+        // Skip comma between tuples
+        while (pos < valuesStr.length && (valuesStr[pos] === "," || valuesStr[pos] === " ")) pos++;
+      }
+    }
+  }
+
+  // If we found comment values, use those
+  if (commentValueRows.length > 0 && headers.length > 0) {
+    for (const values of commentValueRows) {
+      const row: Record<string, string> = {};
+      for (let i = 0; i < headers.length; i++) {
+        row[headers[i]] = i < values.length ? values[i] : "";
+      }
+      rows.push(row);
+    }
+    return { headers, rows };
+  }
+
+  // Second pass: extract inline VALUES from INSERT statements
+  headers = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Extract headers
+    if (headers.length === 0) {
+      const insertMatch = trimmed.match(
+        /INSERT\s+INTO\s+\S+\s*\(([^)]+)\)\s*VALUES/i,
+      );
+      if (insertMatch) {
+        headers = parseInsertColumns(insertMatch[1]);
+      }
+    }
+  }
+
+  if (headers.length === 0) {
+    throw new Error("No INSERT INTO ... (columns) VALUES ... statements found in SQL input.");
+  }
+
+  // Parse inline values from the full text
+  // Find all VALUES clauses and extract tuples
+  const fullText = input;
+  const valuesPattern = /VALUES\s*\n?\s*/gi;
+  let valMatch: RegExpExecArray | null;
+
+  while ((valMatch = valuesPattern.exec(fullText)) !== null) {
+    let pos = valMatch.index + valMatch[0].length;
+
+    // Check if this is a placeholder VALUES (?)
+    const afterValues = fullText.slice(pos).trimStart();
+    if (afterValues.startsWith("(") && afterValues.match(/^\(\s*\?[\s,?]*\)/)) {
+      // Skip placeholder tuples
+      continue;
+    }
+
+    // Parse all tuples after VALUES
+    while (pos < fullText.length) {
+      // Skip whitespace
+      while (pos < fullText.length && (fullText[pos] === " " || fullText[pos] === "\t" || fullText[pos] === "\n" || fullText[pos] === "\r")) pos++;
+
+      if (fullText[pos] !== "(") break;
+
+      const [values, newPos] = parseSqlTuple(fullText, pos);
+      if (values.length > 0) {
+        const row: Record<string, string> = {};
+        for (let i = 0; i < headers.length; i++) {
+          row[headers[i]] = i < values.length ? values[i] : "";
+        }
+        rows.push(row);
+      }
+      pos = newPos;
+
+      // Skip comma and whitespace between tuples
+      while (pos < fullText.length && (fullText[pos] === " " || fullText[pos] === "\t" || fullText[pos] === "\n" || fullText[pos] === "\r")) pos++;
+      if (fullText[pos] === ",") {
+        pos++;
+      } else if (fullText[pos] === ";") {
+        pos++;
+        break;
+      } else {
+        break;
+      }
+    }
+  }
+
+  if (rows.length === 0) {
+    throw new Error("No data rows found in SQL INSERT statements.");
+  }
 
   return { headers, rows };
 }

@@ -19,6 +19,8 @@ const shared = {
     /^remark-gfm$/, // GFM (tables) support
     /^hast-util-to-text$/, // HAST text extraction
     /^mdast-util-gfm-table$/, // mdast GFM table utilities
+    /^yaml$/, // YAML parser
+    /^fast-xml-parser$/, // XML parser
   ],
   transform: {
     define: {
