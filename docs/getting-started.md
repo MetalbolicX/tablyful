@@ -1,101 +1,140 @@
-# Getting Started
+ # Getting Started
 
-This guide will help you set up and start using **Tablyful** in your projects.
+ This guide explains how to install and run the tablyful CLI on another computer (Linux, macOS, or Windows). It covers Node.js prerequisites, different installation methods (global, one-shot with npx/pnpm dlx, local project install), how to verify the installation, and common troubleshooting tips.
 
-## Prerequisites for Node.js
+ ## Prerequisites
 
-To work with Node.js, you must have version 20 or higher installed.
+ - Node.js 22 or newer is required. Verify your version:
 
-Check your Node.js version with the following command:
+ ```sh
+ node -v
+ ```
 
-```sh
-node -v
-```
+ If the version is older than 22, install a modern Node.js using one of the following:
 
-If you do not have Node.js installed in your current environment, or the installed version is too low, you can use [nvm](https://github.com/nvm-sh/nvm) to install the latest version of Node.js.
+ - macOS / Linux: use nvm (https://github.com/nvm-sh/nvm)
 
-## Create a new project
+ ```sh
+ # install nvm (follow the script from the repo)
+ curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.6/install.sh | bash
+ # restart your shell, then:
+ nvm install 22
+ nvm use 22
+ ```
 
-Navigate to the folder where your project will be created and run the following command to create a new directory:
+ - Windows: use the official Node.js installer from https://nodejs.org/ or nvm-windows (https://github.com/coreybutler/nvm-windows).
 
-```sh
-mkdir app && cd app
-```
+ ## Installation options
 
-Initialize a `package.json` file using one of the following commands:
+ Choose the option that best fits your workflow.
 
-<!-- tabs:start -->
+ Option A — Global install (convenient for frequent CLI usage)
 
-#### **npm**
+ ```sh
+ # npm (recommended)
+ npm install -g tablyful
 
-```sh
-npm init
-```
+ # pnpm
+ pnpm add -g tablyful
 
-#### **pnpm**
+ # yarn
+ yarn global add tablyful
+ ```
 
-```sh
-pnpm init
-```
+ Notes:
+ - On some Linux systems installing global npm packages may require elevated permissions. Prefer using nvm to avoid sudo, or configure npm's global directory per the npm docs.
 
-#### **yarn**
+ Option B — One-shot execution without global install (recommended for ad-hoc use)
 
-```sh
-yarn init
-```
+ ```sh
+ # npm (npx)
+ npx tablyful@latest --help
 
-#### **bun**
+ # pnpm (dlx)
+ pnpm dlx tablyful@latest --help
 
-```sh
-bun init
-```
+ # yarn (dlx)
+ yarn dlx tablyful@latest --help
 
-#### **deno**
+ # bun (bunx)
+ bunx tablyful@latest --help
+ ```
 
-```sh
-deno init
-```
+ Option C — Local project install (when you want tablyful as a dev or project dependency)
 
-<!-- tabs:end -->
+ ```sh
+ # inside your project directory
+ npm install --save-dev tablyful
+ # then run via npx or from node_modules/.bin
+ npx tablyful --help
+ ```
 
-### Install Dependencies
+ Option D — Install from source (developer / contribute)
 
-Install `tablyful` using your preferred package manager:
+ ```sh
+ # on the target machine
+ git clone https://github.com/MetalbolicX/tablyful.git
+ cd tablyful
+ pnpm install
+ pnpm build
+ # execute the built CLI directly with node
+ node dist/cli.mjs --help
+ ```
 
-<!-- tabs:start -->
+ ## Verify the installation
 
-#### **npm**
+ After installing (or when using npx/dlx), verify the CLI is available:
 
-```sh
-npm install tablyful
-```
+ ```sh
+ tablyful --version
+ tablyful --help
+ ```
 
-#### **pnpm**
+ If you used npx/dlx, prefix the commands accordingly (e.g. `npx tablyful@latest --version`).
 
-```sh
-pnpm add tablyful
-```
+ ## Running a quick example
 
-#### **yarn**
+ If you don't have example files on the target machine, you can download the sample input and try a simple conversion:
 
-```sh
-yarn add tablyful
-```
+ ```sh
+ curl -s https://raw.githubusercontent.com/MetalbolicX/tablyful/main/examples/cli/sample.json -o sample.json
 
-#### **bun**
+ # convert to CSV (global install)
+ tablyful sample.json --format csv
 
-```sh
-bun add tablyful
-```
+ # or using npx
+ npx tablyful@latest sample.json --format csv
+ ```
 
-#### **deno**
+ Expected output:
 
-```sh
-deno add --npm tablyful
-```
+ ```txt
+ name,age,city
+ Alice,30,NYC
+ Bob,25,LA
+ ```
 
-<!-- tabs:end -->
+ ## Copy your configuration
 
-## Next Steps
+ If your project uses a `.tablyfulrc.json` file to define defaults, copy it to the target project root. Example copy commands:
 
-Now that you have Tablyful set up, you can explore its features and capabilities. Check out the [API Reference](/api-reference) for more information on what you can do with Tablyful.
+ ```sh
+ # from your machine to remote (replace user@host and path)
+ scp .tablyfulrc.json user@host:/path/to/project/
+
+ # or clone the repo that already contains it
+ git clone <your-repo-url>
+ ```
+
+ The CLI also accepts an explicit config path with `--config ./path/to/.tablyfulrc.json`.
+
+ ## Common issues & troubleshooting
+
+ - "command not found" after global install: ensure the global npm binaries directory is on your PATH. Using nvm avoids most of these issues.
+ - Permission errors when installing globally with npm: avoid `sudo` by using nvm or set up a user-level npm global directory as documented by npm.
+ - Wrong Node.js version: `node -v` must be >= 22. Use nvm/nvm-windows to install and switch Node versions.
+ - When running from source: if `node dist/cli.mjs` fails, make sure you ran `pnpm build` and that `dist/cli.mjs` exists.
+
+ ## Next steps
+
+ Now that the CLI is installed on the other computer, try the examples in the `examples/cli` folder, or read the [API Configuration Reference](/api-reference) and [Examples](/examples) pages for common workflows and flags.

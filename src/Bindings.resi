@@ -100,6 +100,7 @@ module StreamMode: {
     sqlTableName: string,
     sqlIdentifierQuote: string,
     sqlIncludeCreateTable: bool,
+    sqlInsertBatchSize: int,
     htmlTableClass: string,
     htmlTheadClass: string,
     htmlTbodyClass: string,

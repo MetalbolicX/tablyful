@@ -15,7 +15,7 @@ window.$docsify = {
   },
   search: {
     noData: "No results found",
-    paths: ["/api-reference"],
+    paths: ["/api-reference", "/examples", "/getting-started"],
     placeholder: "Search...",
     depth: 2,
     maxAge: 86400000, // 1 day

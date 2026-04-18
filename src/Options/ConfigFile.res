@@ -191,10 +191,18 @@ let parseSqlOptions = (dict: dict<JSON.t>): sqlOptions => {
     ->Option.flatMap(JSON.Decode.bool)
     ->Option.getOr(default)
 
+  let getInt = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.float)
+    ->Option.map(Float.toInt)
+    ->Option.getOr(default)
+
   {
     tableName: getString("tableName", defaultSqlOptions.tableName),
     identifierQuote: getString("identifierQuote", defaultSqlOptions.identifierQuote),
     includeCreateTable: getBool("includeCreateTable", defaultSqlOptions.includeCreateTable),
+    insertBatchSize: getInt("insertBatchSize", defaultSqlOptions.insertBatchSize),
   }
 }
 

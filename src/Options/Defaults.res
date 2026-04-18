@@ -54,6 +54,7 @@ let defaultSqlOptions: sqlOptions = {
   tableName: "table",
   identifierQuote: "\"",
   includeCreateTable: false,
+  insertBatchSize: 1,
 }
 
 let defaultYamlOptions: yamlOptions = {

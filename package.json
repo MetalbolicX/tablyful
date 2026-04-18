@@ -20,7 +20,12 @@
     "test:cli": "pnpm build && node --test test/cli.test.mjs",
     "test": "pnpm res:test && pnpm test:cli",
     "bundle": "rolldown -c",
-    "build": "rescript && pnpm ts:stream && rolldown -c"
+    "build": "rescript && pnpm ts:stream && rolldown -c",
+    "prepack": "pnpm build",
+    "changeset": "changeset",
+    "changeset:version": "changeset version",
+    "release": "node scripts/release.mjs",
+    "docs": "docsify serve docs"
   },
   "author": {
     "name": "José Martínez Santana"
@@ -33,13 +38,13 @@
     "url": "https://github.com/MetalbolicX/tablyful/issues"
   },
   "files": [
-    "dist",
-    "src/**/*.res.mjs",
-    "src/**/*.res"
+    "dist"
   ],
   "license": "MIT",
   "devDependencies": {
+    "@changesets/cli": "^2.30.0",
     "@types/node": "^25.6.0",
+    "rescript": "^12.2.0",
     "rescript-test": "^8.0.0",
     "rolldown": "1.0.0-rc.15",
     "rollup-plugin-esbuild": "^6.2.1",
@@ -64,7 +69,6 @@
   },
   "dependencies": {
     "@rescript/runtime": "^12.2.0",
-    "rescript": "^12.2.0",
     "stream-json": "^2.1.0"
   }
 }

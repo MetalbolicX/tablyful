@@ -267,6 +267,56 @@ test("E2E toSql: emits insert placeholders", () => {
   }
 })
 
+test("E2E toSql: insertBatchSize groups rows into batched INSERT", () => {
+  let fourRowsInput = (): JSON.t =>
+    JSON.Encode.array([
+      JSON.Encode.object(
+        Dict.fromArray([("name", JSON.Encode.string("Alice")), ("age", JSON.Encode.float(30.0))]),
+      ),
+      JSON.Encode.object(
+        Dict.fromArray([("name", JSON.Encode.string("Bob")), ("age", JSON.Encode.float(25.0))]),
+      ),
+      JSON.Encode.object(
+        Dict.fromArray([("name", JSON.Encode.string("Carol")), ("age", JSON.Encode.float(28.0))]),
+      ),
+      JSON.Encode.object(
+        Dict.fromArray([("name", JSON.Encode.string("Dave")), ("age", JSON.Encode.float(22.0))]),
+      ),
+    ])
+
+  let options: Types.t = {
+    ...Defaults.t,
+    outputFormat: Sql,
+    formatOptions: SqlOptions({...Defaults.defaultSqlOptions, tableName: "users", insertBatchSize: 2}),
+  }
+
+  switch convert(~input=fourRowsInput(), ~format="sql", ~options) {
+  | Ok(sql) =>
+    let insertCount = sql->String.split("INSERT INTO")->Array.length - 1
+    assertion(
+      (left, right) => left == right,
+      insertCount,
+      2,
+      ~operator="equals",
+      ~message="Expected 2 INSERT statements for 4 rows with insertBatchSize=2",
+    )
+    assertion(
+      (left, right) => left == right,
+      sql->String.includes("'Alice'") && sql->String.includes("'Bob'"),
+      true,
+      ~operator="equals",
+    )
+  | Error(error) =>
+    assertion(
+      (left, right) => left == right,
+      error->TablyfulError.toString->String.includes(""),
+      false,
+      ~operator="equals",
+      ~message="Expected SQL batch conversion to succeed",
+    )
+  }
+})
+
 test("E2E toYaml: emits yaml list format", () => {
   switch convert(~input=arrayOfArraysInput(), ~format="yaml") {
   | Ok(yaml) =>

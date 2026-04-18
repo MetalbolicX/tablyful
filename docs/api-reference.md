@@ -1,262 +1,130 @@
-# API Reference
+# CLI Configuration Reference
 
-This page documents the core functions and types of the tablyful module, which you can use to build your application.
+This page documents the configuration file model for the `tablyful` CLI and how to use it together with `--set` overrides and CLI flags.
 
-## Input Data Types
+## Purpose
 
-Tablyful accepts the following input data formats:
+`tablyful` is a CLI-first tool that reads JSON input (from a file or stdin), parses it, and formats it into a supported output format (csv, json, markdown, html, latex, sql, yaml, etc.). The configuration file `.tablyfulrc.json` lets you define project defaults so you don't need to repeat flags on every run.
 
-- Array of Arrays: `Array<Array<unknown>>`
-- Array of Objects: `Array<Record<string, unknown>>`
-- Object of Arrays: `Record<string, Array<unknown>>`
-- Object of Objects: `Record<string, Record<string, unknown>>`
+## Where to put the config
 
-## Core Functions
+Place a JSON file named `.tablyfulrc.json` in your project root (or in your home directory). You can also pass an explicit path with `--config <path>`.
 
-All formatting functions accept your data and an optional options object.
-
-1. toCsv(data, options?)
-
-Converts your data to a CSV string.
-
-**Options** (CsvFormatterOptions):
-
-```ts
-interface CsvFormatterOptions {
-  delimiter?: string; // default: ','
-  quote?: string; // default: '"'
-  escape?: string; // default: '"'
-  lineBreak?: string; // default: '\n'
-  includeHeaders?: boolean; // default: true
-}
-```
-
-Example:
-
-```js
-import { toCsv } from "tablyful";
-const data = [
-  { name: "Alice", age: 30 },
-  { name: "Bob", age: 25 },
-];
-// CSV options (CsvFormatterOptions)
-const csvOpts = {
-  delimiter: ",",
-  quote: '"',
-  escape: '"',
-  includeHeaders: true,
-};
-const csv = toCsv(data, csvOpts);
-```
-
-Outputs:
-
-```txt
-name,age
-Alice,30
-Bob,25
-```
-
-2. toJson(data, options?)
-
-Converts your data to a JSON string.
-
-**Options** (JsonFormatterOptions):
-
-```ts
-interface JsonFormatterOptions {
-  pretty?: boolean; // default: false
-  indentSize?: number; // default: 2
-  asArray?: boolean; // default: true
-}
-```
-
-Example:
-
-```javascript
-import { toJson } from "tablyful";
-const data = [
-  { name: "Alice", age: 30 },
-  { name: "Bob", age: 25 },
-];
-// JSON options (JsonFormatterOptions)
-const jsonOpts = { pretty: true, indentSize: 2, asArray: false };
-const json = toJson(data, jsonOpts);
-```
-
-Outputs:
+## Example config (`.tablyfulrc.json`)
 
 ```json
-[
-  {
-    "name": "Alice",
-    "age": 30
-  },
-  {
-    "name": "Bob",
-    "age": 25
-  }
-]
-```
-
-3. toMarkdown(data, options?)
-
-Converts your data to a Markdown table string.
-
-**Options** (MarkdownFormatterOptions):
-
-```ts
-interface MarkdownFormatterOptions {
-  align?: "left" | "center" | "right"; // default: "left"
-  padding?: boolean; // default: true
-  githubFlavor?: boolean; // default: true
+{
+  "input": { "hasHeaders": true, "encoding": "utf8" },
+  "output": { "defaultFormat": "csv", "includeRowNumbers": false, "rowNumberHeader": "#" },
+  "csv": { "delimiter": ",", "quote": "\"", "escape": "\\", "lineBreak": "\n", "includeHeaders": true },
+  "json": { "pretty": true, "indentSize": 2, "asArray": false },
+  "markdown": { "align": "left", "padding": true, "githubFlavor": true },
+  "html": { "tableClass": "tablyful-table", "theadClass": "", "tbodyClass": "", "id": "", "caption": "" },
+  "latex": { "tableEnvironment": "tabular", "columnSpec": "", "booktabs": true, "caption": "", "label": "", "centering": true, "useTableEnvironment": false },
+  "sql": { "tableName": "table", "identifierQuote": "\"", "includeCreateTable": false },
+  "yaml": { "indent": 2, "quoteStrings": false, "lineBreak": "\n" }
 }
 ```
 
-Example:
+## Top-level keys
 
-```js
-import { toMarkdown } from "tablyful";
-const data = [
-  { name: "Alice", age: 30 },
-  { name: "Bob", age: 25 },
-];
-// Markdown options (MarkdownFormatterOptions)
-const mdOpts = { align: "center", padding: true, githubFlavor: false };
-const markdown = toMarkdown(data, mdOpts);
+- `input` — parsing options
+  - `hasHeaders` (boolean) — whether arrays-of-arrays input has a header row (default: true)
+  - `encoding` (string) — file encoding for input files (default: `utf8`)
+
+- `output` — global output defaults
+  - `defaultFormat` (string) — one of: `csv`, `tsv`, `psv`, `json`, `markdown`, `html`, `latex`, `sql`, `yaml`
+  - `includeRowNumbers` (boolean)
+  - `rowNumberHeader` (string)
+
+- Format-specific objects: `csv`, `json`, `markdown`, `html`, `latex`, `sql`, `yaml` — see below.
+
+## Format-specific keys (summary)
+
+- `csv` / `tsv` / `psv`
+  - `delimiter` (string)
+  - `quote` (string)
+  - `escape` (string)
+  - `lineBreak` (string)
+  - `includeHeaders` (boolean)
+
+- `json`
+  - `pretty` (boolean)
+  - `indentSize` (number)
+  - `asArray` (boolean)
+
+- `markdown`
+  - `align` (`left|center|right`)
+  - `padding` (boolean)
+  - `githubFlavor` (boolean)
+
+- `html`
+  - `tableClass`, `theadClass`, `tbodyClass`, `id`, `caption`
+
+- `latex`
+  - `tableEnvironment`, `columnSpec`, `booktabs`, `caption`, `label`, `centering`, `useTableEnvironment`
+
+- `sql`
+  - `tableName`, `identifierQuote`, `includeCreateTable`
+
+- `yaml`
+  - `indent`, `quoteStrings`, `lineBreak`
+
+## How precedence works
+
+When resolving options the CLI applies values in this order (lowest → highest):
+
+1. Built-in defaults
+2. Config file(s) (`.tablyfulrc.json` in the CWD or home directory)
+3. Repeatable `--set` overrides
+4. Explicit shallow CLI flags (for example `--delimiter` or `--no-headers`)
+
+Example: an explicit `--delimiter` flag overrides `--set csv.delimiter=';'`.
+
+## `--set` overrides
+
+Use `--set` to override nested config keys inline. Syntax:
+
+```
+--set <format>.<option>=<value>
 ```
 
-Outputs:
+Examples:
 
-```txt
-| name  | age |
-|-------|-----|
-| Alice | 30  |
-| Bob   | 25  |
+```
+tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
+tablyful data.json --format csv --set csv.delimiter=';'
+tablyful data.json --format sql --set sql.tableName=users --set sql.includeCreateTable=true
 ```
 
-4. toHtml(data, options?)
+Value parsing rules applied by the CLI:
 
-Converts your data to an HTML table string.
+- `true`/`false` → boolean
+- integer-like strings → number
+- otherwise → string
 
-**Options** (HtmlFormatterOptions):
+Repeatable `--set` entries are merged shallowly into the corresponding format object.
 
-```ts
-interface HtmlFormatterOptions {
-  tableClass?: string;
-  theadClass?: string;
-  tbodyClass?: string;
-  id?: string;
-  caption?: string;
-}
+## Useful CLI flags (summary)
+
+``text
+Usage: tablyful [options] [file]
+
+Options:
+  -f, --format <format>           Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
+  -i, --input <format>            Input format (optional; auto-detected when omitted)
+  -o, --output <path>             Write output to file instead of stdout
+      --set <key=value>           Override format option (repeatable)
+      --list-set-keys             Print allowed --set keys and defaults
+      --list-set-keys-format <f>  Print allowed --set keys for one format
+  -C, --columns <names>           Comma-separated output columns
+      --filter <expr>             Filter rows (repeatable; supports = != > < >= <= LIKE)
+      --stats                     Print conversion stats to stderr
+  -c, --config <path>             Path to config JSON file
+  -d, --delimiter <char>          CSV delimiter override
+      --no-headers                Omit headers in CSV/TSV/PSV output
+  -h, --help                      Show help
+  -v, --version                   Show version
 ```
 
-Example:
-
-```js
-import { toHtml } from "tablyful";
-const data = [
-  { name: "Alice", age: 30 },
-  { name: "Bob", age: 25 },
-];
-// HTML options (HtmlFormatterOptions)
-const htmlOpts = { tableClass: "my-table", id: "table-1", caption: "Report" };
-const html = toHtml(data, htmlOpts);
-```
-
-Outputs:
-
-```html
-<table class="my-table" id="table-1">
-  <caption>Report</caption>
-  <thead>
-    <tr>
-      <th>name</th>
-      <th>age</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td>Alice</td>
-      <td>30</td>
-    </tr>
-    <tr>
-      <td>Bob</td>
-      <td>25</td>
-    </tr>
-  </tbody>
-</table>
-```
-
-5. toLatex(data, options?)
-
-Converts your data to a LaTeX table string.
-
-**Options** (LatexFormatterOptions):
-
-```ts
-interface LatexFormatterOptions {
-  align?: "left" | "center" | "right"; // default: "left"
-  borders?: boolean; // default: true
-  boldHeaders?: boolean; // default: true
-  includeHeader?: boolean; // default: true
-  useTableEnvironment?: boolean; // default: true
-  centering?: boolean; // default: true
-  tableEnvironment?: string; // default: "table"
-  columnSpec?: string; // custom column specification
-  booktabs?: boolean; // default: false
-  caption?: string;
-  label?: string;
-}
-```
-
-Example:
-
-```js
-import { toLatex } from "tablyful";
-const data = [
-  { name: "Alice", age: 30 },
-  { name: "Bob", age: 25 },
-];
-// LaTeX options (LatexFormatterOptions)
-const latexOpts = {
-  align: "center",
-  borders: true,
-  boldHeaders: true,
-  booktabs: false,
-  caption: "My table",
-  label: "tab:mytable",
-};
-const latex = toLatex(data, latexOpts);
-```
-
-Outputs:
-
-```txt
-\begin{tabular}{|l|r|}
-\hline
-name  & age \\
-\hline
-Alice & 30  \\
-Bob   & 25  \\
-\hline
-\end{tabular}
-```
-
-## Common Options
-
-All formatting functions accept these general options (TablyfulOptions):
-
-- headers: string[] — Custom column headers
-- hasHeaders: boolean — Whether the first row is headers (for array of arrays)
-- rowNumberHeader: string — Header for row numbers column (default: #)
-- hasRowNumbers: boolean — Add a row number column
-- outputFormat: `"csv"` | `"json"` | `"markdown"` | `"html"` | `"latex"`
-- formatOptions: Format-specific options (see above)
-
-## Advanced Usage
-
-- Use the Tablyful class for more control (parsing, formatting, streaming).
-- Use createTablyful(options) to create an instance with default options.
-- Use parse(data, options?) to convert input to normalized table data.
-- Use format(tableData, format, options?) to format pre-parsed data.
+For full usage examples see the `examples` page.

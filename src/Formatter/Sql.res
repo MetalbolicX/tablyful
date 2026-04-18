@@ -78,15 +78,46 @@ let formatImpl = (data: TableData.t, options: t): string => {
   let placeholderLine = data.headers->Array.map(_ => "?")->Array.join(", ")
   let headerLine = headerNames->Array.join(", ")
 
-  data.rows->Array.forEach(row => {
-    let values =
-      data.headers
-      ->Array.map(header => row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToSqlLiteral)
-      ->Array.join(", ")
+  let batchSize = opts.insertBatchSize > 0 ? opts.insertBatchSize : 1
+  let rowCount = data.rows->Array.length
+  let i = ref(0)
 
-    lines->Array.push(`-- VALUES: (${values})`)
-    lines->Array.push(`INSERT INTO ${tableName} (${headerLine}) VALUES (${placeholderLine});`)
-  })
+  while i.contents < rowCount {
+    let candidate = i.contents + batchSize
+    let batchEnd = candidate < rowCount ? candidate : rowCount
+    let batchRows = data.rows->Array.slice(~start=i.contents, ~end=batchEnd)
+
+    if batchSize === 1 {
+      let row = batchRows->Array.getUnsafe(0)
+      let values =
+        data.headers
+        ->Array.map(header =>
+          row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToSqlLiteral
+        )
+        ->Array.join(", ")
+      lines->Array.push(`-- VALUES: (${values})`)
+      lines->Array.push(`INSERT INTO ${tableName} (${headerLine}) VALUES (${placeholderLine});`)
+    } else {
+      let rowLiterals = batchRows->Array.map(row => {
+        let vals =
+          data.headers
+          ->Array.map(header =>
+            row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToSqlLiteral
+          )
+          ->Array.join(", ")
+        `(${vals})`
+      })
+      lines->Array.push(`-- VALUES: ${rowLiterals->Array.join(", ")}`)
+      lines->Array.push(`INSERT INTO ${tableName} (${headerLine}) VALUES`)
+      let lastIdx = rowLiterals->Array.length - 1
+      rowLiterals->Array.forEachWithIndex((literal, idx) => {
+        let suffix = idx < lastIdx ? "," : ";"
+        lines->Array.push(`  ${literal}${suffix}`)
+      })
+    }
+
+    i.contents = batchEnd
+  }
 
   lines->Array.join("\n")
 }

@@ -11,7 +11,8 @@ const shared = {
   plugins: [minify()],
   external: [
     /^node:.*/, // all node: built-ins (node:fs, node:url, etc.)
-    /^@rescript\/runtime$/, // ReScript runtime
+    /^@rescript\/runtime(\/.*)?$/, // ReScript runtime (including subpath imports)
+    /^stream-json(\/.*)?$/, // stream-json and its internal submodules
   ],
   transform: {
     define: {

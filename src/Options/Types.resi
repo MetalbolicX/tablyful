@@ -59,6 +59,7 @@ type sqlOptions = {
   tableName: string,
   identifierQuote: string,
   includeCreateTable: bool,
+  insertBatchSize: int,
 }
 
 type yamlOptions = {

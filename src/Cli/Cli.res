@@ -155,6 +155,7 @@ let printSetKeys = (filter: option<Types.format>): unit => {
       `sql.tableName (string) - table name (default: ${sql.tableName})`,
       `sql.identifierQuote (string) - identifier quote (default: ${sql.identifierQuote})`,
       `sql.includeCreateTable (boolean) - include CREATE TABLE (default: ${sql.includeCreateTable->Bool.toString})`,
+      `sql.insertBatchSize (int) - rows per INSERT statement (default: ${sql.insertBatchSize->Int.toString})`,
     ])
   }
 
@@ -478,9 +479,19 @@ let applySetOverride = (options: t, ((key, value): (string, string))): Common.re
           parseBoolSet(~key=fullKey, value)->Result.map(includeCreateTable => {
             {...options, formatOptions: SqlOptions({...sql, includeCreateTable})}
           })
+        | "insertBatchSize" =>
+          parseIntSet(~key=fullKey, value)->Result.flatMap(insertBatchSize => {
+            if insertBatchSize <= 0 {
+              invalidSet(
+                `Invalid --set ${fullKey}: ${value}. Value must be greater than 0.`,
+              )
+            } else {
+              Ok({...options, formatOptions: SqlOptions({...sql, insertBatchSize})})
+            }
+          })
         | _ =>
           invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed sql options: tableName, identifierQuote, includeCreateTable.`,
+            `Unknown --set option: ${fullKey}. Allowed sql options: tableName, identifierQuote, includeCreateTable, insertBatchSize.`,
           )
         }
       }
@@ -628,6 +639,7 @@ let makeBaseStreamConfig = (
     sqlTableName: Defaults.defaultSqlOptions.tableName,
     sqlIdentifierQuote: Defaults.defaultSqlOptions.identifierQuote,
     sqlIncludeCreateTable: false,
+    sqlInsertBatchSize: Defaults.defaultSqlOptions.insertBatchSize,
     htmlTableClass: Defaults.defaultHtmlOptions.tableClass,
     htmlTheadClass: Defaults.defaultHtmlOptions.theadClass,
     htmlTbodyClass: Defaults.defaultHtmlOptions.tbodyClass,
@@ -679,6 +691,7 @@ let runStreamMode = (~inputPath: option<string>, flags: cliFlags): unit => {
           sqlTableName: sql.tableName,
           sqlIdentifierQuote: sql.identifierQuote,
           sqlIncludeCreateTable: sql.includeCreateTable,
+          sqlInsertBatchSize: sql.insertBatchSize,
         })
       }
     | Html => {

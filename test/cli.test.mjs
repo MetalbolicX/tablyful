@@ -138,6 +138,29 @@ test("cli stdin to sql", () => {
   assert.match(result.stdout, /-- VALUES: \('Alice', 30\)/);
 });
 
+test("cli stdin to sql with insertBatchSize=2", () => {
+  const fiveRows = JSON.stringify([
+    { name: "Alice", age: 30 },
+    { name: "Bob", age: 25 },
+    { name: "Carol", age: 28 },
+    { name: "Dave", age: 22 },
+    { name: "Eve", age: 35 },
+  ]);
+
+  const result = runCli({
+    args: ["--format", "sql", "--set", "sql.insertBatchSize=2"],
+    input: fiveRows,
+  });
+
+  assert.equal(result.code, 0);
+  // 5 rows with batchSize=2: batch(2) + batch(2) + batch(1) = 3 INSERTs
+  const insertCount = (result.stdout.match(/INSERT INTO/g) ?? []).length;
+  assert.equal(insertCount, 3);
+  // Batched inserts use multi-line VALUES syntax
+  assert.match(result.stdout, /VALUES\n/);
+  assert.match(result.stdout, /'Alice'.*'Bob'/s);
+});
+
 test("cli stdin to yaml", () => {
   const result = runCli({
     args: ["--format", "yaml"],

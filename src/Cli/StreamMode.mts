@@ -31,6 +31,7 @@ interface StreamCliConfig {
   sqlTableName: string;
   sqlIdentifierQuote: string;
   sqlIncludeCreateTable: boolean;
+  sqlInsertBatchSize: number;
   htmlTableClass: string;
   htmlTheadClass: string;
   htmlTbodyClass: string;
@@ -1055,6 +1056,10 @@ const run = async (config: StreamCliConfig): Promise<void> => {
   let initialized = false;
   const configWithLineBreak: StreamCliConfig = { ...config, lineBreak };
 
+  const sqlBatchSize = Math.max(1, config.sqlInsertBatchSize ?? 1);
+  const useSqlBatch = config.outputFormat === "sql" && sqlBatchSize > 1;
+  const sqlBatch: Row[] = [];
+
   const initialize = async ({
     headers,
     strictValidation,
@@ -1133,6 +1138,52 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     initialized = true;
   };
 
+  const flushSqlBatch = async (force = false): Promise<void> => {
+    if (sqlBatch.length === 0) return;
+    if (!force && sqlBatch.length < sqlBatchSize) return;
+    if (!outputHeaders) return;
+    const oh = outputHeaders;
+    const tableName = quoteIdentifier(
+      config.sqlTableName,
+      config.sqlIdentifierQuote,
+    );
+    const quotedHeaders = oh.map((h) =>
+      quoteIdentifier(h, config.sqlIdentifierQuote),
+    );
+    const rowLiterals = sqlBatch.map(
+      (r) => `(${oh.map((h) => toSqlLiteral(r[h])).join(", ")})`,
+    );
+    await writeChunk(output, `-- VALUES: ${rowLiterals.join(", ")}\n`);
+    await writeChunk(
+      output,
+      `INSERT INTO ${tableName} (${quotedHeaders.join(", ")}) VALUES\n`,
+    );
+    for (let i = 0; i < rowLiterals.length; i++) {
+      const suffix = i < rowLiterals.length - 1 ? "," : ";";
+      await writeChunk(output, `  ${rowLiterals[i]}${suffix}\n`);
+    }
+    sqlBatch.length = 0;
+  };
+
+  const processItem = async (value: unknown): Promise<void> => {
+    const { sourceHeaders: sh, outputHeaders: oh } = ensureInitializedHeaders(
+      sourceHeaders,
+      outputHeaders,
+    );
+    const row = buildRowFromValue(detectedShape as DetectedShape, sh, value);
+    if (!rowMatchesFilters(row, predicates)) return;
+    const projected = projectRow(row, oh, configWithLineBreak, writtenRows + 1);
+    if (useSqlBatch) {
+      sqlBatch.push(projected);
+      if (sqlBatch.length >= sqlBatchSize) {
+        await flushSqlBatch();
+      }
+    } else {
+      await emitRow(output, oh, projected, configWithLineBreak);
+    }
+    writtenRows++;
+  };
+
   for await (const entry of jsonStream) {
     if (!isStreamArrayItem(entry)) {
       throw new StreamCliError("PARSE_ERROR", ERR_UNEXPECTED_TOKEN, 1);
@@ -1158,23 +1209,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
             : value.map((_, idx) => `column${idx + 1}`);
         await initialize({ headers, strictValidation: false });
 
-        const initializedHeaders = ensureInitializedHeaders(
-          sourceHeaders,
-          outputHeaders,
-        );
-        const wroteRow = await processRowValue(
-          output,
-          value,
-          initializedHeaders.sourceHeaders,
-          initializedHeaders.outputHeaders,
-          shape,
-          predicates,
-          configWithLineBreak,
-          writtenRows + 1,
-        );
-        if (wroteRow) {
-          writtenRows += 1;
-        }
+        await processItem(value);
         continue;
       }
 
@@ -1186,23 +1221,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
           requestedColumns.length > 0 ? requestedColumns : baseHeaders;
         await initialize({ headers, strictValidation: false });
 
-        const initializedHeaders = ensureInitializedHeaders(
-          sourceHeaders,
-          outputHeaders,
-        );
-        const wroteRow = await processRowValue(
-          output,
-          value,
-          initializedHeaders.sourceHeaders,
-          initializedHeaders.outputHeaders,
-          shape,
-          predicates,
-          configWithLineBreak,
-          writtenRows + 1,
-        );
-        if (wroteRow) {
-          writtenRows += 1;
-        }
+        await processItem(value);
         continue;
       }
 
@@ -1213,27 +1232,15 @@ const run = async (config: StreamCliConfig): Promise<void> => {
       throw new StreamCliError("STREAM_ERROR", ERR_SHAPE_NOT_INIT, 1);
     }
 
-    const initializedHeaders = ensureInitializedHeaders(
-      sourceHeaders,
-      outputHeaders,
-    );
-    const wroteRow = await processRowValue(
-      output,
-      value,
-      initializedHeaders.sourceHeaders,
-      initializedHeaders.outputHeaders,
-      detectedShape,
-      predicates,
-      configWithLineBreak,
-      writtenRows + 1,
-    );
-    if (wroteRow) {
-      writtenRows += 1;
-    }
+    await processItem(value);
   }
 
   if (!sawAnyItem) {
     throw new StreamCliError("PARSE_ERROR", ERR_EMPTY_INPUT, 1);
+  }
+
+  if (useSqlBatch) {
+    await flushSqlBatch(true);
   }
 
   if (config.outputFormat === "html") {
