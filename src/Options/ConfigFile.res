@@ -264,6 +264,39 @@ let rec mergeDicts = (base: dict<JSON.t>, override: dict<JSON.t>): dict<JSON.t> 
   merged
 }
 
+let knownTopLevelKeys = [
+  "defaultFormat",
+  "headers",
+  "hasHeaders",
+  "rowNumberHeader",
+  "includeRowNumbers",
+  "csv",
+  "tsv",
+  "psv",
+  "json",
+  "markdown",
+  "html",
+  "latex",
+  "sql",
+  "yaml",
+]
+
+let warnUnknownKeys = (dict: dict<JSON.t>): unit => {
+  let unknown =
+    dict
+    ->Dict.keysToArray
+    ->Array.filter(key => !(knownTopLevelKeys->Array.includes(key)))
+
+  if unknown->Array.length > 0 {
+    ignore(
+      Bindings.Stream.write(
+        Bindings.Process.stderr,
+        `[tablyful] Warning: Unknown config key(s): ${unknown->Array.join(", ")}. These keys are ignored.\n`,
+      ),
+    )
+  }
+}
+
 // Parse options from config dict
 let parseOptions = (dict: dict<JSON.t>): t => {
   let getBool = (key, default) =>
@@ -402,7 +435,9 @@ let load = (~path=?, ()): Common.result<t> => {
 
   switch loadConfigs(paths, None) {
   | Ok(None) => Ok(t) // No config found, use defaults
-  | Ok(Some(dict)) => Ok(parseOptions(dict))
+  | Ok(Some(dict)) =>
+    warnUnknownKeys(dict)
+    Ok(parseOptions(dict))
   | Error(err) => Error(err)
   }
 }

@@ -15,7 +15,12 @@ module Stream: {
 }
 
 module Fs: {
+  type stats = {
+    size: float,
+  }
+
   let existsSync: string => bool
+  let statSync: string => stats
   let readFileSyncUtf8: string => string
   let writeSyncFd: (int, string) => int
   let writeFileSyncUtf8: (string, string) => unit
@@ -60,6 +65,7 @@ module Util: {
     filter?: array<string>,
     columns?: string,
     delimiter?: string,
+    @as("max-file-size") maxFileSize?: string,
     config?: string,
     stats?: bool,
     version?: bool,

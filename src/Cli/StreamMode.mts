@@ -1041,6 +1041,31 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     ? fs.createWriteStream(config.outputPath, { encoding: "utf8" })
     : process.stdout;
 
+  const cleanupOutputFile = (): void => {
+    if (!hasOutputPath) return;
+    try {
+      if (output instanceof fs.WriteStream) {
+        output.destroy();
+      }
+    } catch {
+      // Best-effort cleanup only.
+    }
+
+    try {
+      if (fs.existsSync(config.outputPath)) {
+        fs.unlinkSync(config.outputPath);
+      }
+    } catch {
+      // Best-effort cleanup only.
+    }
+  };
+
+  const sigintHandler = (): void => {
+    cleanupOutputFile();
+    process.exit(130);
+  };
+  process.on("SIGINT", sigintHandler);
+
   if (!hasInputPath) {
     process.stdin.setEncoding("utf8");
   }
@@ -1196,80 +1221,86 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     }
   };
 
-  for await (const entry of jsonStream) {
-    if (!isStreamArrayItem(entry)) {
-      throw new StreamCliError("PARSE_ERROR", ERR_UNEXPECTED_TOKEN, 1);
-    }
+  try {
+    for await (const entry of jsonStream) {
+      if (!isStreamArrayItem(entry)) {
+        throw new StreamCliError("PARSE_ERROR", ERR_UNEXPECTED_TOKEN, 1);
+      }
 
-    const value = entry.value;
-    sawAnyItem = true;
+      const value = entry.value;
+      sawAnyItem = true;
 
-    if (!initialized) {
-      if (Array.isArray(value)) {
-        const shape: DetectedShape = "array-of-arrays";
-        detectedShape = shape;
+      if (!initialized) {
+        if (Array.isArray(value)) {
+          const shape: DetectedShape = "array-of-arrays";
+          detectedShape = shape;
 
-        if (config.hasHeaders) {
-          const headers = value.map((item) => toComparableString(item));
-          await initialize({ headers, strictValidation: true });
+          if (config.hasHeaders) {
+            const headers = value.map((item) => toComparableString(item));
+            await initialize({ headers, strictValidation: true });
+            continue;
+          }
+
+          const headers =
+            requestedColumns.length > 0
+              ? requestedColumns
+              : value.map((_, idx) => `column${idx + 1}`);
+          await initialize({ headers, strictValidation: false });
+
+          await processItem(value);
           continue;
         }
 
-        const headers =
-          requestedColumns.length > 0
-            ? requestedColumns
-            : value.map((_, idx) => `column${idx + 1}`);
-        await initialize({ headers, strictValidation: false });
+        if (isObjectRecord(value)) {
+          const shape: DetectedShape = "array-of-objects";
+          detectedShape = shape;
+          const baseHeaders = Object.keys(value);
+          const headers =
+            requestedColumns.length > 0 ? requestedColumns : baseHeaders;
+          await initialize({ headers, strictValidation: false });
 
-        await processItem(value);
-        continue;
+          await processItem(value);
+          continue;
+        }
+
+        throw new StreamCliError("PARSE_ERROR", ERR_EXPECT_ARRAY_ROWS, 1);
       }
 
-      if (isObjectRecord(value)) {
-        const shape: DetectedShape = "array-of-objects";
-        detectedShape = shape;
-        const baseHeaders = Object.keys(value);
-        const headers =
-          requestedColumns.length > 0 ? requestedColumns : baseHeaders;
-        await initialize({ headers, strictValidation: false });
-
-        await processItem(value);
-        continue;
+      if (detectedShape === "") {
+        throw new StreamCliError("STREAM_ERROR", ERR_SHAPE_NOT_INIT, 1);
       }
 
-      throw new StreamCliError("PARSE_ERROR", ERR_EXPECT_ARRAY_ROWS, 1);
+      await processItem(value);
     }
 
-    if (detectedShape === "") {
-      throw new StreamCliError("STREAM_ERROR", ERR_SHAPE_NOT_INIT, 1);
+    if (!sawAnyItem) {
+      throw new StreamCliError("PARSE_ERROR", ERR_EMPTY_INPUT, 1);
     }
 
-    await processItem(value);
+    if (useSqlBatch) {
+      await flushSqlBatch(true);
+    }
+
+    if (config.outputFormat === "html") {
+      await writeChunk(output, "  </tbody>\n</table>\n");
+    }
+
+    await finalizeOutput(output, hasOutputPath);
+
+    if (config.stats) {
+      const columnCount =
+        outputHeaders !== null ? (outputHeaders as string[]).length : 0;
+      process.stderr.write(
+        `[tablyful] rows: ${writtenRows}, columns: ${columnCount}, detected: ${detectedShape}, format: ${config.outputFormat}\n`,
+      );
+    }
+
+    process.off("SIGINT", sigintHandler);
+    process.exit(0);
+  } catch (error) {
+    process.off("SIGINT", sigintHandler);
+    throw error;
   }
-
-  if (!sawAnyItem) {
-    throw new StreamCliError("PARSE_ERROR", ERR_EMPTY_INPUT, 1);
-  }
-
-  if (useSqlBatch) {
-    await flushSqlBatch(true);
-  }
-
-  if (config.outputFormat === "html") {
-    await writeChunk(output, "  </tbody>\n</table>\n");
-  }
-
-  await finalizeOutput(output, hasOutputPath);
-
-  if (config.stats) {
-    const columnCount =
-      outputHeaders !== null ? (outputHeaders as string[]).length : 0;
-    process.stderr.write(
-      `[tablyful] rows: ${writtenRows}, columns: ${columnCount}, detected: ${detectedShape}, format: ${config.outputFormat}\n`,
-    );
-  }
-
-  process.exit(0);
 };
 
 /**

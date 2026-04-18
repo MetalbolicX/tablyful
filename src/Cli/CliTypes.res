@@ -6,6 +6,7 @@ type flags = {
   columnsArg: option<array<string>>,
   filterExprs: array<string>,
   delimiterArg: option<string>,
+  maxFileSizeBytes: int,
   configPath: option<string>,
   noHeaders: bool,
   stats: bool,

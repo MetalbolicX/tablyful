@@ -3,6 +3,55 @@ open Types
 @val
 external version: string = "__VERSION__"
 
+let defaultMaxFileSizeBytes = 500 * 1024 * 1024
+
+let parseMaxFileSizeBytes = (raw: option<string>): Common.result<int> => {
+  switch raw {
+  | None => Ok(defaultMaxFileSizeBytes)
+  | Some(value) =>
+    switch Int.fromString(value) {
+    | Some(parsed) if parsed > 0 => Ok(parsed)
+    | _ =>
+      TablyfulError.validationError(
+        `Invalid --max-file-size value: ${value}. Expected a positive integer number of bytes.`,
+      )->TablyfulError.toResult
+    }
+  }
+}
+
+let ensureInputFileWithinLimit = (~path: option<string>, ~maxBytes: int): unit => {
+  switch path {
+  | None => ()
+  | Some(filePath) =>
+    if Bindings.Fs.existsSync(filePath) {
+      let size =
+        try {
+          Bindings.Fs.statSync(filePath).size->Float.toInt
+        } catch {
+        | JsExn(e) =>
+          CliIo.exitWithError(
+            ~code=1,
+            TablyfulError.ioError(
+              `Failed to inspect input file: ${e->JsExn.message->Option.getOr("unknown error")}`,
+            ),
+          )
+          0
+        }
+
+      if size > maxBytes {
+        CliIo.exitWithError(
+          ~code=1,
+          TablyfulError.ioError(
+            `Input file is too large (${size->Int.toString} bytes). Maximum allowed size is ${
+              maxBytes->Int.toString
+            } bytes. Increase limit with --max-file-size.`,
+          ),
+        )
+      }
+    }
+  }
+}
+
 let showHelp = (): unit => {
   CliIo.writeStdout(`
 Usage: tablyful [options] [file]
@@ -21,6 +70,7 @@ Options:
       --stats             Print conversion stats to stderr
   -c, --config <path>     Path to config JSON file
   -d, --delimiter <char>  CSV delimiter override
+      --max-file-size <n>  Maximum input file size in bytes (default: 524288000)
       --no-headers        Omit headers in CSV/TSV/PSV output
   -h, --help              Show this help message
   -v, --version           Show version
@@ -202,6 +252,7 @@ let makeParseOptions = (): dict<Bindings.Util.flatConfig> => {
     ("list-set-keys-format", makeStringOption()),
     ("config", makeStringOption(~short="c")),
     ("delimiter", makeStringOption(~short="d")),
+    ("max-file-size", makeStringOption()),
     ("no-headers", makeBoolOption()),
     ("help", makeBoolOption(~short="h")),
     ("version", makeBoolOption(~short="v")),
@@ -259,6 +310,15 @@ let main = (): unit => {
   | Some(parsed) =>
     let values = parsed.values
     let positionals = parsed.positionals
+
+    let maxFileSizeBytes = switch parseMaxFileSizeBytes(values.maxFileSize) {
+    | Ok(size) => size
+    | Error(error) =>
+      CliIo.printError(error)
+      showHelp()
+      Bindings.Process.exit(2)
+      defaultMaxFileSizeBytes
+    }
 
     if values.help->Option.getOr(false) {
       showHelp()
@@ -327,6 +387,7 @@ let main = (): unit => {
       columnsArg,
       filterExprs,
       delimiterArg: values.delimiter,
+      maxFileSizeBytes,
       configPath: values.config,
       noHeaders: values.noHeaders->Option.getOr(false),
       stats: values.stats->Option.getOr(false),
@@ -337,6 +398,8 @@ let main = (): unit => {
     } else {
       None
     }
+
+    ensureInputFileWithinLimit(~path=inputPath, ~maxBytes=maxFileSizeBytes)
 
     let runBatchMode = () => {
       switch inputPath {

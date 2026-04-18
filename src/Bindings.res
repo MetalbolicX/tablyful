@@ -20,8 +20,15 @@ module Stream = {
 }
 
 module Fs = {
+  type stats = {
+    size: float,
+  }
+
   @module("node:fs")
   external existsSync: string => bool = "existsSync"
+
+  @module("node:fs")
+  external statSync: string => stats = "statSync"
 
   @module("node:fs")
   external readFileSyncUtf8: (string, @as("utf8") _) => string = "readFileSync"
@@ -85,6 +92,7 @@ module Util = {
     filter?: array<string>,
     columns?: string,
     delimiter?: string,
+    @as("max-file-size") maxFileSize?: string,
     config?: string,
     stats?: bool,
     version?: bool,

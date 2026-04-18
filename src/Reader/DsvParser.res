@@ -35,13 +35,22 @@ let parse = (input: string, ~delimiter: string): parsed => {
   } else {
     let pos = ref(0)
     let currentState = ref(FieldStart)
-    let field = ref("")
+    let fieldParts: ref<array<string>> = ref([])
     let currentRow: ref<array<string>> = ref([])
     let allRows: ref<array<array<string>>> = ref([])
 
+    let appendToField = (value: string) => {
+      ignore(fieldParts.contents->Array.push(value))
+    }
+
+    let flushField = () => {
+      let value = fieldParts.contents->Array.join("")
+      fieldParts := []
+      value
+    }
+
     let finishField = () => {
-      currentRow := Array.concat(currentRow.contents, [field.contents])
-      field := ""
+      currentRow := Array.concat(currentRow.contents, [flushField()])
     }
 
     let finishRow = () => {
@@ -71,7 +80,7 @@ let parse = (input: string, ~delimiter: string): parsed => {
           finishRow()
           currentState := FieldStart
         } else {
-          field := field.contents ++ ch
+          appendToField(ch)
           currentState := UnquotedField
         }
 
@@ -89,20 +98,20 @@ let parse = (input: string, ~delimiter: string): parsed => {
           finishRow()
           currentState := FieldStart
         } else {
-          field := field.contents ++ ch
+          appendToField(ch)
         }
 
       | QuotedField =>
         if ch === "\"" {
           currentState := QuoteInQuotedField
         } else {
-          field := field.contents ++ ch
+          appendToField(ch)
         }
 
       | QuoteInQuotedField =>
         if ch === "\"" {
           // Escaped quote ("") inside quoted field
-          field := field.contents ++ "\""
+          appendToField("\"")
           currentState := QuotedField
         } else if ch === delimiter {
           finishField()
@@ -119,7 +128,7 @@ let parse = (input: string, ~delimiter: string): parsed => {
         } else {
           // Character after closing quote that isn't delimiter or newline
           // Treat as part of field (lenient parsing)
-          field := field.contents ++ ch
+          appendToField(ch)
           currentState := UnquotedField
         }
       }
@@ -129,7 +138,7 @@ let parse = (input: string, ~delimiter: string): parsed => {
 
     // Finish any remaining field/row
     // Only add if there's actual content (not just trailing newline)
-    if field.contents !== "" || currentRow.contents->Array.length > 0 {
+    if fieldParts.contents->Array.length > 0 || currentRow.contents->Array.length > 0 {
       finishRow()
     }
 

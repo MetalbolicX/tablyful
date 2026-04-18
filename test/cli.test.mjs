@@ -471,3 +471,60 @@ test("cli invalid --set option exits 2", () => {
   assert.equal(result.code, 2);
   assert.match(result.stderr, /Unknown --set option: csv.notAnOption/);
 });
+
+test("cli rejects files over --max-file-size", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-max-size-"));
+  const filePath = join(tempDir, "input.json");
+
+  try {
+    writeFileSync(filePath, sampleArrayOfArrays, "utf8");
+    const result = runCli({
+      args: [filePath, "--format", "csv", "--max-file-size", "1"],
+    });
+
+    assert.equal(result.code, 1);
+    assert.match(result.stderr, /Input file is too large/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("cli accepts files when --max-file-size is sufficient", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-max-size-ok-"));
+  const filePath = join(tempDir, "input.json");
+
+  try {
+    writeFileSync(filePath, sampleArrayOfArrays, "utf8");
+    const result = runCli({
+      args: [filePath, "--format", "csv", "--max-file-size", "100000"],
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /name,age/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("cli warns about unknown config keys", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-config-warning-"));
+  const configPath = join(tempDir, "config.json");
+
+  try {
+    writeFileSync(
+      configPath,
+      JSON.stringify({ defaultFormat: "csv", unknownOption: true }),
+      "utf8",
+    );
+
+    const result = runCli({
+      args: ["--config", configPath, "--format", "csv"],
+      input: sampleArrayOfArrays,
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stderr, /Unknown config key\(s\): unknownOption/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
