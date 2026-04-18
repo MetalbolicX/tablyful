@@ -10,10 +10,10 @@ tablyful makes it easy to transform JSON data (arrays of objects, arrays of arra
 
 ```mermaid
 flowchart LR
-  A[Input: file | stdin] --> B[Parser (auto-detect input shape)]
+  A["Input: file | stdin"] --> B["Parser (auto-detect input shape)"]
   B --> C[Normalized TableData]
-  C --> D[Formatter (csv|json|markdown|html|latex|sql|yaml|...)]
-  D --> E[Output: stdout | file]
+  C --> D["Formatter (csv|json|markdown|html|latex|sql|yaml|...)"]
+  D --> E["Output: stdout | file"]
 ```
 
 ## Design rationale

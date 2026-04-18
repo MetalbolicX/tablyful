@@ -21,6 +21,6 @@ window.$docsify = {
     maxAge: 86400000, // 1 day
   },
   "flexible-alerts": {
-    style: "flat"
-  }
+    style: "flat",
+  },
 };
