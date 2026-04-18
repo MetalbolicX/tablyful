@@ -1,10 +1,25 @@
+
 # CLI Configuration Reference
 
 This page documents the configuration file model for the `tablyful` CLI and how to use it together with `--set` overrides and CLI flags.
 
+## Features
+
+`tablyful` is a CLI-first tool focused on fast, predictable conversion of JSON tabular data into common table formats. Key features:
+
+- Multiple input shapes: array of arrays, array of objects, object of arrays, object of objects
+- Multiple output formats: csv, tsv, psv, json, markdown, html, latex, sql, yaml
+- Unix-friendly CLI: stdin/stdout by default, positional file input supported
+- Cascading JSON config (`.tablyfulrc.json`) with repeatable `--set` overrides
+- Row filtering with SQL-like predicates (`=`, `!=`, `>`, `<`, `>=`, `<=`, `LIKE`)
+- Column projection via `--columns`
+- Conversion diagnostics via `--stats`
+- Automatic streaming for large JSON arrays when output is one of: csv, tsv, psv, sql, html, yaml
+- Discoverability helpers: `--list-set-keys` and `--list-set-keys-format`
+
 ## Purpose
 
-`tablyful` is a CLI-first tool that reads JSON input (from a file or stdin), parses it, and formats it into a supported output format (csv, json, markdown, html, latex, sql, yaml, etc.). The configuration file `.tablyfulrc.json` lets you define project defaults so you don't need to repeat flags on every run.
+`tablyful` reads JSON input (from a file or stdin), parses it, and formats it into one of the supported output formats. The configuration file `.tablyfulrc.json` lets you define project defaults so you don't need to repeat flags on every run.
 
 ## Where to put the config
 
@@ -85,13 +100,13 @@ Example: an explicit `--delimiter` flag overrides `--set csv.delimiter=';'`.
 
 Use `--set` to override nested config keys inline. Syntax:
 
-```
+```sh
 --set <format>.<option>=<value>
 ```
 
 Examples:
 
-```
+```sh
 tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
 tablyful data.json --format csv --set csv.delimiter=';'
 tablyful data.json --format sql --set sql.tableName=users --set sql.includeCreateTable=true

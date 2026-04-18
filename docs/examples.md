@@ -2,7 +2,7 @@
 
 This page provides small, runnable CLI examples. Each example shows a sample input (JSON), the `tablyful` command used (including flags and `--set` overrides where applicable), and the expected output.
 
-Example 1 — Basic array-of-objects to CSV (positional file)
+## 1 — Basic array-of-objects to CSV (positional file)
 
 Input (examples/cli/sample.json):
 
@@ -15,25 +15,25 @@ Input (examples/cli/sample.json):
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format csv
 ```
 
 Output (stdout):
 
-```
+```txt
 name,age,city
 Alice,30,NYC
 Bob,25,LA
 ```
 
-Example 2 — Read from stdin, write pretty JSON with config override
+## 2 — Read from stdin, write pretty JSON with config override
 
 Input (stdin) — same as Example 1.
 
 Command:
 
-```
+```sh
 cat examples/cli/sample.json | tablyful --format json --set json.pretty=true
 ```
 
@@ -54,11 +54,11 @@ Output (stdout):
 ]
 ```
 
-Example 3 — Filter rows and select columns, output YAML
+## 3 — Filter rows and select columns, output YAML
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format yaml --filter "age>25" --columns name,city
 ```
 
@@ -69,17 +69,17 @@ Output (stdout):
   city: NYC
 ```
 
-Example 4 — Generate SQL INSERTs with `--set` overrides
+## 4 — Generate SQL INSERTs with `--set` overrides
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format sql --set sql.tableName=people --set sql.includeCreateTable=true
 ```
 
 Output (stdout) (abbreviated):
 
-```
+```sql
 CREATE TABLE "people" (
   "name" TEXT,
   "age" INTEGER,
@@ -90,48 +90,48 @@ INSERT INTO "people" ("name","age","city") VALUES ('Alice',30,'NYC');
 INSERT INTO "people" ("name","age","city") VALUES ('Bob',25,'LA');
 ```
 
-Example 5 — Force CSV delimiter and omit headers
+## 5 — Force CSV delimiter and omit headers
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format csv --set csv.delimiter=';' --no-headers
 ```
 
 Output (stdout):
 
-```
+```txt
 Alice;30;NYC
 Bob;25;LA
 ```
 
-Example 6 — Show conversion stats and write to file
+## 6 — Show conversion stats and write to file
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format csv --output examples/cli/out.csv --stats
 ```
 
 Expected stderr (example):
 
-```
+```sh
 [tablyful] rows: 2, columns: 3, detected: array-of-objects, format: csv
 ```
 
 The file `examples/cli/out.csv` will contain the CSV output.
 
-Example 7 — Discover `--set` keys for a format
+## 7 — Discover `--set` keys for a format
 
 Command:
 
-```
+```sh
 tablyful --list-set-keys-format csv
 ```
 
 This will print the allowed `csv.*` keys and their defaults so you can craft `--set csv.<key>=<value>` overrides.
 
-Example 8 — Markdown table output (center aligned)
+## 8 — Markdown table output (center aligned)
 
 Input: (examples/cli/sample.json)
 
@@ -144,24 +144,24 @@ Input: (examples/cli/sample.json)
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format markdown --set markdown.align=center
 ```
 
 Output (stdout):
 
-```txt
+```md
 | name  | age | city |
 |:-----:|:---:|:----:|
 | Alice | 30  | NYC  |
 | Bob   | 25  | LA   |
 ```
 
-Example 9 — HTML output with class and caption (write to file)
+## 9 — HTML output with class and caption (write to file)
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format html --set html.tableClass=report --set html.caption="User list" --output examples/cli/out.html
 ```
 
@@ -180,17 +180,17 @@ Output (examples/cli/out.html) (snippet):
 </table>
 ```
 
-Example 10 — LaTeX output with booktabs and caption
+## 10 — LaTeX output with booktabs and caption
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format latex --set latex.booktabs=true --set latex.caption="User list"
 ```
 
 Output (stdout) (snippet):
 
-```tex
+```txt
 \begin{tabular}{l r l}
 \toprule
 name & age & city \\
@@ -201,11 +201,11 @@ Bob & 25 & LA \\
 \end{tabular}
 ```
 
-Example 11 — Filter with LIKE and project columns
+## 11 — Filter with LIKE and project columns
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format csv --filter 'name LIKE A%' --columns name,age
 ```
 
@@ -216,11 +216,11 @@ name,age
 Alice,30
 ```
 
-Example 12 — YAML output with quoted strings and custom indent (write to file)
+## 12 — YAML output with quoted strings and custom indent (write to file)
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample.json --format yaml --set yaml.indent=4 --set yaml.quoteStrings=true --output examples/cli/out.yaml
 ```
 
@@ -235,7 +235,7 @@ Output (examples/cli/out.yaml):
     city: "LA"
 ```
 
-Example 13 — Force input parser (array-of-arrays)
+## 13 — Force input parser (array-of-arrays)
 
 Input (examples/cli/sample-arrays.json):
 
@@ -249,7 +249,7 @@ Input (examples/cli/sample-arrays.json):
 
 Command:
 
-```
+```sh
 tablyful examples/cli/sample-arrays.json --input array-of-arrays --format csv
 ```
 
@@ -260,3 +260,41 @@ name,age,city
 Alice,30,NYC
 Bob,25,LA
 ```
+
+## 14 — Input as object-of-arrays (force parser) and output TSV
+
+Input (examples/cli/sample-object-arrays.json):
+
+```json
+{
+  "name": ["Alice", "Bob"],
+  "age": [30, 25],
+  "city": ["NYC", "LA"]
+}
+```
+
+Command:
+
+```sh
+tablyful examples/cli/sample-object-arrays.json --input object-of-arrays --format tsv
+```
+
+Output (stdout):
+
+```txt
+name	age	city
+Alice	30	NYC
+Bob	25	LA
+```
+
+## 15 — Combine `--config` with `--set` (precedence)
+
+Assume the project has `.tablyfulrc.json` with `csv.delimiter` set to `","`.
+
+Command:
+
+```sh
+tablyful examples/cli/sample.json --config ./.tablyfulrc.json --set csv.delimiter=';' --format csv
+```
+
+Because explicit `--set` and `--config` merge, and `--set` wins over the config file, the output will use `;` as the CSV delimiter.
