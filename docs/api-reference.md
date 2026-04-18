@@ -107,7 +107,7 @@ Repeatable `--set` entries are merged shallowly into the corresponding format ob
 
 ## Useful CLI flags (summary)
 
-``text
+```text
 Usage: tablyful [options] [file]
 
 Options:
@@ -126,5 +126,3 @@ Options:
   -h, --help                      Show help
   -v, --version                   Show version
 ```
-
-For full usage examples see the `examples` page.
