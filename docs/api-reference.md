@@ -3,42 +3,32 @@
 
 This page documents the configuration file model for the `tablyful` CLI and how to use it together with `--set` overrides and CLI flags.
 
-## Features
+## Useful CLI flags (summary)
 
-`tablyful` is a CLI-first tool focused on fast, predictable conversion of JSON tabular data into common table formats. Key features:
+```text
+Usage: tablyful [options] [file]
+Convert tabular data between formats.
 
-- Multiple input shapes: array of arrays, array of objects, object of arrays, object of objects
-- Multiple output formats: csv, tsv, psv, json, markdown, html, latex, sql, yaml
-- Unix-friendly CLI: stdin/stdout by default, positional file input supported
-- Cascading JSON config (`.tablyfulrc.json`) with repeatable `--set` overrides
-- Row filtering with SQL-like predicates (`=`, `!=`, `>`, `<`, `>=`, `<=`, `LIKE`)
-- Column projection via `--columns`
-- Conversion diagnostics via `--stats`
-- Automatic streaming for large JSON arrays when output is one of: csv, tsv, psv, sql, html, yaml
-- Discoverability helpers: `--list-set-keys` and `--list-set-keys-format`
-
-## Purpose
-
-`tablyful` reads JSON input (from a file or stdin), parses it, and formats it into one of the supported output formats. The configuration file `.tablyfulrc.json` lets you define project defaults so you don't need to repeat flags on every run.
-
-## Where to put the config
-
-Place a JSON file named `.tablyfulrc.json` in your project root (or in your home directory). You can also pass an explicit path with `--config <path>`.
-
-## Example config (`.tablyfulrc.json`)
-
-```json
-{
-  "input": { "hasHeaders": true, "encoding": "utf8" },
-  "output": { "defaultFormat": "csv", "includeRowNumbers": false, "rowNumberHeader": "#" },
-  "csv": { "delimiter": ",", "quote": "\"", "escape": "\\", "lineBreak": "\n", "includeHeaders": true },
-  "json": { "pretty": true, "indentSize": 2, "asArray": false },
-  "markdown": { "align": "left", "padding": true, "githubFlavor": true },
-  "html": { "tableClass": "tablyful-table", "theadClass": "", "tbodyClass": "", "id": "", "caption": "" },
-  "latex": { "tableEnvironment": "tabular", "columnSpec": "", "booktabs": true, "caption": "", "label": "", "centering": true, "useTableEnvironment": false },
-  "sql": { "tableName": "table", "identifierQuote": "\"", "includeCreateTable": false },
-  "yaml": { "indent": 2, "quoteStrings": false, "lineBreak": "\n" }
-}
+Options:
+  -f, --format <format>   Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml|ndjson)
+  -i, --input <format>    Input format (json|ndjson|csv|tsv|psv|html|markdown|latex|yaml|xml|sql; auto-detected when omitted)
+  -o, --output <path>     Write output to file instead of stdout
+      --set <key=value>   Override format option (repeatable, e.g. --set json.pretty=false)
+      --list-set-keys      Print allowed --set keys and defaults
+      --list-set-keys-format <format>
+                           Print allowed --set keys for one format
+  -C, --columns <names>   Comma-separated output columns (e.g. name,age)
+      --filter <expr>     Filter rows (repeatable; supports = != > < >= <= LIKE)
+      --stats             Print conversion stats to stderr
+      --stream            Force streaming mode (line-by-line processing)
+      --no-stream         Force buffered mode (read entire input first)
+      --examples          Show usage examples
+  -c, --config <path>     Path to config JSON file
+  -d, --delimiter <char>  CSV delimiter override
+      --max-file-size <n>  Maximum input file size in bytes (default: 524288000)
+      --no-headers        Omit headers in CSV/TSV/PSV output
+  -h, --help              Show this help message
+  -v, --version           Show version
 ```
 
 ## Top-level keys
@@ -85,6 +75,26 @@ Place a JSON file named `.tablyfulrc.json` in your project root (or in your home
 - `yaml`
   - `indent`, `quoteStrings`, `lineBreak`
 
+## Where to put the config
+
+Place a JSON file named `.tablyfulrc.json` in your project root (or in your home directory). You can also pass an explicit path with `--config <path>`.
+
+## Example config (`.tablyfulrc.json`)
+
+```json
+{
+  "input": { "hasHeaders": true, "encoding": "utf8" },
+  "output": { "defaultFormat": "csv", "includeRowNumbers": false, "rowNumberHeader": "#" },
+  "csv": { "delimiter": ",", "quote": "\"", "escape": "\\", "lineBreak": "\n", "includeHeaders": true },
+  "json": { "pretty": true, "indentSize": 2, "asArray": false },
+  "markdown": { "align": "left", "padding": true, "githubFlavor": true },
+  "html": { "tableClass": "tablyful-table", "theadClass": "", "tbodyClass": "", "id": "", "caption": "" },
+  "latex": { "tableEnvironment": "tabular", "columnSpec": "", "booktabs": true, "caption": "", "label": "", "centering": true, "useTableEnvironment": false },
+  "sql": { "tableName": "table", "identifierQuote": "\"", "includeCreateTable": false },
+  "yaml": { "indent": 2, "quoteStrings": false, "lineBreak": "\n" }
+}
+```
+
 ## How precedence works
 
 When resolving options the CLI applies values in this order (lowest → highest):
@@ -119,25 +129,3 @@ Value parsing rules applied by the CLI:
 - otherwise → string
 
 Repeatable `--set` entries are merged shallowly into the corresponding format object.
-
-## Useful CLI flags (summary)
-
-```text
-Usage: tablyful [options] [file]
-
-Options:
-  -f, --format <format>           Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
-  -i, --input <format>            Input format (optional; auto-detected when omitted)
-  -o, --output <path>             Write output to file instead of stdout
-      --set <key=value>           Override format option (repeatable)
-      --list-set-keys             Print allowed --set keys and defaults
-      --list-set-keys-format <f>  Print allowed --set keys for one format
-  -C, --columns <names>           Comma-separated output columns
-      --filter <expr>             Filter rows (repeatable; supports = != > < >= <= LIKE)
-      --stats                     Print conversion stats to stderr
-  -c, --config <path>             Path to config JSON file
-  -d, --delimiter <char>          CSV delimiter override
-      --no-headers                Omit headers in CSV/TSV/PSV output
-  -h, --help                      Show help
-  -v, --version                   Show version
-```

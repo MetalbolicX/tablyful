@@ -2,3 +2,4 @@
  - [Getting Started](/getting-started)
  - [API Reference](/api-reference)
  - [Examples](/examples)
+ - [Workflow](/workflow)
