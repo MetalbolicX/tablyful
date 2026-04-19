@@ -39,6 +39,15 @@ node dist/cli.mjs --list-set-keys
 node dist/cli.mjs --list-set-keys-format json
 ```
 
+# NDJSON examples
+
+# stream NDJSON stdin to CSV
+node dist/cli.mjs --input ndjson --format csv < examples/cli/sample.ndjson
+
+# produce NDJSON from a JSON file
+node dist/cli.mjs examples/cli/sample.json --format ndjson > examples/cli/sample.out.ndjson
+
+
 ## Precedence Reminder
 
 `defaults < config file(s) < --set < explicit shallow flags`

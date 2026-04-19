@@ -22,8 +22,14 @@ tablyful data.json --format json
 # write to file
 tablyful data.json --format csv --output out.csv
 
-# automatic streaming for large arrays (csv|tsv|psv|sql|html|yaml)
+# automatic streaming for large arrays (csv|tsv|psv|sql|html|yaml|ndjson)
 cat data.json | tablyful --format csv --output out.csv
+
+# NDJSON stdin -> csv
+cat data.ndjson | tablyful --input ndjson --format csv
+
+# emit NDJSON (one JSON object per line)
+tablyful data.json --format ndjson --output data.ndjson
 
 # repeatable --set overrides
 tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
@@ -42,7 +48,26 @@ tablyful --list-set-keys
 tablyful --list-set-keys-format csv
 ```
 
-Automatic streaming is used for JSON arrays of arrays/objects when output format is: `csv`, `tsv`, `psv`, `sql`, `html`, `yaml`.
+Streaming & NDJSON
+
+tablyful now supports NDJSON (newline-delimited JSON) as both an input and an output format. NDJSON input is parsed line-by-line so it composes well with Unix pipelines and uses constant memory.
+
+When stdin is a pipe the CLI decides between streaming and buffered (batch) processing as follows:
+
+- If the producer writes a JSON array (input begins with `[`), and the chosen output format is streamable (csv, tsv, psv, sql, html, yaml, ndjson), the CLI will stream the array elements as they arrive (no full buffering).
+- If you pass `--input ndjson` or supply a `.ndjson`/`.jsonl` file, the CLI will stream input line-by-line using NDJSON semantics.
+- If either the input format or the output format is not streamable (for example when you request pretty-printed JSON as a single array), the CLI will fall back to buffered processing (reads entire input before converting).
+
+Examples:
+
+- Stream NDJSON to CSV:
+  cat data.ndjson | tablyful --input ndjson --format csv
+- Produce NDJSON from a JSON file (one object per line):
+  tablyful data.json --format ndjson > data.ndjson
+- Pipe a producer into tablyful and consume immediately (streaming):
+  producer-tool | tablyful --format ndjson | jq '.'
+
+Streaming reduces memory usage and enables you to start consuming output before the input producer has finished.
 
 ## Configuration and Precedence
 
