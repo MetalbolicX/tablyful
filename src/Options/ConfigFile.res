@@ -416,7 +416,9 @@ let load = (~path=?, ()): Common.result<t> => {
       | Ok(Some(config)) =>
         let merged = switch acc {
         | None => config
-        | Some(existing) => mergeDicts(config, existing)
+        | Some(existingHigherPriority) =>
+          // Keep previously loaded (higher-priority) config values when keys overlap.
+          mergeDicts(config, existingHigherPriority)
         }
         loadConfigs(paths->Array.slice(~start=1), Some(merged))
       | Error(err) => Error(err)

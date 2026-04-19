@@ -771,6 +771,13 @@ test("CLI: --help does not include examples", () => {
   assert.doesNotMatch(result.stdout, /Examples:/);
 });
 
+test("CLI: --format without input exits 1", () => {
+  const result = runCli({ args: ["--format", "csv"] });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /No input provided/);
+});
+
 test("CLI: --examples prints examples and exits 0", () => {
   const result = runCli({ args: ["--examples"] });
 

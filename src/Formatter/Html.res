@@ -22,10 +22,10 @@ let formatImpl = (data: TableData.t, options: t): string => {
   // Table tag with classes
   let tableAttrs = switch opts.tableClass {
   | "" => "<table>"
-  | cls => `<table class="${cls}">`
+  | cls => `<table class="${cls->escapeHtml}">`
   }
   if opts.id !== "" {
-    lines->Array.push(`<table id="${opts.id}" class="${opts.tableClass}">`)
+    lines->Array.push(`<table id="${opts.id->escapeHtml}" class="${opts.tableClass->escapeHtml}">`)
   } else {
     lines->Array.push(tableAttrs)
   }
@@ -38,7 +38,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
   // Table header
   let theadAttrs = switch opts.theadClass {
   | "" => "  <thead>"
-  | cls => `  <thead class="${cls}">`
+  | cls => `  <thead class="${cls->escapeHtml}">`
   }
   lines->Array.push(theadAttrs)
   lines->Array.push("    <tr>")
@@ -53,7 +53,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
   // Table body
   let tbodyAttrs = switch opts.tbodyClass {
   | "" => "  <tbody>"
-  | cls => `  <tbody class="${cls}">`
+  | cls => `  <tbody class="${cls->escapeHtml}">`
   }
   lines->Array.push(tbodyAttrs)
 

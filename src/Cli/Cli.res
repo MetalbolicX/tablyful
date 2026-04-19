@@ -139,7 +139,10 @@ let showVersion = (): unit => {
 }
 
 let displayLiteral = (value: string): string => {
-  value->String.replaceAll("\n", "\\n")->String.replaceAll("\t", "\\t")
+  value
+  ->String.replaceAll("\\", "\\\\")
+  ->String.replaceAll("\n", "\\n")
+  ->String.replaceAll("\t", "\\t")
 }
 
 let buildDisplayEntries = (format: Types.format): array<string> => {

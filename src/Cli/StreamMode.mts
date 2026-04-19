@@ -850,6 +850,12 @@ const finalizeSuccessfulRun = async ({
   process.exit(EXIT_OK);
 };
 
+const logCleanupWarning = (message: string): void => {
+  if (process.env.TABLYFUL_DEBUG === "1") {
+    process.stderr.write(`[tablyful] cleanup warning: ${message}\n`);
+  }
+};
+
 const createInputStream = (config: StreamCliConfig): InputStreamSetup => {
   const hasInputPath = Boolean(config.inputPath);
   const hasOutputPath = Boolean(config.outputPath);
@@ -875,16 +881,18 @@ const createInputStream = (config: StreamCliConfig): InputStreamSetup => {
       if (output instanceof fs.WriteStream) {
         output.destroy();
       }
-    } catch {
-      // Best-effort cleanup only.
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logCleanupWarning(`failed to destroy output stream: ${message}`);
     }
 
     try {
       if (fs.existsSync(config.outputPath)) {
         fs.unlinkSync(config.outputPath);
       }
-    } catch {
-      // Best-effort cleanup only.
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logCleanupWarning(`failed to remove output file '${config.outputPath}': ${message}`);
     }
   };
 
