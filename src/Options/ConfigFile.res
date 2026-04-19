@@ -43,234 +43,131 @@ let parseFormat = (json: JSON.t): option<format> => {
   }
 }
 
+let getString = (dict: dict<JSON.t>, key: string, default: string): string => {
+  dict
+  ->Dict.get(key)
+  ->Option.flatMap(JSON.Decode.string)
+  ->Option.getOr(default)
+}
+
+let getBool = (dict: dict<JSON.t>, key: string, default: bool): bool => {
+  dict
+  ->Dict.get(key)
+  ->Option.flatMap(JSON.Decode.bool)
+  ->Option.getOr(default)
+}
+
+let getInt = (dict: dict<JSON.t>, key: string, default: int): int => {
+  dict
+  ->Dict.get(key)
+  ->Option.flatMap(JSON.Decode.float)
+  ->Option.flatMap(value => {
+    let intValue = value->Float.toInt
+    if intValue->Int.toFloat === value {
+      Some(intValue)
+    } else {
+      None
+    }
+  })
+  ->Option.getOr(default)
+}
+
 // Parse CSV options from JSON
 let parseCsvOptions = (dict: dict<JSON.t>): csvOptions => {
-  let getString = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.string)
-    ->Option.getOr(default)
-
-  let getBool = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.bool)
-    ->Option.getOr(default)
-
   {
-    delimiter: getString("delimiter", defaultCsvOptions.delimiter),
-    quote: getString("quote", defaultCsvOptions.quote),
-    escape: getString("escape", defaultCsvOptions.escape),
-    lineBreak: getString("lineBreak", defaultCsvOptions.lineBreak),
-    includeHeaders: getBool("includeHeaders", defaultCsvOptions.includeHeaders),
+    delimiter: getString(dict, "delimiter", defaultCsvOptions.delimiter),
+    quote: getString(dict, "quote", defaultCsvOptions.quote),
+    escape: getString(dict, "escape", defaultCsvOptions.escape),
+    lineBreak: getString(dict, "lineBreak", defaultCsvOptions.lineBreak),
+    includeHeaders: getBool(dict, "includeHeaders", defaultCsvOptions.includeHeaders),
   }
 }
 
 // Parse TSV options from JSON
 let parseTsvOptions = (dict: dict<JSON.t>): tsvOptions => {
-  let getBool = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.bool)
-    ->Option.getOr(default)
-
   {
-    includeHeaders: getBool("includeHeaders", defaultTsvOptions.includeHeaders),
+    includeHeaders: getBool(dict, "includeHeaders", defaultTsvOptions.includeHeaders),
   }
 }
 
 // Parse PSV options from JSON
 let parsePsvOptions = (dict: dict<JSON.t>): psvOptions => {
-  let getBool = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.bool)
-    ->Option.getOr(default)
-
   {
-    includeHeaders: getBool("includeHeaders", defaultPsvOptions.includeHeaders),
+    includeHeaders: getBool(dict, "includeHeaders", defaultPsvOptions.includeHeaders),
   }
 }
 
 // Parse JSON options from JSON
 let parseJsonOptions = (dict: dict<JSON.t>): jsonOptions => {
-  let getBool = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.bool)
-    ->Option.getOr(default)
-
-  let getInt = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.float)
-    ->Option.flatMap(value => {
-      let intValue = value->Float.toInt
-      if intValue->Int.toFloat === value {
-        Some(intValue)
-      } else {
-        None
-      }
-    })
-    ->Option.getOr(default)
-
   {
-    pretty: getBool("pretty", defaultJsonOptions.pretty),
-    indentSize: getInt("indentSize", defaultJsonOptions.indentSize),
-    asArray: getBool("asArray", defaultJsonOptions.asArray),
+    pretty: getBool(dict, "pretty", defaultJsonOptions.pretty),
+    indentSize: getInt(dict, "indentSize", defaultJsonOptions.indentSize),
+    asArray: getBool(dict, "asArray", defaultJsonOptions.asArray),
   }
 }
 
 // Parse Markdown options from JSON
 let parseMarkdownOptions = (dict: dict<JSON.t>): markdownOptions => {
-  let getString = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.string)
-    ->Option.getOr(default)
-
-  let getBool = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.bool)
-    ->Option.getOr(default)
-
   {
-    align: getString("align", defaultMarkdownOptions.align),
-    padding: getBool("padding", defaultMarkdownOptions.padding),
-    githubFlavor: getBool("githubFlavor", defaultMarkdownOptions.githubFlavor),
+    align: getString(dict, "align", defaultMarkdownOptions.align),
+    padding: getBool(dict, "padding", defaultMarkdownOptions.padding),
+    githubFlavor: getBool(dict, "githubFlavor", defaultMarkdownOptions.githubFlavor),
   }
 }
 
 // Parse HTML options from JSON
 let parseHtmlOptions = (dict: dict<JSON.t>): htmlOptions => {
-  let getString = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.string)
-    ->Option.getOr(default)
-
   {
-    tableClass: getString("tableClass", defaultHtmlOptions.tableClass),
-    theadClass: getString("theadClass", defaultHtmlOptions.theadClass),
-    tbodyClass: getString("tbodyClass", defaultHtmlOptions.tbodyClass),
-    id: getString("id", defaultHtmlOptions.id),
-    caption: getString("caption", defaultHtmlOptions.caption),
+    tableClass: getString(dict, "tableClass", defaultHtmlOptions.tableClass),
+    theadClass: getString(dict, "theadClass", defaultHtmlOptions.theadClass),
+    tbodyClass: getString(dict, "tbodyClass", defaultHtmlOptions.tbodyClass),
+    id: getString(dict, "id", defaultHtmlOptions.id),
+    caption: getString(dict, "caption", defaultHtmlOptions.caption),
   }
 }
 
 // Parse LaTeX options from JSON
 let parseLatexOptions = (dict: dict<JSON.t>): latexOptions => {
-  let getString = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.string)
-    ->Option.getOr(default)
-
-  let getBool = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.bool)
-    ->Option.getOr(default)
-
   {
-    tableEnvironment: getString("tableEnvironment", defaultLatexOptions.tableEnvironment),
-    columnSpec: getString("columnSpec", defaultLatexOptions.columnSpec),
-    booktabs: getBool("booktabs", defaultLatexOptions.booktabs),
-    caption: getString("caption", defaultLatexOptions.caption),
-    label: getString("label", defaultLatexOptions.label),
-    centering: getBool("centering", defaultLatexOptions.centering),
-    useTableEnvironment: getBool("useTableEnvironment", defaultLatexOptions.useTableEnvironment),
+    tableEnvironment: getString(dict, "tableEnvironment", defaultLatexOptions.tableEnvironment),
+    columnSpec: getString(dict, "columnSpec", defaultLatexOptions.columnSpec),
+    booktabs: getBool(dict, "booktabs", defaultLatexOptions.booktabs),
+    caption: getString(dict, "caption", defaultLatexOptions.caption),
+    label: getString(dict, "label", defaultLatexOptions.label),
+    centering: getBool(dict, "centering", defaultLatexOptions.centering),
+    useTableEnvironment: getBool(dict, "useTableEnvironment", defaultLatexOptions.useTableEnvironment),
   }
 }
 
 // Parse SQL options from JSON
 let parseSqlOptions = (dict: dict<JSON.t>): sqlOptions => {
-  let getString = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.string)
-    ->Option.getOr(default)
-
-  let getBool = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.bool)
-    ->Option.getOr(default)
-
-  let getInt = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.float)
-    ->Option.flatMap(value => {
-      let intValue = value->Float.toInt
-      if intValue->Int.toFloat === value {
-        Some(intValue)
-      } else {
-        None
-      }
-    })
-    ->Option.getOr(default)
-
-  let insertBatchSize = getInt("insertBatchSize", defaultSqlOptions.insertBatchSize)
+  let insertBatchSize = getInt(dict, "insertBatchSize", defaultSqlOptions.insertBatchSize)
   let insertBatchSize = if insertBatchSize > 0 {insertBatchSize} else {defaultSqlOptions.insertBatchSize}
 
   {
-    tableName: getString("tableName", defaultSqlOptions.tableName),
-    identifierQuote: getString("identifierQuote", defaultSqlOptions.identifierQuote),
-    includeCreateTable: getBool("includeCreateTable", defaultSqlOptions.includeCreateTable),
+    tableName: getString(dict, "tableName", defaultSqlOptions.tableName),
+    identifierQuote: getString(dict, "identifierQuote", defaultSqlOptions.identifierQuote),
+    includeCreateTable: getBool(dict, "includeCreateTable", defaultSqlOptions.includeCreateTable),
     insertBatchSize,
   }
 }
 
 // Parse YAML options from JSON
 let parseYamlOptions = (dict: dict<JSON.t>): yamlOptions => {
-  let getString = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.string)
-    ->Option.getOr(default)
-
-  let getBool = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.bool)
-    ->Option.getOr(default)
-
-  let getInt = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.float)
-    ->Option.flatMap(value => {
-      let intValue = value->Float.toInt
-      if intValue->Int.toFloat === value {
-        Some(intValue)
-      } else {
-        None
-      }
-    })
-    ->Option.getOr(default)
-
-  let indent = getInt("indent", defaultYamlOptions.indent)
+  let indent = getInt(dict, "indent", defaultYamlOptions.indent)
   let indent = if indent > 0 {indent} else {defaultYamlOptions.indent}
 
   {
     indent,
-    quoteStrings: getBool("quoteStrings", defaultYamlOptions.quoteStrings),
-    lineBreak: getString("lineBreak", defaultYamlOptions.lineBreak),
+    quoteStrings: getBool(dict, "quoteStrings", defaultYamlOptions.quoteStrings),
+    lineBreak: getString(dict, "lineBreak", defaultYamlOptions.lineBreak),
   }
 }
 
 // Parse NDJSON options from JSON
 let parseNdjsonOptions = (dict: dict<JSON.t>): ndjsonOptions => {
-  let getString = (key, default) =>
-    dict
-    ->Dict.get(key)
-    ->Option.flatMap(JSON.Decode.string)
-    ->Option.getOr(default)
-
   {
-    lineBreak: getString("lineBreak", defaultNdjsonOptions.lineBreak),
+    lineBreak: getString(dict, "lineBreak", defaultNdjsonOptions.lineBreak),
   }
 }
 

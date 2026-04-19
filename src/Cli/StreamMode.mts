@@ -1066,6 +1066,64 @@ const finalizeOutput = async (
   });
 };
 
+const emitHtmlPreamble = async (
+  output: Writable,
+  outputHeaders: ReadonlyArray<string>,
+  config: StreamCliConfig,
+): Promise<void> => {
+  const tableTag =
+    config.htmlId && config.htmlId !== ""
+      ? `<table id="${escapeHtml(config.htmlId)}" class="${escapeHtml(config.htmlTableClass || "")}">`
+      : config.htmlTableClass && config.htmlTableClass !== ""
+        ? `<table class="${escapeHtml(config.htmlTableClass)}">`
+        : "<table>";
+
+  const theadTag =
+    config.htmlTheadClass && config.htmlTheadClass !== ""
+      ? `  <thead class="${escapeHtml(config.htmlTheadClass)}">`
+      : "  <thead>";
+
+  const tbodyTag =
+    config.htmlTbodyClass && config.htmlTbodyClass !== ""
+      ? `  <tbody class="${escapeHtml(config.htmlTbodyClass)}">`
+      : "  <tbody>";
+
+  await writeChunk(output, `${tableTag}\n`);
+  if (config.htmlCaption && config.htmlCaption !== "") {
+    await writeChunk(
+      output,
+      `  <caption>${escapeHtml(config.htmlCaption)}</caption>\n`,
+    );
+  }
+  await writeChunk(output, `${theadTag}\n`);
+  await writeChunk(output, "    <tr>\n");
+  for (const header of outputHeaders) {
+    await writeChunk(output, `      <th>${escapeHtml(header)}</th>\n`);
+  }
+  await writeChunk(output, "    </tr>\n");
+  await writeChunk(output, "  </thead>\n");
+  await writeChunk(output, `${tbodyTag}\n`);
+};
+
+const emitDelimitedHeaderLine = async (
+  output: Writable,
+  outputHeaders: ReadonlyArray<string>,
+  config: StreamCliConfig,
+  lineBreak: string,
+): Promise<void> => {
+  const headerLine = outputHeaders
+    .map((header) =>
+      escapeDelimitedValue(header, {
+        delimiter: config.delimiter,
+        quote: config.quote,
+        escape: config.escape,
+        lineBreak,
+      }),
+    )
+    .join(config.delimiter);
+  await writeChunk(output, headerLine + lineBreak);
+};
+
 /**
  * Stream-processes newline- or file-based JSON input and writes a tabular export.
  *
@@ -1233,50 +1291,9 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     if (config.outputFormat === "sql") {
       await emitSqlCreateTable(output, outputHeaders, config);
     } else if (config.outputFormat === "html") {
-      const tableTag =
-        config.htmlId && config.htmlId !== ""
-          ? `<table id="${escapeHtml(config.htmlId)}" class="${escapeHtml(config.htmlTableClass || "")}">`
-          : config.htmlTableClass && config.htmlTableClass !== ""
-            ? `<table class="${escapeHtml(config.htmlTableClass)}">`
-            : "<table>";
-
-      const theadTag =
-        config.htmlTheadClass && config.htmlTheadClass !== ""
-          ? `  <thead class="${escapeHtml(config.htmlTheadClass)}">`
-          : "  <thead>";
-
-      const tbodyTag =
-        config.htmlTbodyClass && config.htmlTbodyClass !== ""
-          ? `  <tbody class="${escapeHtml(config.htmlTbodyClass)}">`
-          : "  <tbody>";
-
-      await writeChunk(output, `${tableTag}\n`);
-      if (config.htmlCaption && config.htmlCaption !== "") {
-        await writeChunk(
-          output,
-          `  <caption>${escapeHtml(config.htmlCaption)}</caption>\n`,
-        );
-      }
-      await writeChunk(output, `${theadTag}\n`);
-      await writeChunk(output, "    <tr>\n");
-      for (const header of outputHeaders) {
-        await writeChunk(output, `      <th>${escapeHtml(header)}</th>\n`);
-      }
-      await writeChunk(output, "    </tr>\n");
-      await writeChunk(output, "  </thead>\n");
-      await writeChunk(output, `${tbodyTag}\n`);
+      await emitHtmlPreamble(output, outputHeaders, config);
     } else if (config.includeHeaders) {
-      const headerLine = outputHeaders
-        .map((header) =>
-          escapeDelimitedValue(header, {
-            delimiter: config.delimiter,
-            quote: config.quote,
-            escape: config.escape,
-            lineBreak,
-          }),
-        )
-        .join(config.delimiter);
-      await writeChunk(output, headerLine + lineBreak);
+      await emitDelimitedHeaderLine(output, outputHeaders, config, lineBreak);
     }
 
     initialized = true;
@@ -1458,6 +1475,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     process.off("SIGINT", sigintHandler);
     process.exit(EXIT_OK);
   } catch (error) {
+    cleanupOutputFile();
     process.off("SIGINT", sigintHandler);
     throw error;
   }

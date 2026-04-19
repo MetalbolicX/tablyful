@@ -414,43 +414,95 @@ let shouldRouteBatchMode = (
   }
 }
 
-let main = (): unit => {
-  let parsed =
-    try {
-      Some(
-        Bindings.Util.parseArgs({
-          args: Bindings.Process.argv->Array.slice(~start=2),
-          options: makeParseOptions(),
-          strict: true,
-          allowPositionals: true,
-        }),
-      )
-    } catch {
-    | JsExn(e) =>
-      CliIo.printError(
-        TablyfulError.validationError(
-          `Argument parsing failed: ${e->JsExn.message->Option.getOr("unknown error")}`,
-        ),
-      )
-      showHelp()
-      Bindings.Process.exit(CliConstants.exitCodeValidationError)
-      None
+let parseArgsOrExit = (): Bindings.Util.parseArgsResult => {
+  try {
+    Bindings.Util.parseArgs({
+      args: Bindings.Process.argv->Array.slice(~start=2),
+      options: makeParseOptions(),
+      strict: true,
+      allowPositionals: true,
+    })
+  } catch {
+  | JsExn(e) =>
+    CliIo.printError(
+      TablyfulError.validationError(
+        `Argument parsing failed: ${e->JsExn.message->Option.getOr("unknown error")}`,
+      ),
+    )
+    showHelp()
+    Bindings.Process.exit(CliConstants.exitCodeValidationError)
+    {
+      values: {},
+      positionals: [],
     }
+  }
+}
 
-  switch parsed {
-  | None => ()
-  | Some(parsed) =>
+let parseMaxFileSizeOrExit = (raw: option<string>): int => {
+  switch parseMaxFileSizeBytes(raw) {
+  | Ok(size) => size
+  | Error(error) =>
+    CliIo.printError(error)
+    showHelp()
+    Bindings.Process.exit(CliConstants.exitCodeValidationError)
+    defaultMaxFileSizeBytes
+  }
+}
+
+let parseSetPairsOrExit = (raw: option<array<string>>): array<(string, string)> => {
+  switch CliOptions.parseSetPairs(raw) {
+  | Ok(pairs) => pairs
+  | Error(error) =>
+    CliIo.printError(error)
+    showHelp()
+    Bindings.Process.exit(CliConstants.exitCodeValidationError)
+    []
+  }
+}
+
+let parseColumnsArgOrExit = (raw: option<string>): option<array<string>> => {
+  switch CliOptions.parseColumnsArg(raw) {
+  | Ok(columns) => columns
+  | Error(error) =>
+    CliIo.printError(error)
+    showHelp()
+    Bindings.Process.exit(CliConstants.exitCodeValidationError)
+    None
+  }
+}
+
+let parseFilterExprsOrExit = (raw: option<array<string>>): array<string> => {
+  switch CliOptions.parseFilterExprs(raw) {
+  | Ok(filters) => filters
+  | Error(error) =>
+    CliIo.printError(error)
+    showHelp()
+    Bindings.Process.exit(CliConstants.exitCodeValidationError)
+    []
+  }
+}
+
+let parseStreamFlagOrExit = (stream: option<bool>, noStream: option<bool>): option<bool> => {
+  switch (stream, noStream) {
+  | (Some(true), Some(true)) =>
+    CliIo.printError(
+      TablyfulError.validationError("Cannot use --stream and --no-stream together."),
+    )
+    showHelp()
+    Bindings.Process.exit(CliConstants.exitCodeValidationError)
+    None
+  | (Some(true), _) => Some(true)
+  | (_, Some(true)) => Some(false)
+  | _ => None
+  }
+}
+
+let main = (): unit => {
+  let parsed = parseArgsOrExit()
     let values = parsed.values
     let positionals = parsed.positionals
 
-    let maxFileSizeBytes = switch parseMaxFileSizeBytes(values.maxFileSize) {
-    | Ok(size) => size
-    | Error(error) =>
-      CliIo.printError(error)
-      showHelp()
-      Bindings.Process.exit(CliConstants.exitCodeValidationError)
-      defaultMaxFileSizeBytes
-    }
+    let maxFileSizeBytes = parseMaxFileSizeOrExit(values.maxFileSize)
 
     if values.help->Option.getOr(false) {
       showHelp()
@@ -489,45 +541,10 @@ let main = (): unit => {
     | None => ()
     }
 
-    let setPairs = switch CliOptions.parseSetPairs(values.set) {
-    | Ok(pairs) => pairs
-    | Error(error) =>
-      CliIo.printError(error)
-      showHelp()
-      Bindings.Process.exit(CliConstants.exitCodeValidationError)
-      []
-    }
-
-    let columnsArg = switch CliOptions.parseColumnsArg(values.columns) {
-    | Ok(columns) => columns
-    | Error(error) =>
-      CliIo.printError(error)
-      showHelp()
-      Bindings.Process.exit(CliConstants.exitCodeValidationError)
-      None
-    }
-
-    let filterExprs = switch CliOptions.parseFilterExprs(values.filter) {
-    | Ok(filters) => filters
-    | Error(error) =>
-      CliIo.printError(error)
-      showHelp()
-      Bindings.Process.exit(CliConstants.exitCodeValidationError)
-      []
-    }
-
-    let streamFlag = switch (values.stream, values.noStream) {
-    | (Some(true), Some(true)) =>
-      CliIo.printError(
-        TablyfulError.validationError("Cannot use --stream and --no-stream together."),
-      )
-      showHelp()
-      Bindings.Process.exit(CliConstants.exitCodeValidationError)
-      None
-    | (Some(true), _) => Some(true)
-    | (_, Some(true)) => Some(false)
-    | _ => None
-    }
+    let setPairs = parseSetPairsOrExit(values.set)
+    let columnsArg = parseColumnsArgOrExit(values.columns)
+    let filterExprs = parseFilterExprsOrExit(values.filter)
+    let streamFlag = parseStreamFlagOrExit(values.stream, values.noStream)
 
     let flags: flags = {
       formatArg: values.format,
@@ -619,5 +636,4 @@ let main = (): unit => {
         }
       }
     }
-  }
 }

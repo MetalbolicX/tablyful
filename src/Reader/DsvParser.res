@@ -50,12 +50,12 @@ let parse = (input: string, ~delimiter: string): parsed => {
     }
 
     let finishField = () => {
-      currentRow := Array.concat(currentRow.contents, [flushField()])
+      ignore(currentRow.contents->Array.push(flushField()))
     }
 
     let finishRow = () => {
       finishField()
-      allRows := Array.concat(allRows.contents, [currentRow.contents])
+      ignore(allRows.contents->Array.push(currentRow.contents))
       currentRow := []
     }
 

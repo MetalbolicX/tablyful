@@ -78,23 +78,27 @@ let finalizeConversion = (
   writeOutput(flags.outputPath, output)
 }
 
-let makeBaseStreamConfig = (
-  ~inputPath: option<string>,
-  flags: flags,
-  options: t,
-): Bindings.StreamMode.config => {
-  let inferredInputFormat = switch flags.inputArg->Option.map(String.toLowerCase) {
+let resolveInputFormat = (inputArg: option<string>, inputPath: option<string>): string => {
+  switch inputArg->Option.map(String.toLowerCase) {
   | Some(fmt) => fmt
   | None =>
     switch inputPath {
     | Some(path) =>
       switch FormatDetector.fromExtension(path) {
-      | Some("ndjson") => "ndjson"
-      | _ => "json"
+      | Some(fmt) => fmt
+      | None => "json"
       }
     | None => "json"
     }
   }
+}
+
+let makeBaseStreamConfig = (
+  ~inputPath: option<string>,
+  flags: flags,
+  options: t,
+): Bindings.StreamMode.config => {
+  let inferredInputFormat = resolveInputFormat(flags.inputArg, inputPath)
 
   {
     inputPath: inputPath->Option.getOr(""),
@@ -127,22 +131,76 @@ let makeBaseStreamConfig = (
 }
 
 let parseStreamableInputFormat = (inputArg: option<string>, inputPath: option<string>): option<string> => {
-  let format = switch inputArg->Option.map(String.toLowerCase) {
-  | Some(fmt) => fmt
-  | None =>
-    switch inputPath {
-    | Some(path) =>
-      switch FormatDetector.fromExtension(path) {
-      | Some(fmt) => fmt
-      | None => "json"
-      }
-    | None => "json"
-    }
-  }
+  let format = resolveInputFormat(inputArg, inputPath)
 
   switch format {
   | "json" | "ndjson" => Some(format)
   | _ => None
+  }
+}
+
+let buildStreamConfig = (
+  baseConfig: Bindings.StreamMode.config,
+  options: t,
+): Common.result<Bindings.StreamMode.config> => {
+  switch options.outputFormat {
+  | Csv =>
+    let csv = Defaults.getCsvOptions(options)
+    Ok({
+      ...baseConfig,
+      outputFormat: "csv",
+      delimiter: csv.delimiter,
+      quote: csv.quote,
+      escape: csv.escape,
+      lineBreak: csv.lineBreak,
+      includeHeaders: csv.includeHeaders,
+    })
+  | Tsv =>
+    let tsv = Defaults.getTsvOptions(options)
+    Ok({...baseConfig, outputFormat: "tsv", delimiter: "\t", includeHeaders: tsv.includeHeaders})
+  | Psv =>
+    let psv = Defaults.getPsvOptions(options)
+    Ok({...baseConfig, outputFormat: "psv", delimiter: "|", includeHeaders: psv.includeHeaders})
+  | Sql =>
+    let sql = Defaults.getSqlOptions(options)
+    Ok({
+      ...baseConfig,
+      outputFormat: "sql",
+      includeHeaders: false,
+      sqlTableName: sql.tableName,
+      sqlIdentifierQuote: sql.identifierQuote,
+      sqlIncludeCreateTable: sql.includeCreateTable,
+      sqlInsertBatchSize: sql.insertBatchSize,
+    })
+  | Html =>
+    let html = Defaults.getHtmlOptions(options)
+    Ok({
+      ...baseConfig,
+      outputFormat: "html",
+      includeHeaders: true,
+      htmlTableClass: html.tableClass,
+      htmlTheadClass: html.theadClass,
+      htmlTbodyClass: html.tbodyClass,
+      htmlId: html.id,
+      htmlCaption: html.caption,
+    })
+  | Yaml =>
+    let yaml = Defaults.getYamlOptions(options)
+    Ok({
+      ...baseConfig,
+      outputFormat: "yaml",
+      includeHeaders: true,
+      lineBreak: yaml.lineBreak,
+      yamlIndent: yaml.indent,
+      yamlQuoteStrings: yaml.quoteStrings,
+    })
+  | Ndjson =>
+    let ndjson = Defaults.getNdjsonOptions(options)
+    Ok({...baseConfig, outputFormat: "ndjson", includeHeaders: false, lineBreak: ndjson.lineBreak})
+  | _ =>
+    TablyfulError.validationError(
+      `Automatic streaming currently supports output formats: ${CliConstants.streamableOutputFormats}.`,
+    )->TablyfulError.toResult
   }
 }
 
@@ -162,80 +220,9 @@ let runStreamMode = (~inputPath: option<string>, flags: flags, options: t): unit
   let baseConfig = makeBaseStreamConfig(~inputPath, flags, options)
   let baseConfig = {...baseConfig, inputFormat}
 
-  let streamConfig = switch options.outputFormat {
-  | Csv => {
-      let csv = Defaults.getCsvOptions(options)
-      Some({
-        ...baseConfig,
-        outputFormat: "csv",
-        delimiter: csv.delimiter,
-        quote: csv.quote,
-        escape: csv.escape,
-        lineBreak: csv.lineBreak,
-        includeHeaders: csv.includeHeaders,
-      })
-    }
-  | Tsv => {
-      let tsv = Defaults.getTsvOptions(options)
-      Some({...baseConfig, outputFormat: "tsv", delimiter: "\t", includeHeaders: tsv.includeHeaders})
-    }
-  | Psv => {
-      let psv = Defaults.getPsvOptions(options)
-      Some({...baseConfig, outputFormat: "psv", delimiter: "|", includeHeaders: psv.includeHeaders})
-    }
-  | Sql => {
-      let sql = Defaults.getSqlOptions(options)
-      Some({
-        ...baseConfig,
-        outputFormat: "sql",
-        includeHeaders: false,
-        sqlTableName: sql.tableName,
-        sqlIdentifierQuote: sql.identifierQuote,
-        sqlIncludeCreateTable: sql.includeCreateTable,
-        sqlInsertBatchSize: sql.insertBatchSize,
-      })
-    }
-  | Html => {
-      let html = Defaults.getHtmlOptions(options)
-      Some({
-        ...baseConfig,
-        outputFormat: "html",
-        includeHeaders: true,
-        htmlTableClass: html.tableClass,
-        htmlTheadClass: html.theadClass,
-        htmlTbodyClass: html.tbodyClass,
-        htmlId: html.id,
-        htmlCaption: html.caption,
-      })
-    }
-  | Yaml => {
-      let yaml = Defaults.getYamlOptions(options)
-      Some({
-        ...baseConfig,
-        outputFormat: "yaml",
-        includeHeaders: true,
-        lineBreak: yaml.lineBreak,
-        yamlIndent: yaml.indent,
-        yamlQuoteStrings: yaml.quoteStrings,
-      })
-    }
-  | Ndjson => {
-      let ndjson = Defaults.getNdjsonOptions(options)
-      Some({...baseConfig, outputFormat: "ndjson", includeHeaders: false, lineBreak: ndjson.lineBreak})
-    }
-  | _ =>
-    CliIo.exitWithError(
-      ~code=CliConstants.exitCodeValidationError,
-      TablyfulError.validationError(
-        `Automatic streaming currently supports output formats: ${CliConstants.streamableOutputFormats}.`,
-      ),
-    )
-    None
-  }
-
-  switch streamConfig {
-  | Some(config) => Bindings.StreamMode.run(config)
-  | None => ()
+  switch buildStreamConfig(baseConfig, options) {
+  | Error(error) => CliIo.exitWithError(~code=CliConstants.exitCodeValidationError, error)
+  | Ok(streamConfig) => Bindings.StreamMode.run(streamConfig)
   }
 }
 
