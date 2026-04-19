@@ -43,7 +43,7 @@ let writeOutput = (outputPath: option<string>, output: string): Common.result<un
   switch outputPath {
   | Some(path) =>
     try {
-      Bindings.Fs.writeFileSyncUtf8(path, output ++ "\n")
+      Bindings.Fs.writeFileSyncUtf8(path, output)
       Ok(())
     } catch {
     | JsExn(e) =>
@@ -52,7 +52,7 @@ let writeOutput = (outputPath: option<string>, output: string): Common.result<un
       )->TablyfulError.toResult
     }
   | None =>
-    CliIo.writeStdout(output ++ "\n")
+    CliIo.writeStdout(output)
     Ok(())
   }
 }
@@ -83,8 +83,22 @@ let makeBaseStreamConfig = (
   flags: flags,
   options: t,
 ): Bindings.StreamMode.config => {
+  let inferredInputFormat = switch flags.inputArg->Option.map(String.toLowerCase) {
+  | Some(fmt) => fmt
+  | None =>
+    switch inputPath {
+    | Some(path) =>
+      switch FormatDetector.fromExtension(path) {
+      | Some("ndjson") => "ndjson"
+      | _ => "json"
+      }
+    | None => "json"
+    }
+  }
+
   {
     inputPath: inputPath->Option.getOr(""),
+    inputFormat: inferredInputFormat,
     outputPath: flags.outputPath->Option.getOr(""),
     outputFormat: "csv",
     delimiter: Defaults.defaultCsvOptions.delimiter,
@@ -112,8 +126,41 @@ let makeBaseStreamConfig = (
   }
 }
 
+let parseStreamableInputFormat = (inputArg: option<string>, inputPath: option<string>): option<string> => {
+  let format = switch inputArg->Option.map(String.toLowerCase) {
+  | Some(fmt) => fmt
+  | None =>
+    switch inputPath {
+    | Some(path) =>
+      switch FormatDetector.fromExtension(path) {
+      | Some(fmt) => fmt
+      | None => "json"
+      }
+    | None => "json"
+    }
+  }
+
+  switch format {
+  | "json" | "ndjson" => Some(format)
+  | _ => None
+  }
+}
+
 let runStreamMode = (~inputPath: option<string>, flags: flags, options: t): unit => {
+  let inputFormat = switch parseStreamableInputFormat(flags.inputArg, inputPath) {
+  | Some(fmt) => fmt
+  | None =>
+    CliIo.exitWithError(
+      ~code=CliConstants.exitCodeValidationError,
+      TablyfulError.validationError(
+        "Automatic streaming currently supports input formats: json, ndjson.",
+      ),
+    )
+    "json"
+  }
+
   let baseConfig = makeBaseStreamConfig(~inputPath, flags, options)
+  let baseConfig = {...baseConfig, inputFormat}
 
   let streamConfig = switch options.outputFormat {
   | Csv => {
@@ -172,9 +219,13 @@ let runStreamMode = (~inputPath: option<string>, flags: flags, options: t): unit
         yamlQuoteStrings: yaml.quoteStrings,
       })
     }
+  | Ndjson => {
+      let ndjson = Defaults.getNdjsonOptions(options)
+      Some({...baseConfig, outputFormat: "ndjson", includeHeaders: false, lineBreak: ndjson.lineBreak})
+    }
   | _ =>
     CliIo.exitWithError(
-      ~code=2,
+      ~code=CliConstants.exitCodeValidationError,
       TablyfulError.validationError(
         `Automatic streaming currently supports output formats: ${CliConstants.streamableOutputFormats}.`,
       ),
@@ -201,34 +252,34 @@ let runConversion = (inputText: string, flags: flags, ~inputPath: option<string>
 
   let handleTableResult = (tableResult: Common.result<TableData.t>, options: t): unit => {
     switch tableResult {
-    | Error(error) => CliIo.exitWithError(~code=1, error)
+    | Error(error) => CliIo.exitWithError(~code=CliConstants.exitCodeRuntimeError, error)
     | Ok(tableData) =>
       switch processTableData(tableData, flags, options) {
-      | Error(error) => CliIo.exitWithError(~code=1, error)
+      | Error(error) => CliIo.exitWithError(~code=CliConstants.exitCodeRuntimeError, error)
       | Ok((finalData, output)) =>
         switch finalizeConversion(finalData, output, flags, options) {
-        | Error(error) => CliIo.exitWithError(~code=1, error)
-        | Ok(()) => Bindings.Process.exit(0)
+        | Error(error) => CliIo.exitWithError(~code=CliConstants.exitCodeRuntimeError, error)
+        | Ok(()) => Bindings.Process.exit(CliConstants.exitCodeSuccess)
         }
       }
     }
   }
 
   switch CliOptions.resolveOptions(flags) {
-  | Error(error) => CliIo.exitWithError(~code=2, error)
+  | Error(error) => CliIo.exitWithError(~code=CliConstants.exitCodeValidationError, error)
   | Ok(options) =>
     if isReaderFormat {
       switch detectedFormat {
       | Some(format) => handleTableResult(ReaderRegistry.read(~format, inputText, options), options)
       | None =>
         CliIo.exitWithError(
-          ~code=1,
+          ~code=CliConstants.exitCodeRuntimeError,
           TablyfulError.parseError("Failed to detect a reader format for non-JSON input."),
         )
       }
     } else {
       switch parseJsonInput(inputText) {
-      | Error(error) => CliIo.exitWithError(~code=1, error)
+      | Error(error) => CliIo.exitWithError(~code=CliConstants.exitCodeRuntimeError, error)
       | Ok(jsonInput) =>
         handleTableResult(ParserRegistry.parse(~format=?flags.inputArg, jsonInput, options), options)
       }

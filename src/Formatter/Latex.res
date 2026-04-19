@@ -19,26 +19,6 @@ let escapeLatex = (str: string): string => {
   ->String.replaceAll("^", "\\textasciicircum{}")
 }
 
-// Convert JSON value to string
-let jsonToString = (json: JSON.t): string => {
-  if json === JSON.Encode.null {
-    ""
-  } else {
-    switch JSON.Decode.string(json) {
-    | Some(str) => str->escapeLatex
-    | None =>
-      switch JSON.Decode.float(json) {
-      | Some(n) => n->Float.toString
-      | None =>
-        switch JSON.Decode.bool(json) {
-        | Some(b) => b->Bool.toString
-        | None => JSON.stringify(json)->escapeLatex
-        }
-      }
-    }
-  }
-}
-
 // Format implementation
 let formatImpl = (data: TableData.t, options: t): string => {
   let opts = Defaults.getLatexOptions(options)
@@ -98,7 +78,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
         row
         ->Dict.get(header)
         ->Option.getOr(JSON.Encode.null)
-        ->jsonToString
+        ->FormatterCommon.jsonToString(~escapeString=escapeLatex, ~escapeJsonFallback=escapeLatex)
       })
       ->Array.join(" & ")
     lines->Array.push(`  ${rowStr} \\\\`)
@@ -118,7 +98,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
     lines->Array.push("\\end{table}")
   }
 
-  lines->Array.join("\\n")
+  lines->Array.join("\n")
 }
 
 // Create formatter using functor

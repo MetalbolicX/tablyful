@@ -149,7 +149,7 @@ test("E2E: toLatex emits tabular environment", () => {
   )
 })
 
-test("E2E: toSql emits insert placeholders", () => {
+test("E2E: toSql emits insert literals", () => {
   let options: Types.t = {
     ...Defaults.t,
     outputFormat: Sql,
@@ -158,7 +158,7 @@ test("E2E: toSql emits insert placeholders", () => {
 
   expectConverted(~input=arrayOfArraysInput(), ~format="sql", ~options, ~expected="SQL conversion to succeed", sql => {
     expectTrue(sql->String.includes("CREATE TABLE \"users\""))
-    expectTrue(sql->String.includes("VALUES (?, ?)"))
+    expectTrue(sql->String.includes("VALUES ('Alice', 30)"))
   })
 })
 

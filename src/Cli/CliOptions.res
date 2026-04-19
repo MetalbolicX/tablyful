@@ -275,9 +275,18 @@ let applySetOverride = (options: t, ((key, value): (string, string))): Common.re
           )
         }
       }
+    | "ndjson" => {
+        switch field {
+        | "lineBreak" => Ok({...options, formatOptions: NdjsonOptions({lineBreak: value})})
+        | _ =>
+          invalidSet(
+            `Unknown --set option: ${fullKey}. Allowed ndjson options: lineBreak.`,
+          )
+        }
+      }
     | _ =>
       invalidSet(
-        `Unknown --set format: ${section}. Allowed formats: csv, tsv, psv, json, markdown, html, latex, sql, yaml.`,
+        `Unknown --set format: ${section}. Allowed formats: csv, tsv, psv, json, markdown, html, latex, sql, yaml, ndjson.`,
       )
     }
   }
@@ -362,7 +371,7 @@ let overrideWithCliFlags = (options: t, flags: flags): Common.result<t> => {
 let mergeConfig = (~configPath: option<string>): Common.result<t> => {
   switch configPath {
   | Some(path) => ConfigFile.load(~path, ())
-  | None => Ok(Defaults.t)
+  | None => ConfigFile.load(())
   }
 }
 

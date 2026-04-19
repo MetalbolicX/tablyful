@@ -9,8 +9,13 @@ module Stream: {
 
   let setEncoding: (stdInput, string) => unit
   let onData: (stdInput, string => unit) => unit
+  let onceData: (stdInput, string => unit) => unit
   let onEnd: (stdInput, unit => unit) => unit
+  let onceEnd: (stdInput, unit => unit) => unit
   let onError: (stdInput, JsExn.t => unit) => unit
+  let pause: stdInput => unit
+  let resume: stdInput => unit
+  let unshift: (stdInput, string) => unit
   let write: (stdOutput, string) => bool
 }
 
@@ -69,7 +74,10 @@ module Util: {
     config?: string,
     stats?: bool,
     version?: bool,
+    examples?: bool,
     @as("no-headers") noHeaders?: bool,
+    @as("no-stream") noStream?: bool,
+    stream?: bool,
     @as("list-set-keys") listSetKeys?: bool,
     @as("list-set-keys-format") listSetKeysFormat?: string,
   }
@@ -107,6 +115,7 @@ module TableExtractor: {
 module StreamMode: {
   type config = {
     inputPath: string,
+    inputFormat: string,
     outputPath: string,
     outputFormat: string,
     delimiter: string,

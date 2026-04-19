@@ -8,7 +8,7 @@ let defaultCsvOptions: csvOptions = {
   delimiter: ",",
   quote: "\"",
   escape: "\\",
-  lineBreak: "\\n",
+  lineBreak: "\n",
   includeHeaders: true,
 }
 
@@ -60,6 +60,10 @@ let defaultSqlOptions: sqlOptions = {
 let defaultYamlOptions: yamlOptions = {
   indent: 2,
   quoteStrings: false,
+  lineBreak: "\n",
+}
+
+let defaultNdjsonOptions: ndjsonOptions = {
   lineBreak: "\n",
 }
 
@@ -193,6 +197,19 @@ let getYamlOptions = (opts: t): yamlOptions => {
       | _ => None
       },
     ~defaultValue=defaultYamlOptions,
+    opts,
+  )
+}
+
+// Get NDJSON options from format options
+let getNdjsonOptions = (opts: t): ndjsonOptions => {
+  getFromFormatOptions(
+    ~extract=formatOptions =>
+      switch formatOptions {
+      | NdjsonOptions(ndjson) => Some(ndjson)
+      | _ => None
+      },
+    ~defaultValue=defaultNdjsonOptions,
     opts,
   )
 }

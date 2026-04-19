@@ -50,6 +50,13 @@ test("Formatter: csv escapes commas and quotes", () => {
   })
 })
 
+test("Formatter: csv uses actual newline separator", () => {
+  expectFormatOk(~input=sampleArrayOfObjects(), ~format="csv", ~expected="CSV newline formatter success", csv => {
+    expectTrue(csv->String.includes("\n"))
+    expectTrue(!(csv->String.includes("\\n")))
+  })
+})
+
 test("Formatter: html escapes special characters", () => {
   let input =
     JSON.Encode.array([
@@ -160,6 +167,27 @@ test("Formatter: markdown supports centered alignment", () => {
     ~expected="Markdown formatter success",
     markdown => {
       expectTrue(markdown->String.match(%re("/:[-]+:/"))->Option.isSome)
+    },
+  )
+})
+
+test("Formatter: ndjson emits one object per line", () => {
+  let options: Types.t = {
+    ...Defaults.t,
+    outputFormat: Ndjson,
+    formatOptions: NdjsonOptions(Defaults.defaultNdjsonOptions),
+  }
+
+  expectFormatOk(
+    ~input=sampleArrayOfObjects(),
+    ~format="ndjson",
+    ~options,
+    ~expected="NDJSON formatter success",
+    ndjson => {
+      let lines = ndjson->String.split("\n")
+      expectIntEqual(1, lines->Array.length)
+      expectTrue(lines->Array.getUnsafe(0)->String.includes("\"name\":\"Alice\""))
+      expectTrue(lines->Array.getUnsafe(0)->String.includes("\"age\":30"))
     },
   )
 })

@@ -7,6 +7,7 @@ let defaultHtmlOptions: Types.htmlOptions
 let defaultLatexOptions: Types.latexOptions
 let defaultSqlOptions: Types.sqlOptions
 let defaultYamlOptions: Types.yamlOptions
+let defaultNdjsonOptions: Types.ndjsonOptions
 let t: Types.t
 let getCsvOptions: Types.t => Types.csvOptions
 let getTsvOptions: Types.t => Types.tsvOptions
@@ -17,3 +18,4 @@ let getHtmlOptions: Types.t => Types.htmlOptions
 let getLatexOptions: Types.t => Types.latexOptions
 let getSqlOptions: Types.t => Types.sqlOptions
 let getYamlOptions: Types.t => Types.yamlOptions
+let getNdjsonOptions: Types.t => Types.ndjsonOptions

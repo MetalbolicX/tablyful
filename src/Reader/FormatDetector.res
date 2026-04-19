@@ -17,19 +17,21 @@ let fromExtension = (path: string): option<string> => {
   } else {
     let ext = sliceFrom(path, dotIdx)->String.toLowerCase
     switch ext {
-    | ".html" | ".htm" => Some("html")
-    | ".md" | ".markdown" => Some("markdown")
-    | ".tex" | ".latex" => Some("latex")
     | ".json" => Some("json")
-    | ".csv" => Some("csv")
-    | ".tsv" => Some("tsv")
-    | ".psv" => Some("psv")
-    | ".yaml" | ".yml" => Some("yaml")
-    | ".xml" => Some("xml")
-    | ".sql" => Some("sql")
-    | _ => None
+    | _ => ReaderRegistry.getByExtension(ext)->Option.map(reader => reader.name)
     }
   }
+}
+
+let looksLikeNdjson = (trimmed: string): bool => {
+  let lines =
+    trimmed
+    ->String.split("\n")
+    ->Array.map(line => line->String.trim)
+    ->Array.filter(line => line !== "")
+
+  lines->Array.length > 1 &&
+    lines->Array.every(line => line->String.startsWith("{") && line->String.endsWith("}"))
 }
 
 // Content sniffing heuristics
@@ -57,6 +59,8 @@ let fromContent = (content: string): option<string> => {
       trimmed->String.includes("| :--")
   ) {
     Some("markdown")
+  } else if looksLikeNdjson(trimmed) {
+    Some("ndjson")
   } else if trimmed->String.startsWith("[") || trimmed->String.startsWith("{") {
     // JSON: starts with [ or {
     Some("json")

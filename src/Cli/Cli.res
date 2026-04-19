@@ -58,8 +58,8 @@ Usage: tablyful [options] [file]
 Convert tabular data between formats.
 
 Options:
-  -f, --format <format>   Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
-  -i, --input <format>    Input format (json|csv|tsv|psv|html|markdown|latex|yaml|xml|sql; auto-detected when omitted)
+  -f, --format <format>   Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml|ndjson)
+  -i, --input <format>    Input format (json|ndjson|csv|tsv|psv|html|markdown|latex|yaml|xml|sql; auto-detected when omitted)
   -o, --output <path>     Write output to file instead of stdout
       --set <key=value>   Override format option (repeatable, e.g. --set json.pretty=false)
       --list-set-keys      Print allowed --set keys and defaults
@@ -68,6 +68,9 @@ Options:
   -C, --columns <names>   Comma-separated output columns (e.g. name,age)
       --filter <expr>     Filter rows (repeatable; supports = != > < >= <= LIKE)
       --stats             Print conversion stats to stderr
+      --stream            Force streaming mode (line-by-line processing)
+      --no-stream         Force buffered mode (read entire input first)
+      --examples          Show usage examples
   -c, --config <path>     Path to config JSON file
   -d, --delimiter <char>  CSV delimiter override
       --max-file-size <n>  Maximum input file size in bytes (default: 524288000)
@@ -77,8 +80,19 @@ Options:
 
 Input is read from [file] when provided, otherwise from stdin when piped.
 Input format is auto-detected from file extension or content. Use --input to override.
-Supported input formats: json, csv, tsv, psv, html, markdown, latex, yaml, xml, sql.
+Supported input formats: json, ndjson, csv, tsv, psv, html, markdown, latex, yaml, xml, sql.
 
+Streaming: tablyful automatically streams when input is a JSON array or NDJSON and the
+output format supports streaming (csv|tsv|psv|sql|html|yaml|ndjson). Use --stream to
+force streaming (useful for file input) or --no-stream to disable it.
+
+Use --examples to see usage examples.
+`
+  )
+}
+
+let showExamples = (): unit => {
+  CliIo.writeStdout(`
 Examples:
   cat data.json | tablyful --format csv --set csv.delimiter=';'
   cat data.json | tablyful --format json --set json.pretty=false --set json.indentSize=4
@@ -93,6 +107,10 @@ Examples:
   tablyful data.sql --format yaml
   cat table.tex | tablyful --input latex --format csv
   cat data.tsv | tablyful --input tsv --format json
+  cat data.ndjson | tablyful --input ndjson --format csv
+  tablyful data.json --format ndjson
+  tablyful data.json --format csv --stream
+  tablyful data.json --format json --no-stream
   tablyful --list-set-keys
   tablyful --list-set-keys-format csv
   cat data.json | tablyful --format csv --delimiter ';' --config conf.json
@@ -130,6 +148,7 @@ let printSetKeys = (filter: option<Types.format>): unit => {
   let latex = Defaults.defaultLatexOptions
   let sql = Defaults.defaultSqlOptions
   let yaml = Defaults.defaultYamlOptions
+  let ndjson = Defaults.defaultNdjsonOptions
   let displayLiteral = (value: string): string => {
     value->String.replaceAll("\n", "\\n")->String.replaceAll("\t", "\\t")
   }
@@ -219,6 +238,12 @@ let printSetKeys = (filter: option<Types.format>): unit => {
     ])
   }
 
+  let printNdjson = () => {
+    printSection("ndjson", [
+      `ndjson.lineBreak (string) - line break (default: ${ndjson.lineBreak->displayLiteral})`,
+    ])
+  }
+
   let printByFormat = (format: Types.format): unit => {
     switch format {
     | Csv => printCsv()
@@ -230,11 +255,12 @@ let printSetKeys = (filter: option<Types.format>): unit => {
     | Latex => printLatex()
     | Sql => printSql()
     | Yaml => printYaml()
+    | Ndjson => printNdjson()
     }
   }
 
   switch filter {
-  | None => [Csv, Tsv, Psv, Json, Markdown, Html, Latex, Sql, Yaml]->Array.forEach(printByFormat)
+  | None => [Csv, Tsv, Psv, Json, Markdown, Html, Latex, Sql, Yaml, Ndjson]->Array.forEach(printByFormat)
   | Some(format) => printByFormat(format)
   }
 }
@@ -248,6 +274,9 @@ let makeParseOptions = (): dict<Bindings.Util.flatConfig> => {
     ("columns", makeStringOption(~short="C")),
     ("filter", makeStringOption(~multiple=true)),
     ("stats", makeBoolOption()),
+    ("stream", makeBoolOption()),
+    ("no-stream", makeBoolOption()),
+    ("examples", makeBoolOption()),
     ("list-set-keys", makeBoolOption()),
     ("list-set-keys-format", makeStringOption()),
     ("config", makeStringOption(~short="c")),
@@ -261,25 +290,128 @@ let makeParseOptions = (): dict<Bindings.Util.flatConfig> => {
 
 type flags = CliTypes.flags
 
-let readInputFromStdin = (flags: flags): unit => {
-  Bindings.Stream.setEncoding(Bindings.Process.stdin, "utf8")
+let shouldStreamStdin = (firstChunk: string, flags: flags, streamOptions: option<t>): bool => {
+  switch flags.stream {
+  | Some(true) =>
+    switch streamOptions {
+    | Some(options) =>
+      if CliConstants.isStreamableOutputFormat(options.outputFormat) {
+        true
+      } else {
+        TablyfulError.validationError(CliConstants.streamUnsupportedOutputMessage)->CliIo.printError
+        Bindings.Process.exit(CliConstants.exitCodeValidationError)
+        false
+      }
+    | None => false
+    }
+  | Some(false) => false
+  | None =>
+    let trimmed = firstChunk->String.trim
+    let requestedInput = flags.inputArg->Option.map(String.toLowerCase)
+    let looksLikeJsonArray = trimmed->String.startsWith("[")
+    let looksLikeNdjsonObject =
+      switch requestedInput {
+      | Some("ndjson") => trimmed->String.startsWith("{")
+      | _ => false
+      }
+    if !looksLikeJsonArray && !looksLikeNdjsonObject {
+      false
+    } else {
+      switch streamOptions {
+      | Some(options) => CliConstants.isStreamableOutputFormat(options.outputFormat)
+      | None => false
+      }
+    }
+  }
+}
 
-  let chunks = ref(list{})
+let readInputFromStdin = (flags: flags, ~streamOptions=?,): unit => {
+  let stdin = Bindings.Process.stdin
+  Bindings.Stream.setEncoding(stdin, "utf8")
 
-  Bindings.Stream.onData(Bindings.Process.stdin, chunk => {
-    chunks.contents = list{chunk, ...chunks.contents}
+  let sawData = ref(false)
+
+  let runBufferedMode = (firstChunk: string): unit => {
+    let chunks = ref(list{firstChunk})
+
+    Bindings.Stream.onData(stdin, chunk => {
+      chunks.contents = list{chunk, ...chunks.contents}
+    })
+
+    Bindings.Stream.onEnd(stdin, () => {
+      CliConvert.runConversion(chunks.contents->List.reverse->List.toArray->Array.join(""), flags)
+    })
+
+    Bindings.Stream.resume(stdin)
+  }
+
+  Bindings.Stream.onceData(stdin, firstChunk => {
+    sawData.contents = true
+    Bindings.Stream.pause(stdin)
+
+    if shouldStreamStdin(firstChunk, flags, streamOptions) {
+      Bindings.Stream.unshift(stdin, firstChunk)
+      switch streamOptions {
+      | Some(options) => CliConvert.runStreamMode(~inputPath=None, flags, options)
+      | None => runBufferedMode(firstChunk)
+      }
+    } else {
+      runBufferedMode(firstChunk)
+    }
   })
 
-  Bindings.Stream.onEnd(Bindings.Process.stdin, () => {
-    CliConvert.runConversion(chunks.contents->List.reverse->List.toArray->Array.join(""), flags)
+  Bindings.Stream.onceEnd(stdin, () => {
+    if !sawData.contents {
+      CliConvert.runConversion("", flags)
+    }
   })
 
-  Bindings.Stream.onError(Bindings.Process.stdin, e => {
+  Bindings.Stream.onError(stdin, e => {
     CliIo.printError(
       TablyfulError.ioError(`Failed to read stdin: ${e->JsExn.message->Option.getOr("unknown error")}`),
     )
-    Bindings.Process.exit(1)
+    Bindings.Process.exit(CliConstants.exitCodeRuntimeError)
   })
+}
+
+let isStdinPiped = (): bool => {
+  Bindings.Process.stdin.isTTY !== Some(true)
+}
+
+let resolveRoutingInputFormat = (
+  normalizedInputArg: option<string>,
+  inputPath: option<string>,
+): option<string> => {
+  switch normalizedInputArg {
+  | Some(fmt) => Some(fmt)
+  | None =>
+    switch inputPath {
+    | Some(path) => FormatDetector.fromExtension(path)
+    | None => None
+    }
+  }
+}
+
+let shouldForceBatchFromInputArg = (normalizedInputArg: option<string>): bool => {
+  switch normalizedInputArg {
+  | Some("json") => false
+  | Some("ndjson") => false
+  | Some(_) => true
+  | None => false
+  }
+}
+
+let shouldRouteBatchMode = (
+  flags: flags,
+  ~forceBatchFromInputArg: bool,
+  ~isReaderInput: bool,
+  ~isNdjsonInput: bool,
+): bool => {
+  if flags.stream == Some(false) {
+    true
+  } else {
+    flags.stream != Some(true) && (forceBatchFromInputArg || (isReaderInput && !isNdjsonInput))
+  }
 }
 
 let main = (): unit => {
@@ -301,7 +433,7 @@ let main = (): unit => {
         ),
       )
       showHelp()
-      Bindings.Process.exit(2)
+      Bindings.Process.exit(CliConstants.exitCodeValidationError)
       None
     }
 
@@ -316,23 +448,28 @@ let main = (): unit => {
     | Error(error) =>
       CliIo.printError(error)
       showHelp()
-      Bindings.Process.exit(2)
+      Bindings.Process.exit(CliConstants.exitCodeValidationError)
       defaultMaxFileSizeBytes
     }
 
     if values.help->Option.getOr(false) {
       showHelp()
-      Bindings.Process.exit(0)
+      Bindings.Process.exit(CliConstants.exitCodeSuccess)
+    }
+
+    if values.examples->Option.getOr(false) {
+      showExamples()
+      Bindings.Process.exit(CliConstants.exitCodeSuccess)
     }
 
     if values.version->Option.getOr(false) {
       showVersion()
-      Bindings.Process.exit(0)
+      Bindings.Process.exit(CliConstants.exitCodeSuccess)
     }
 
     if values.listSetKeys->Option.getOr(false) {
       printSetKeys(None)
-      Bindings.Process.exit(0)
+      Bindings.Process.exit(CliConstants.exitCodeSuccess)
     }
 
     switch values.listSetKeysFormat {
@@ -340,14 +477,14 @@ let main = (): unit => {
       switch Types.formatFromString(formatStr) {
       | Some(format) =>
         printSetKeys(Some(format))
-        Bindings.Process.exit(0)
+        Bindings.Process.exit(CliConstants.exitCodeSuccess)
       | None =>
         CliIo.printError(
           TablyfulError.validationError(
             `Invalid format for --list-set-keys-format: ${formatStr}. Expected one of: ${CliConstants.supportedOutputFormats}.`,
           ),
         )
-        Bindings.Process.exit(2)
+        Bindings.Process.exit(CliConstants.exitCodeValidationError)
       }
     | None => ()
     }
@@ -357,7 +494,7 @@ let main = (): unit => {
     | Error(error) =>
       CliIo.printError(error)
       showHelp()
-      Bindings.Process.exit(2)
+      Bindings.Process.exit(CliConstants.exitCodeValidationError)
       []
     }
 
@@ -366,7 +503,7 @@ let main = (): unit => {
     | Error(error) =>
       CliIo.printError(error)
       showHelp()
-      Bindings.Process.exit(2)
+      Bindings.Process.exit(CliConstants.exitCodeValidationError)
       None
     }
 
@@ -375,8 +512,21 @@ let main = (): unit => {
     | Error(error) =>
       CliIo.printError(error)
       showHelp()
-      Bindings.Process.exit(2)
+      Bindings.Process.exit(CliConstants.exitCodeValidationError)
       []
+    }
+
+    let streamFlag = switch (values.stream, values.noStream) {
+    | (Some(true), Some(true)) =>
+      CliIo.printError(
+        TablyfulError.validationError("Cannot use --stream and --no-stream together."),
+      )
+      showHelp()
+      Bindings.Process.exit(CliConstants.exitCodeValidationError)
+      None
+    | (Some(true), _) => Some(true)
+    | (_, Some(true)) => Some(false)
+    | _ => None
     }
 
     let flags: flags = {
@@ -391,6 +541,7 @@ let main = (): unit => {
       configPath: values.config,
       noHeaders: values.noHeaders->Option.getOr(false),
       stats: values.stats->Option.getOr(false),
+      stream: streamFlag,
     }
 
     let inputPath = if positionals->Array.length > 0 {
@@ -411,54 +562,60 @@ let main = (): unit => {
           CliIo.printError(
             TablyfulError.ioError(`Failed to read input file: ${e->JsExn.message->Option.getOr("unknown error")}`),
           )
-          Bindings.Process.exit(1)
+          Bindings.Process.exit(CliConstants.exitCodeRuntimeError)
           ""
         }
         CliConvert.runConversion(inputText, flags, ~inputPath=filePath)
       | None =>
-        if Bindings.Process.stdin.isTTY !== Some(true) {
+        if isStdinPiped() {
           readInputFromStdin(flags)
         } else {
           showHelp()
-          Bindings.Process.exit(0)
+          Bindings.Process.exit(CliConstants.exitCodeSuccess)
         }
       }
     }
 
-    let isReaderInput = switch flags.inputArg {
+    let normalizedInputArg = flags.inputArg->Option.map(String.toLowerCase)
+    let routingInputFormat = resolveRoutingInputFormat(normalizedInputArg, inputPath)
+    let forceBatchFromInputArg = shouldForceBatchFromInputArg(normalizedInputArg)
+
+    let isReaderInput = switch routingInputFormat {
     | Some(fmt) => ReaderRegistry.hasReader(fmt)
-    | _ =>
-      switch inputPath {
-      | Some(p) =>
-        switch FormatDetector.fromExtension(p) {
-        | Some(fmt) => ReaderRegistry.hasReader(fmt)
-        | _ => false
-        }
-      | None => false
-      }
+    | None => false
     }
 
-    if flags.inputArg->Option.isSome || isReaderInput {
+    let isNdjsonInput = switch routingInputFormat {
+    | Some("ndjson") => true
+    | _ => false
+    }
+
+    if shouldRouteBatchMode(flags, ~forceBatchFromInputArg, ~isReaderInput, ~isNdjsonInput) {
       runBatchMode()
     } else {
       switch CliOptions.resolveOptions(flags) {
       | Error(error) =>
         CliIo.printError(error)
-        Bindings.Process.exit(2)
+        Bindings.Process.exit(CliConstants.exitCodeValidationError)
       | Ok(options) =>
-        switch options.outputFormat {
-        | Csv | Tsv | Psv | Sql | Html | Yaml =>
+        if CliConstants.isStreamableOutputFormat(options.outputFormat) {
           switch inputPath {
           | Some(_) => CliConvert.runStreamMode(~inputPath, flags, options)
           | None =>
-            if Bindings.Process.stdin.isTTY !== Some(true) {
-              readInputFromStdin(flags)
+            if isStdinPiped() {
+              readInputFromStdin(flags, ~streamOptions=options)
             } else {
               showHelp()
-              Bindings.Process.exit(0)
+              Bindings.Process.exit(CliConstants.exitCodeSuccess)
             }
           }
-        | _ => runBatchMode()
+        } else {
+          if flags.stream == Some(true) {
+            CliIo.printError(TablyfulError.validationError(CliConstants.streamUnsupportedOutputMessage))
+            Bindings.Process.exit(CliConstants.exitCodeValidationError)
+          } else {
+            runBatchMode()
+          }
         }
       }
     }

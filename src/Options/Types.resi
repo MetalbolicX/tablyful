@@ -8,6 +8,7 @@ type format =
   | Latex
   | Sql
   | Yaml
+  | Ndjson
 
 type csvOptions = {
   delimiter: string,
@@ -68,6 +69,10 @@ type yamlOptions = {
   lineBreak: string,
 }
 
+type ndjsonOptions = {
+  lineBreak: string,
+}
+
 type formatOptions =
   | CsvOptions(csvOptions)
   | TsvOptions(tsvOptions)
@@ -78,6 +83,7 @@ type formatOptions =
   | LatexOptions(latexOptions)
   | SqlOptions(sqlOptions)
   | YamlOptions(yamlOptions)
+  | NdjsonOptions(ndjsonOptions)
 
 type t = {
   headers: option<array<string>>,

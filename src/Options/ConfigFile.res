@@ -104,7 +104,14 @@ let parseJsonOptions = (dict: dict<JSON.t>): jsonOptions => {
     dict
     ->Dict.get(key)
     ->Option.flatMap(JSON.Decode.float)
-    ->Option.map(Float.toInt)
+    ->Option.flatMap(value => {
+      let intValue = value->Float.toInt
+      if intValue->Int.toFloat === value {
+        Some(intValue)
+      } else {
+        None
+      }
+    })
     ->Option.getOr(default)
 
   {
@@ -195,14 +202,24 @@ let parseSqlOptions = (dict: dict<JSON.t>): sqlOptions => {
     dict
     ->Dict.get(key)
     ->Option.flatMap(JSON.Decode.float)
-    ->Option.map(Float.toInt)
+    ->Option.flatMap(value => {
+      let intValue = value->Float.toInt
+      if intValue->Int.toFloat === value {
+        Some(intValue)
+      } else {
+        None
+      }
+    })
     ->Option.getOr(default)
+
+  let insertBatchSize = getInt("insertBatchSize", defaultSqlOptions.insertBatchSize)
+  let insertBatchSize = if insertBatchSize > 0 {insertBatchSize} else {defaultSqlOptions.insertBatchSize}
 
   {
     tableName: getString("tableName", defaultSqlOptions.tableName),
     identifierQuote: getString("identifierQuote", defaultSqlOptions.identifierQuote),
     includeCreateTable: getBool("includeCreateTable", defaultSqlOptions.includeCreateTable),
-    insertBatchSize: getInt("insertBatchSize", defaultSqlOptions.insertBatchSize),
+    insertBatchSize,
   }
 }
 
@@ -224,13 +241,36 @@ let parseYamlOptions = (dict: dict<JSON.t>): yamlOptions => {
     dict
     ->Dict.get(key)
     ->Option.flatMap(JSON.Decode.float)
-    ->Option.map(Float.toInt)
+    ->Option.flatMap(value => {
+      let intValue = value->Float.toInt
+      if intValue->Int.toFloat === value {
+        Some(intValue)
+      } else {
+        None
+      }
+    })
+    ->Option.getOr(default)
+
+  let indent = getInt("indent", defaultYamlOptions.indent)
+  let indent = if indent > 0 {indent} else {defaultYamlOptions.indent}
+
+  {
+    indent,
+    quoteStrings: getBool("quoteStrings", defaultYamlOptions.quoteStrings),
+    lineBreak: getString("lineBreak", defaultYamlOptions.lineBreak),
+  }
+}
+
+// Parse NDJSON options from JSON
+let parseNdjsonOptions = (dict: dict<JSON.t>): ndjsonOptions => {
+  let getString = (key, default) =>
+    dict
+    ->Dict.get(key)
+    ->Option.flatMap(JSON.Decode.string)
     ->Option.getOr(default)
 
   {
-    indent: getInt("indent", defaultYamlOptions.indent),
-    quoteStrings: getBool("quoteStrings", defaultYamlOptions.quoteStrings),
-    lineBreak: getString("lineBreak", defaultYamlOptions.lineBreak),
+    lineBreak: getString("lineBreak", defaultNdjsonOptions.lineBreak),
   }
 }
 
@@ -279,7 +319,39 @@ let knownTopLevelKeys = [
   "latex",
   "sql",
   "yaml",
+  "ndjson",
 ]
+
+let knownCsvKeys = ["delimiter", "quote", "escape", "lineBreak", "includeHeaders"]
+let knownTsvKeys = ["includeHeaders"]
+let knownPsvKeys = ["includeHeaders"]
+let knownJsonKeys = ["pretty", "indentSize", "asArray"]
+let knownMarkdownKeys = ["align", "padding", "githubFlavor"]
+let knownHtmlKeys = ["tableClass", "theadClass", "tbodyClass", "id", "caption"]
+let knownLatexKeys = ["tableEnvironment", "columnSpec", "booktabs", "caption", "label", "centering", "useTableEnvironment"]
+let knownSqlKeys = ["tableName", "identifierQuote", "includeCreateTable", "insertBatchSize"]
+let knownYamlKeys = ["indent", "quoteStrings", "lineBreak"]
+let knownNdjsonKeys = ["lineBreak"]
+
+let warnUnknownConfigKeys = (~scope: string, ~keys: array<string>): unit => {
+  if keys->Array.length > 0 {
+    ignore(
+      Bindings.Stream.write(
+        Bindings.Process.stderr,
+        `[tablyful] Warning: Unknown ${scope} key(s): ${keys->Array.join(", ")}. These keys are ignored.\n`,
+      ),
+    )
+  }
+}
+
+let warnUnknownSectionKeys = (~sectionName: string, dict: dict<JSON.t>, knownKeys: array<string>): unit => {
+  let unknown =
+    dict
+    ->Dict.keysToArray
+    ->Array.filter(key => !(knownKeys->Array.includes(key)))
+
+  warnUnknownConfigKeys(~scope=`${sectionName} config`, ~keys=unknown)
+}
 
 let warnUnknownKeys = (dict: dict<JSON.t>): unit => {
   let unknown =
@@ -287,14 +359,7 @@ let warnUnknownKeys = (dict: dict<JSON.t>): unit => {
     ->Dict.keysToArray
     ->Array.filter(key => !(knownTopLevelKeys->Array.includes(key)))
 
-  if unknown->Array.length > 0 {
-    ignore(
-      Bindings.Stream.write(
-        Bindings.Process.stderr,
-        `[tablyful] Warning: Unknown config key(s): ${unknown->Array.join(", ")}. These keys are ignored.\n`,
-      ),
-    )
-  }
+  warnUnknownConfigKeys(~scope="config", ~keys=unknown)
 }
 
 // Parse options from config dict
@@ -330,70 +395,107 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     dict
     ->Dict.get("csv")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parseCsvOptions)
+    ->Option.map(csvDict => {
+      warnUnknownSectionKeys(~sectionName="csv", csvDict, knownCsvKeys)
+      parseCsvOptions(csvDict)
+    })
     ->Option.map(csv => CsvOptions(csv))
     ->Option.getOr(CsvOptions(defaultCsvOptions))
   | Tsv =>
     dict
     ->Dict.get("tsv")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parseTsvOptions)
+    ->Option.map(tsvDict => {
+      warnUnknownSectionKeys(~sectionName="tsv", tsvDict, knownTsvKeys)
+      parseTsvOptions(tsvDict)
+    })
     ->Option.map(tsv => TsvOptions(tsv))
     ->Option.getOr(TsvOptions(defaultTsvOptions))
   | Psv =>
     dict
     ->Dict.get("psv")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parsePsvOptions)
+    ->Option.map(psvDict => {
+      warnUnknownSectionKeys(~sectionName="psv", psvDict, knownPsvKeys)
+      parsePsvOptions(psvDict)
+    })
     ->Option.map(psv => PsvOptions(psv))
     ->Option.getOr(PsvOptions(defaultPsvOptions))
   | Json =>
     dict
     ->Dict.get("json")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parseJsonOptions)
+    ->Option.map(jsonDict => {
+      warnUnknownSectionKeys(~sectionName="json", jsonDict, knownJsonKeys)
+      parseJsonOptions(jsonDict)
+    })
     ->Option.map(json => JsonOptions(json))
     ->Option.getOr(JsonOptions(defaultJsonOptions))
   | Markdown =>
     dict
     ->Dict.get("markdown")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parseMarkdownOptions)
+    ->Option.map(markdownDict => {
+      warnUnknownSectionKeys(~sectionName="markdown", markdownDict, knownMarkdownKeys)
+      parseMarkdownOptions(markdownDict)
+    })
     ->Option.map(md => MarkdownOptions(md))
     ->Option.getOr(MarkdownOptions(defaultMarkdownOptions))
   | Html =>
     dict
     ->Dict.get("html")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parseHtmlOptions)
+    ->Option.map(htmlDict => {
+      warnUnknownSectionKeys(~sectionName="html", htmlDict, knownHtmlKeys)
+      parseHtmlOptions(htmlDict)
+    })
     ->Option.map(html => HtmlOptions(html))
     ->Option.getOr(HtmlOptions(defaultHtmlOptions))
   | Latex =>
     dict
     ->Dict.get("latex")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parseLatexOptions)
+    ->Option.map(latexDict => {
+      warnUnknownSectionKeys(~sectionName="latex", latexDict, knownLatexKeys)
+      parseLatexOptions(latexDict)
+    })
     ->Option.map(latex => LatexOptions(latex))
     ->Option.getOr(LatexOptions(defaultLatexOptions))
   | Sql =>
     dict
     ->Dict.get("sql")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parseSqlOptions)
+    ->Option.map(sqlDict => {
+      warnUnknownSectionKeys(~sectionName="sql", sqlDict, knownSqlKeys)
+      parseSqlOptions(sqlDict)
+    })
     ->Option.map(sql => SqlOptions(sql))
     ->Option.getOr(SqlOptions(defaultSqlOptions))
   | Yaml =>
     dict
     ->Dict.get("yaml")
     ->Option.flatMap(JSON.Decode.object)
-    ->Option.map(parseYamlOptions)
+    ->Option.map(yamlDict => {
+      warnUnknownSectionKeys(~sectionName="yaml", yamlDict, knownYamlKeys)
+      parseYamlOptions(yamlDict)
+    })
     ->Option.map(yaml => YamlOptions(yaml))
     ->Option.getOr(YamlOptions(defaultYamlOptions))
+  | Ndjson =>
+    dict
+    ->Dict.get("ndjson")
+    ->Option.flatMap(JSON.Decode.object)
+    ->Option.map(ndjsonDict => {
+      warnUnknownSectionKeys(~sectionName="ndjson", ndjsonDict, knownNdjsonKeys)
+      parseNdjsonOptions(ndjsonDict)
+    })
+    ->Option.map(ndjson => NdjsonOptions(ndjson))
+    ->Option.getOr(NdjsonOptions(defaultNdjsonOptions))
   }
 
   {
     headers: getStringArray("headers"),
-    hasHeaders: getBool("hasHeaders", defaultCsvOptions.includeHeaders),
+    hasHeaders: getBool("hasHeaders", t.hasHeaders),
     rowNumberHeader: getString("rowNumberHeader", t.rowNumberHeader),
     hasRowNumbers: getBool("includeRowNumbers", t.hasRowNumbers),
     outputFormat: format,
@@ -425,7 +527,7 @@ let load = (~path=?, ()): Common.result<t> => {
       | Ok(Some(config)) =>
         let merged = switch acc {
         | None => config
-        | Some(existing) => mergeDicts(existing, config)
+        | Some(existing) => mergeDicts(config, existing)
         }
         loadConfigs(paths->Array.slice(~start=1), Some(merged))
       | Error(err) => Error(err)

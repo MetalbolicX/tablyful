@@ -48,6 +48,11 @@ let all: array<readerEntry> = [
     read: YamlReader.read,
   },
   {
+    name: NdjsonReader.name,
+    extensions: NdjsonReader.extensions,
+    read: NdjsonReader.read,
+  },
+  {
     name: XmlReader.name,
     extensions: XmlReader.extensions,
     read: XmlReader.read,

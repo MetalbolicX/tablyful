@@ -10,4 +10,5 @@ type flags = {
   configPath: option<string>,
   noHeaders: bool,
   stats: bool,
+  stream: option<bool>,
 }

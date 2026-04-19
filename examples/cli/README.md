@@ -28,7 +28,7 @@ node dist/cli.mjs examples/cli/sample.json --format csv --output examples/cli/ou
 # filter + select columns
 node dist/cli.mjs examples/cli/sample.json --format yaml --filter "name LIKE ali%" --columns name,age
 
-# sql placeholders + create table
+# sql inserts + create table
 node dist/cli.mjs examples/cli/sample.json --format sql --set sql.tableName=users --set sql.includeCreateTable=true
 
 # print conversion stats
@@ -39,13 +39,15 @@ node dist/cli.mjs --list-set-keys
 node dist/cli.mjs --list-set-keys-format json
 ```
 
-# NDJSON examples
+## NDJSON examples
 
+```bash
 # stream NDJSON stdin to CSV
 node dist/cli.mjs --input ndjson --format csv < examples/cli/sample.ndjson
 
 # produce NDJSON from a JSON file
 node dist/cli.mjs examples/cli/sample.json --format ndjson > examples/cli/sample.out.ndjson
+```
 
 
 ## Precedence Reminder

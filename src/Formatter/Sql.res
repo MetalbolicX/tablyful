@@ -1,6 +1,6 @@
 /**
  * SQL Formatter
- * Emits INSERT statements with placeholders and optional CREATE TABLE
+ * Emits INSERT statements with inline literals and optional CREATE TABLE
  */
 open Types
 
@@ -75,7 +75,6 @@ let formatImpl = (data: TableData.t, options: t): string => {
     lines->Array.push("")
   }
 
-  let placeholderLine = data.headers->Array.map(_ => "?")->Array.join(", ")
   let headerLine = headerNames->Array.join(", ")
 
   let batchSize = opts.insertBatchSize > 0 ? opts.insertBatchSize : 1
@@ -95,8 +94,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
           row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToSqlLiteral
         )
         ->Array.join(", ")
-      lines->Array.push(`-- VALUES: (${values})`)
-      lines->Array.push(`INSERT INTO ${tableName} (${headerLine}) VALUES (${placeholderLine});`)
+      lines->Array.push(`INSERT INTO ${tableName} (${headerLine}) VALUES (${values});`)
     } else {
       let rowLiterals = batchRows->Array.map(row => {
         let vals =

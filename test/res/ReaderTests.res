@@ -84,6 +84,9 @@ let sampleYaml = "---\n- name: Alice\n  age: 30\n  city: New York\n- name: Bob\n
 
 let sampleYamlObjectOfArrays = "name:\n  - Alice\n  - Bob\nage:\n  - 30\n  - 25\n"
 
+let sampleNdjson =
+  "{\"name\":\"Alice\",\"age\":30,\"city\":\"New York\"}\n{\"name\":\"Bob\",\"age\":25,\"city\":\"London\"}\n"
+
 let sampleXml =
   "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<data>\n  <row>\n    <name>Alice</name>\n    <age>30</age>\n    <city>New York</city>\n  </row>\n  <row>\n    <name>Bob</name>\n    <age>25</age>\n    <city>London</city>\n  </row>\n</data>\n"
 
@@ -98,8 +101,16 @@ let sampleSqlWithEscapes =
 
 test("Reader: registry exposes all readers", () => {
   let names = ReaderRegistry.getNames()
-  ["csv", "tsv", "psv", "html", "markdown", "latex", "yaml", "xml", "sql"]
+  ["csv", "tsv", "psv", "html", "markdown", "latex", "yaml", "ndjson", "xml", "sql"]
   ->Array.forEach(name => expectTrue(names->Array.includes(name)))
+})
+
+test("Reader: ndjson parses newline-delimited objects", () => {
+  expectReaderSuccess(~format="ndjson", ~input=sampleNdjson, ~expected="NDJSON reader success", table => {
+    expectIntEqual(2, table.metadata.rowCount)
+    expectTextEqual("Alice", getCell(table, ~rowIndex=0, ~column="name"))
+    expectTextEqual("London", getCell(table, ~rowIndex=1, ~column="city"))
+  })
 })
 
 test("Reader: csv parses basic input", () => {
@@ -270,4 +281,9 @@ test("Reader: xml with no repeating elements returns parse error", () => {
 test("Reader: sql with no INSERT returns parse error", () => {
   read(~format="sql", ~input="SELECT * FROM users;")
   ->expectParseErrorContains(~contains="INSERT")
+})
+
+test("Reader: ndjson with scalar row returns parse error", () => {
+  read(~format="ndjson", ~input="{\"name\":\"Alice\"}\n42\n")
+  ->expectParseErrorContains(~contains="must be a JSON object")
 })

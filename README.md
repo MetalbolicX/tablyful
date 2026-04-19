@@ -37,7 +37,7 @@ tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
 # row filtering + column selection
 tablyful data.json --format yaml --filter "name LIKE ali%" --columns name,age
 
-# SQL placeholders with optional table creation
+# SQL inserts with optional table creation
 tablyful data.json --format sql --set sql.tableName=users --set sql.includeCreateTable=true
 
 # conversion diagnostics

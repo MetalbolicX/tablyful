@@ -13,26 +13,6 @@ let escapeHtml = (str: string): string => {
   ->String.replaceAll("\"", "&quot;")
 }
 
-// Convert JSON value to string
-let jsonToString = (json: JSON.t): string => {
-  if json === JSON.Encode.null {
-    ""
-  } else {
-    switch JSON.Decode.string(json) {
-    | Some(str) => str->escapeHtml
-    | None =>
-      switch JSON.Decode.float(json) {
-      | Some(n) => n->Float.toString
-      | None =>
-        switch JSON.Decode.bool(json) {
-        | Some(b) => b->Bool.toString
-        | None => JSON.stringify(json)->escapeHtml
-        }
-      }
-    }
-  }
-}
-
 // Format implementation
 let formatImpl = (data: TableData.t, options: t): string => {
   let opts = Defaults.getHtmlOptions(options)
@@ -80,7 +60,11 @@ let formatImpl = (data: TableData.t, options: t): string => {
   data.rows->Array.forEach(row => {
     lines->Array.push("    <tr>")
     data.headers->Array.forEach(header => {
-      let value = row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToString
+      let value =
+        row
+        ->Dict.get(header)
+        ->Option.getOr(JSON.Encode.null)
+        ->FormatterCommon.jsonToString(~escapeString=escapeHtml, ~escapeJsonFallback=escapeHtml)
       lines->Array.push(`      <td>${value}</td>`)
     })
     lines->Array.push("    </tr>")
@@ -89,7 +73,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
   lines->Array.push("  </tbody>")
   lines->Array.push("</table>")
 
-  lines->Array.join("\\n")
+  lines->Array.join("\n")
 }
 
 // Create formatter using functor

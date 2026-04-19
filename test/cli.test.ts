@@ -32,6 +32,10 @@ const sampleYaml = `---
   age: 25
 `;
 
+const sampleNdjson = `{"name":"Alice","age":30}
+{"name":"Bob","age":25}
+`;
+
 test("CLI: --help prints usage and exits 0", () => {
   const result = runCli({ args: ["--help"] });
 
@@ -209,7 +213,8 @@ test("CLI: --output writes formatted content to file", () => {
 });
 
 test("CLI: missing file exits 1", () => {
-  const result = runCli({ args: ["/tmp/does-not-exist-tablyful.json", "--format", "csv"] });
+  const missingPath = join(tmpdir(), `does-not-exist-tablyful-${Date.now()}.json`);
+  const result = runCli({ args: [missingPath, "--format", "csv"] });
 
   assert.equal(result.code, 1);
   assert.match(result.stderr, /Failed to read input file/);
@@ -239,6 +244,53 @@ test("CLI: --config sets default output format when --format is absent", () => {
   }
 });
 
+test("CLI: local config overrides home config", () => {
+  const homeDir = mkdtempSync(join(tmpdir(), "tablyful-home-"));
+  const workDir = mkdtempSync(join(tmpdir(), "tablyful-work-"));
+  const homeConfigPath = join(homeDir, ".tablyfulrc.json");
+  const localConfigPath = join(workDir, ".tablyfulrc.json");
+
+  try {
+    writeFileSync(homeConfigPath, JSON.stringify({ defaultFormat: "csv", csv: { delimiter: "|" } }), "utf8");
+    writeFileSync(localConfigPath, JSON.stringify({ defaultFormat: "csv", csv: { delimiter: ";" } }), "utf8");
+
+    const result = runCli({
+      cwd: workDir,
+      env: { HOME: homeDir },
+      input: sampleArrayOfArrays,
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /name;age/);
+    assert.match(result.stdout, /Alice;30/);
+  } finally {
+    rmSync(homeDir, { recursive: true, force: true });
+    rmSync(workDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: csv output uses real newlines", () => {
+  const result = runCli({
+    args: ["--format", "csv"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout.trimEnd(), "name,age\nAlice,30\nBob,25");
+  assert.equal(result.stdout.includes("\\n"), false);
+});
+
+test("CLI: tsv output uses real newlines", () => {
+  const result = runCli({
+    args: ["--format", "tsv"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.equal(result.stdout.trimEnd(), "name\tage\nAlice\t30\nBob\t25");
+  assert.equal(result.stdout.includes("\\n"), false);
+});
+
 test("CLI: invalid json exits 1", () => {
   const result = runCli({
     args: ["--format", "csv"],
@@ -259,23 +311,23 @@ test("CLI: invalid output format exits 2", () => {
   assert.match(result.stderr, /Invalid format: xml/);
 });
 
-test("CLI: invalid --filter expression exits 1", () => {
+test("CLI: invalid --filter expression exits 2", () => {
   const result = runCli({
     args: ["--format", "csv", "--filter", "age~~20"],
     input: sampleArrayOfArrays,
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.stderr, /Invalid filter expression/);
 });
 
-test("CLI: unknown --columns field exits 1", () => {
+test("CLI: unknown --columns field exits 2", () => {
   const result = runCli({
     args: ["--format", "csv", "--columns", "name,missing"],
     input: sampleArrayOfArrays,
   });
 
-  assert.equal(result.code, 1);
+  assert.equal(result.code, 2);
   assert.match(result.stderr, /Unknown column\(s\) in --columns/);
 });
 
@@ -409,6 +461,30 @@ test("CLI: warns about unknown config keys", () => {
   }
 });
 
+test("CLI: warns about unknown section config keys", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-config-section-warning-"));
+  const configPath = join(tempDir, "config.json");
+
+  try {
+    writeFileSync(
+      configPath,
+      JSON.stringify({ defaultFormat: "csv", csv: { delimiter: ";", unknownCsvOption: true } }),
+      "utf8",
+    );
+
+    const result = runCli({
+      args: ["--config", configPath, "--format", "csv"],
+      input: sampleArrayOfArrays,
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stderr, /Unknown csv config key\(s\): unknownCsvOption/);
+    assert.match(result.stdout, /name;age/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("CLI: reader path works with --input html", () => {
   const result = runCli({
     args: ["--input", "html", "--format", "csv"],
@@ -441,6 +517,51 @@ test("CLI: content-sniffs yaml from stdin", () => {
   assert.equal(result.code, 0);
   assert.match(result.stdout, /name,age/);
   assert.match(result.stdout, /Alice,30/);
+});
+
+test("CLI: --input ndjson parses piped ndjson", () => {
+  const result = runCli({
+    args: ["--input", "ndjson", "--format", "csv"],
+    input: sampleNdjson,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /(name,age|age,name)/);
+  assert.match(result.stdout, /(Alice,30|30,Alice)/);
+  assert.match(result.stdout, /(Bob,25|25,Bob)/);
+});
+
+test("CLI: --input ndjson streams to ndjson output", () => {
+  const result = runCli({
+    args: ["--input", "ndjson", "--format", "ndjson"],
+    input: sampleNdjson,
+  });
+
+  assert.equal(result.code, 0);
+  const lines = result.stdout.trim().split("\n");
+  assert.equal(lines.length, 2);
+
+  const first = JSON.parse(lines[0]);
+  const second = JSON.parse(lines[1]);
+  assert.equal(first.name, "Alice");
+  assert.equal(first.age, 30);
+  assert.equal(second.name, "Bob");
+  assert.equal(second.age, 25);
+});
+
+test("CLI: JSON array stdin streams to ndjson output", () => {
+  const result = runCli({
+    args: ["--format", "ndjson"],
+    input: sampleArrayOfObjects,
+  });
+
+  assert.equal(result.code, 0);
+  const lines = result.stdout.trim().split("\n");
+  assert.equal(lines.length, 2);
+
+  const parsed = lines.map((line) => JSON.parse(line));
+  assert.equal(parsed[0].name, "Alice");
+  assert.equal(parsed[1].name, "Bob");
 });
 
 test("CLI: detects yaml format from file extension", () => {
@@ -490,4 +611,178 @@ test("CLI: reader invalid markdown exits 1", () => {
 
   assert.equal(result.code, 1);
   assert.match(result.stderr, /table/i);
+});
+
+test("CLI: --stream and --no-stream together exits 2", () => {
+  const result = runCli({
+    args: ["--stream", "--no-stream", "--format", "csv"],
+    input: sampleArrayOfObjects,
+  });
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /Cannot use --stream and --no-stream together/);
+});
+
+test("CLI: --stream with unsupported output format exits 2", () => {
+  const result = runCli({
+    args: ["--stream", "--format", "json"],
+    input: sampleArrayOfObjects,
+  });
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /output format does not support streaming/);
+});
+
+test("CLI: --stream invalid json emits parse error", () => {
+  const result = runCli({
+    args: ["--stream", "--format", "csv"],
+    input: '[{"name":"Alice"},',
+  });
+
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /\[PARSE_ERROR\] Invalid JSON format/);
+});
+
+test("CLI: --stream invalid filter expression exits 2", () => {
+  const result = runCli({
+    args: ["--stream", "--format", "csv", "--filter", "age~~20"],
+    input: sampleArrayOfObjects,
+  });
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /\[VALIDATION_ERROR\] Invalid filter expression/);
+});
+
+test("CLI: --stream with csv output succeeds", () => {
+  const result = runCli({
+    args: ["--stream", "--format", "csv"],
+    input: sampleArrayOfObjects,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /name,age/);
+  assert.match(result.stdout, /Alice,30/);
+});
+
+test("CLI: --no-stream with json output succeeds", () => {
+  const result = runCli({
+    args: ["--no-stream", "--format", "json"],
+    input: sampleArrayOfObjects,
+  });
+
+  assert.equal(result.code, 0);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(Array.isArray(parsed), true);
+  assert.equal(parsed[0].name, "Alice");
+});
+
+test("CLI: --no-stream forces batch mode for ndjson input", () => {
+  const result = runCli({
+    args: ["--no-stream", "--input", "ndjson", "--format", "csv"],
+    input: sampleNdjson,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /(name,age|age,name)/);
+  assert.match(result.stdout, /(Alice,30|30,Alice)/);
+});
+
+test("CLI: --stream with ndjson input and ndjson output succeeds", () => {
+  const result = runCli({
+    args: ["--stream", "--input", "ndjson", "--format", "ndjson"],
+    input: sampleNdjson,
+  });
+
+  assert.equal(result.code, 0);
+  const lines = result.stdout.trim().split("\n");
+  assert.equal(lines.length, 2);
+
+  const first = JSON.parse(lines[0]);
+  const second = JSON.parse(lines[1]);
+  assert.equal(first.name, "Alice");
+  assert.equal(second.name, "Bob");
+});
+
+test("CLI: --stream with file input and csv output succeeds", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-stream-"));
+  const filePath = join(tempDir, "input.json");
+
+  try {
+    writeFileSync(filePath, sampleArrayOfObjects, "utf8");
+    const result = runCli({
+      args: [filePath, "--format", "csv", "--stream"],
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /name,age/);
+    assert.match(result.stdout, /Alice,30/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --no-stream with file input and csv output succeeds", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-nostream-"));
+  const filePath = join(tempDir, "input.json");
+
+  try {
+    writeFileSync(filePath, sampleArrayOfObjects, "utf8");
+    const result = runCli({
+      args: [filePath, "--format", "csv", "--no-stream"],
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /(name,age|age,name)/);
+    assert.match(result.stdout, /(Alice,30|30,Alice)/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --stream with file input and unsupported format exits 2", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-stream-err-"));
+  const filePath = join(tempDir, "input.json");
+
+  try {
+    writeFileSync(filePath, sampleArrayOfObjects, "utf8");
+    const result = runCli({
+      args: [filePath, "--format", "json", "--stream"],
+    });
+
+    assert.equal(result.code, 2);
+    assert.match(result.stderr, /output format does not support streaming/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --help includes --stream and --no-stream", () => {
+  const result = runCli({ args: ["--help"] });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /--stream/);
+  assert.match(result.stdout, /--no-stream/);
+});
+
+test("CLI: --help does not include examples", () => {
+  const result = runCli({ args: ["--help"] });
+
+  assert.equal(result.code, 0);
+  assert.doesNotMatch(result.stdout, /Examples:/);
+});
+
+test("CLI: --examples prints examples and exits 0", () => {
+  const result = runCli({ args: ["--examples"] });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /Examples:/);
+  assert.match(result.stdout, /tablyful.*--format csv/);
+  assert.match(result.stdout, /tablyful.*--format ndjson/);
+});
+
+test("CLI: --help includes --examples flag", () => {
+  const result = runCli({ args: ["--help"] });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /--examples/);
 });

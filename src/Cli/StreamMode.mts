@@ -1,10 +1,20 @@
 import fs from "node:fs";
 import process from "node:process";
+import readline from "node:readline";
 import type { WriteStream } from "node:fs";
 import type { Writable } from "node:stream";
+import type { Readable } from "node:stream";
 import streamArray from "stream-json/streamers/stream-array.js";
 
-type OutputFormat = "csv" | "tsv" | "psv" | "sql" | "html" | "yaml";
+type OutputFormat =
+  | "csv"
+  | "tsv"
+  | "psv"
+  | "sql"
+  | "html"
+  | "yaml"
+  | "ndjson";
+type InputFormat = "json" | "ndjson";
 
 type PredicateOp = "=" | "!=" | ">" | "<" | ">=" | "<=" | "LIKE";
 type DetectedShape = "array-of-arrays" | "array-of-objects";
@@ -18,6 +28,7 @@ interface StreamArrayItem {
 
 interface StreamCliConfig {
   inputPath: string;
+  inputFormat: string;
   outputPath: string;
   outputFormat: string;
   delimiter: string;
@@ -60,6 +71,12 @@ interface StreamErrorLike extends Error {
   code?: string;
 }
 
+interface ClassifiedError {
+  category: string;
+  message: string;
+  exitCode: number;
+}
+
 class StreamCliError extends Error {
   category: string;
   exitCode: number;
@@ -82,7 +99,9 @@ const ERR_ARRAYS_INCONSISTENT =
 const ERR_OBJECTS_INCONSISTENT =
   "Inconsistent JSON array: expected all rows to be objects in stream mode.";
 const ERR_UNSUPPORTED_OUTPUTS =
-  "Automatic streaming currently supports output formats: csv, tsv, psv, sql, html, yaml.";
+  "Automatic streaming currently supports output formats: csv, tsv, psv, sql, html, yaml, ndjson.";
+const ERR_UNSUPPORTED_INPUTS =
+  "Automatic streaming currently supports input formats: json array, ndjson.";
 const ERR_IO_ENOENT = (path: string) =>
   `Failed to read input file: ENOENT: no such file or directory, open '${path}'`;
 const ERR_UNKNOWN_COLUMNS = (missing: string[], available: string[]) =>
@@ -90,8 +109,24 @@ const ERR_UNKNOWN_COLUMNS = (missing: string[], available: string[]) =>
 const ERR_UNEXPECTED_TOKEN = "Unexpected streaming token shape.";
 const ERR_EXPECT_ARRAY_ROWS =
   "Stream mode expects a JSON array containing arrays or objects.";
+const ERR_EXPECT_NDJSON_OBJECTS =
+  "NDJSON stream mode expects one JSON object per non-empty line.";
 const ERR_SHAPE_NOT_INIT = "Streaming shape was not initialized.";
 const ERR_EMPTY_INPUT = "Input JSON array is empty in streaming mode.";
+
+const EXIT_OK = 0;
+const EXIT_RUNTIME_ERROR = 1;
+const EXIT_VALIDATION_ERROR = 2;
+const EXIT_SIGINT = 130;
+
+const JSON_PARSE_PATTERNS: ReadonlyArray<RegExp> = [
+  /Parser cannot parse input/i,
+  /expected a value/i,
+  /Top-level object should be an array/i,
+  /Unexpected token/i,
+  /JSON\.parse/i,
+  /position \d+/i,
+];
 
 const SUPPORTED_OUTPUTS: ReadonlySet<OutputFormat> = new Set<OutputFormat>([
   "csv",
@@ -100,6 +135,12 @@ const SUPPORTED_OUTPUTS: ReadonlySet<OutputFormat> = new Set<OutputFormat>([
   "sql",
   "html",
   "yaml",
+  "ndjson",
+]);
+
+const SUPPORTED_INPUTS: ReadonlySet<InputFormat> = new Set<InputFormat>([
+  "json",
+  "ndjson",
 ]);
 
 /**
@@ -494,7 +535,11 @@ const compileLikePattern = (pattern: string): RegExp => {
 const parseFilterExpression = (expression: string): Predicate => {
   const expr = expression.trim();
   if (!expr) {
-    throw new StreamCliError("VALIDATION_ERROR", ERR_FILTER_EMPTY, 1);
+    throw new StreamCliError(
+      "VALIDATION_ERROR",
+      ERR_FILTER_EMPTY,
+      EXIT_VALIDATION_ERROR,
+    );
   }
 
   const likeMatch = expr.match(/^(.*?)\s+like\s+(.*)$/i);
@@ -530,7 +575,7 @@ const parseFilterExpression = (expression: string): Predicate => {
   throw new StreamCliError(
     "VALIDATION_ERROR",
     ERR_INVALID_FILTER(expression),
-    1,
+    EXIT_VALIDATION_ERROR,
   );
 };
 
@@ -681,7 +726,11 @@ const ensureInitializedHeaders = (
   outputHeaders: string[] | null,
 ): { sourceHeaders: string[]; outputHeaders: string[] } => {
   if (!sourceHeaders || !outputHeaders) {
-    throw new StreamCliError("STREAM_ERROR", ERR_HEADERS_NOT_INIT, 1);
+    throw new StreamCliError(
+      "STREAM_ERROR",
+      ERR_HEADERS_NOT_INIT,
+      EXIT_RUNTIME_ERROR,
+    );
   }
 
   return { sourceHeaders, outputHeaders };
@@ -711,14 +760,22 @@ const buildRowFromValue = (
 ): Row => {
   if (shape === "array-of-arrays") {
     if (!Array.isArray(value)) {
-      throw new StreamCliError("PARSE_ERROR", ERR_ARRAYS_INCONSISTENT, 1);
+      throw new StreamCliError(
+        "PARSE_ERROR",
+        ERR_ARRAYS_INCONSISTENT,
+        EXIT_RUNTIME_ERROR,
+      );
     }
 
     return buildArrayRow(sourceHeaders, value);
   }
 
   if (!isObjectRecord(value)) {
-    throw new StreamCliError("PARSE_ERROR", ERR_OBJECTS_INCONSISTENT, 1);
+    throw new StreamCliError(
+      "PARSE_ERROR",
+      ERR_OBJECTS_INCONSISTENT,
+      EXIT_RUNTIME_ERROR,
+    );
   }
 
   return buildObjectRow(sourceHeaders, value);
@@ -802,9 +859,24 @@ const ensureSupported = (
   outputFormat: string,
 ): OutputFormat => {
   if (!SUPPORTED_OUTPUTS.has(outputFormat as OutputFormat)) {
-    throw new StreamCliError("VALIDATION_ERROR", ERR_UNSUPPORTED_OUTPUTS, 2);
+    throw new StreamCliError(
+      "VALIDATION_ERROR",
+      ERR_UNSUPPORTED_OUTPUTS,
+      EXIT_VALIDATION_ERROR,
+    );
   }
   return outputFormat as OutputFormat;
+};
+
+const ensureInputSupported = (inputFormat: string): InputFormat => {
+  if (!SUPPORTED_INPUTS.has(inputFormat as InputFormat)) {
+    throw new StreamCliError(
+      "VALIDATION_ERROR",
+      ERR_UNSUPPORTED_INPUTS,
+      EXIT_VALIDATION_ERROR,
+    );
+  }
+  return inputFormat as InputFormat;
 };
 
 /**
@@ -870,8 +942,7 @@ const emitSqlCreateTable = async (
  * Emit a single row to a writable stream according to the provided stream CLI configuration.
  *
  * The function formats and writes the row depending on config.outputFormat:
- * - "sql": writes a SQL INSERT statement for config.sqlTableName using quoted identifiers and "?" placeholders,
- *   and emits a preceding comment containing the concrete VALUES rendered via toSqlLiteral.
+ * - "sql": writes a SQL INSERT statement for config.sqlTableName using quoted identifiers and inline SQL literals.
  * - "html": writes a single HTML table row (<tr>) with each cell rendered via toHtmlCell and wrapped in <td>.
  * - "yaml": emits a YAML list item. If outputHeaders is empty, emits "- {}" followed by config.lineBreak.
  *   Otherwise emits the first header inline after "- " and the remaining headers as indented mappings using
@@ -896,6 +967,15 @@ const emitRow = async (
   row: Row,
   config: StreamCliConfig,
 ): Promise<void> => {
+  if (config.outputFormat === "ndjson") {
+    const object = outputHeaders.reduce<Record<string, unknown>>((acc, header) => {
+      acc[header] = row[header] ?? null;
+      return acc;
+    }, Object.create(null) as Record<string, unknown>);
+    await writeChunk(stream, JSON.stringify(object) + config.lineBreak);
+    return;
+  }
+
   if (config.outputFormat === "sql") {
     const tableName = quoteIdentifier(
       config.sqlTableName,
@@ -904,15 +984,13 @@ const emitRow = async (
     const quotedHeaders = outputHeaders.map((header) =>
       quoteIdentifier(header, config.sqlIdentifierQuote),
     );
-    const placeholders = outputHeaders.map(() => "?").join(", ");
     const values = outputHeaders
       .map((header) => toSqlLiteral(row[header]))
       .join(", ");
 
-    await writeChunk(stream, `-- VALUES: (${values})\n`);
     await writeChunk(
       stream,
-      `INSERT INTO ${tableName} (${quotedHeaders.join(", ")}) VALUES (${placeholders});\n`,
+      `INSERT INTO ${tableName} (${quotedHeaders.join(", ")}) VALUES (${values});\n`,
     );
     return;
   }
@@ -991,9 +1069,11 @@ const finalizeOutput = async (
 /**
  * Stream-processes newline- or file-based JSON input and writes a tabular export.
  *
- * Reads a JSON array from either a file (config.inputPath) or stdin and writes a tabular
- * representation to either a file (config.outputPath) or stdout. The function detects the
- * input "shape" from the first array element: array-of-arrays or array-of-objects. It can
+ * Reads JSON input from either a file (config.inputPath) or stdin and writes a tabular
+ * representation to either a file (config.outputPath) or stdout. Supported input formats are
+ * JSON arrays and NDJSON. For JSON arrays, the function detects the input "shape" from the
+ * first array element: array-of-arrays or array-of-objects. NDJSON expects one JSON object per
+ * non-empty line and is treated as array-of-objects.
  * accept an explicit header row (config.hasHeaders) or derive headers from objects/array
  * indices. Selected columns (config.columns) are validated when strict header validation is
  * required. Row-level predicates (config.filters) are applied to decide which rows to emit.
@@ -1020,6 +1100,9 @@ const finalizeOutput = async (
  */
 const run = async (config: StreamCliConfig): Promise<void> => {
   ensureSupported(config.outputFormat);
+  const inputFormat = ensureInputSupported(
+    (config.inputFormat || "json").toLowerCase(),
+  );
 
   const predicates = (config.filters ?? []).map(parseFilterExpression);
   const requestedColumns = Array.isArray(config.columns)
@@ -1031,7 +1114,11 @@ const run = async (config: StreamCliConfig): Promise<void> => {
   const hasOutputPath = Boolean(config.outputPath);
 
   if (hasInputPath && !fs.existsSync(config.inputPath)) {
-    throw new StreamCliError("IO_ERROR", ERR_IO_ENOENT(config.inputPath), 1);
+    throw new StreamCliError(
+      "IO_ERROR",
+      ERR_IO_ENOENT(config.inputPath),
+      EXIT_RUNTIME_ERROR,
+    );
   }
 
   const input = hasInputPath
@@ -1062,7 +1149,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
 
   const sigintHandler = (): void => {
     cleanupOutputFile();
-    process.exit(130);
+    process.exit(EXIT_SIGINT);
   };
   process.on("SIGINT", sigintHandler);
 
@@ -1070,9 +1157,40 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     process.stdin.setEncoding("utf8");
   }
 
-  const jsonStream = input.pipe(
-    streamArray.withParserAsStream(),
-  ) as AsyncIterable<unknown>;
+  let parseNdjsonRowNumber = 0;
+  const parseNdjsonLine = (line: string): unknown => {
+    parseNdjsonRowNumber += 1;
+    try {
+      return JSON.parse(line);
+    } catch {
+      throw new StreamCliError(
+        "PARSE_ERROR",
+        `Invalid JSON on NDJSON line ${parseNdjsonRowNumber}.`,
+        EXIT_RUNTIME_ERROR,
+      );
+    }
+  };
+
+  const jsonStream =
+    inputFormat === "ndjson"
+      ? (async function* ndjsonValues(
+          readable: Readable,
+        ): AsyncGenerator<StreamArrayItem> {
+          const rl = readline.createInterface({
+            input: readable,
+            crlfDelay: Infinity,
+          });
+          let index = 0;
+          for await (const line of rl) {
+            const trimmed = line.trim();
+            if (trimmed === "") {
+              continue;
+            }
+            yield { key: index, value: parseNdjsonLine(trimmed) };
+            index += 1;
+          }
+        })(input as Readable)
+      : (input.pipe(streamArray.withParserAsStream()) as AsyncIterable<unknown>);
 
   let detectedShape: DetectedShape | "" = "";
   let sourceHeaders: string[] | null = null;
@@ -1100,7 +1218,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
           throw new StreamCliError(
             "VALIDATION_ERROR",
             ERR_UNKNOWN_COLUMNS(missing, headers),
-            1,
+            EXIT_VALIDATION_ERROR,
           );
         }
       }
@@ -1179,7 +1297,6 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     const rowLiterals = sqlBatch.map(
       (r) => `(${oh.map((h) => toSqlLiteral(r[h])).join(", ")})`,
     );
-    await writeChunk(output, `-- VALUES: ${rowLiterals.join(", ")}\n`);
     await writeChunk(
       output,
       `INSERT INTO ${tableName} (${quotedHeaders.join(", ")}) VALUES\n`,
@@ -1224,13 +1341,36 @@ const run = async (config: StreamCliConfig): Promise<void> => {
   try {
     for await (const entry of jsonStream) {
       if (!isStreamArrayItem(entry)) {
-        throw new StreamCliError("PARSE_ERROR", ERR_UNEXPECTED_TOKEN, 1);
+        throw new StreamCliError(
+          "PARSE_ERROR",
+          ERR_UNEXPECTED_TOKEN,
+          EXIT_RUNTIME_ERROR,
+        );
       }
 
       const value = entry.value;
       sawAnyItem = true;
 
       if (!initialized) {
+        if (inputFormat === "ndjson") {
+          if (!isObjectRecord(value)) {
+            throw new StreamCliError(
+              "PARSE_ERROR",
+              ERR_EXPECT_NDJSON_OBJECTS,
+              EXIT_RUNTIME_ERROR,
+            );
+          }
+
+          detectedShape = "array-of-objects";
+          const baseHeaders = Object.keys(value);
+          const headers =
+            requestedColumns.length > 0 ? requestedColumns : baseHeaders;
+          await initialize({ headers, strictValidation: false });
+
+          await processItem(value);
+          continue;
+        }
+
         if (Array.isArray(value)) {
           const shape: DetectedShape = "array-of-arrays";
           detectedShape = shape;
@@ -1263,18 +1403,38 @@ const run = async (config: StreamCliConfig): Promise<void> => {
           continue;
         }
 
-        throw new StreamCliError("PARSE_ERROR", ERR_EXPECT_ARRAY_ROWS, 1);
+        throw new StreamCliError(
+          "PARSE_ERROR",
+          ERR_EXPECT_ARRAY_ROWS,
+          EXIT_RUNTIME_ERROR,
+        );
       }
 
       if (detectedShape === "") {
-        throw new StreamCliError("STREAM_ERROR", ERR_SHAPE_NOT_INIT, 1);
+        throw new StreamCliError(
+          "STREAM_ERROR",
+          ERR_SHAPE_NOT_INIT,
+          EXIT_RUNTIME_ERROR,
+        );
+      }
+
+      if (inputFormat === "ndjson" && !isObjectRecord(value)) {
+        throw new StreamCliError(
+          "PARSE_ERROR",
+          ERR_EXPECT_NDJSON_OBJECTS,
+          EXIT_RUNTIME_ERROR,
+        );
       }
 
       await processItem(value);
     }
 
     if (!sawAnyItem) {
-      throw new StreamCliError("PARSE_ERROR", ERR_EMPTY_INPUT, 1);
+      throw new StreamCliError(
+        "PARSE_ERROR",
+        ERR_EMPTY_INPUT,
+        EXIT_RUNTIME_ERROR,
+      );
     }
 
     if (useSqlBatch) {
@@ -1296,11 +1456,60 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     }
 
     process.off("SIGINT", sigintHandler);
-    process.exit(0);
+    process.exit(EXIT_OK);
   } catch (error) {
     process.off("SIGINT", sigintHandler);
     throw error;
   }
+};
+
+const classifyUnhandledError = (error: unknown): ClassifiedError => {
+  if (error instanceof StreamCliError) {
+    return {
+      category: error.category,
+      message: error.message,
+      exitCode: error.exitCode,
+    };
+  }
+
+  const streamError = error as StreamErrorLike;
+  const message = error instanceof Error ? error.message : String(error);
+  const errorCode = streamError.code;
+
+  if (errorCode === "ENOENT" || message.includes("ENOENT:")) {
+    return {
+      category: "IO_ERROR",
+      message: message.includes("Failed to read input file:")
+        ? message
+        : `Failed to read input file: ${message}`,
+      exitCode: EXIT_RUNTIME_ERROR,
+    };
+  }
+
+  if (errorCode === "EACCES") {
+    return {
+      category: "IO_ERROR",
+      message: `Permission denied: ${message}`,
+      exitCode: EXIT_RUNTIME_ERROR,
+    };
+  }
+
+  if (
+    streamError.name === "SyntaxError" ||
+    JSON_PARSE_PATTERNS.some((pattern) => pattern.test(message))
+  ) {
+    return {
+      category: "PARSE_ERROR",
+      message: "Invalid JSON format",
+      exitCode: EXIT_RUNTIME_ERROR,
+    };
+  }
+
+  return {
+    category: "STREAM_ERROR",
+    message,
+    exitCode: EXIT_RUNTIME_ERROR,
+  };
 };
 
 /**
@@ -1327,40 +1536,8 @@ const run = async (config: StreamCliConfig): Promise<void> => {
  */
 export function runStreamConversion(config: StreamCliConfig): void {
   void run(config).catch((error: unknown) => {
-    if (error instanceof StreamCliError) {
-      process.stderr.write(`[${error.category}] ${error.message}\n`);
-      process.exit(error.exitCode);
-      return;
-    }
-
-    const streamError = error as StreamErrorLike;
-    const message = error instanceof Error ? error.message : String(error);
-
-    if (message.includes("ENOENT:")) {
-      process.stderr.write(
-        `[IO_ERROR] Failed to read input file: ${message}\n`,
-      );
-      process.exit(1);
-      return;
-    }
-
-    if (
-      message.includes("Parser cannot parse input") ||
-      message.includes("expected a value") ||
-      message.includes("Top-level object should be an array")
-    ) {
-      process.stderr.write("[PARSE_ERROR] Invalid JSON format\n");
-      process.exit(1);
-      return;
-    }
-
-    if (streamError.code === "EACCES") {
-      process.stderr.write(`[IO_ERROR] Permission denied: ${message}\n`);
-      process.exit(1);
-      return;
-    }
-
-    process.stderr.write(`[STREAM_ERROR] ${message}\n`);
-    process.exit(1);
+    const classified = classifyUnhandledError(error);
+    process.stderr.write(`[${classified.category}] ${classified.message}\n`);
+    process.exit(classified.exitCode);
   });
 }

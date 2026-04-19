@@ -14,8 +14,13 @@ module Stream = {
 
   @send external setEncoding: (stdInput, string) => unit = "setEncoding"
   @send external onData: (stdInput, @as("data") _, string => unit) => unit = "on"
+  @send external onceData: (stdInput, @as("data") _, string => unit) => unit = "once"
   @send external onEnd: (stdInput, @as("end") _, unit => unit) => unit = "on"
+  @send external onceEnd: (stdInput, @as("end") _, unit => unit) => unit = "once"
   @send external onError: (stdInput, @as("error") _, JsExn.t => unit) => unit = "on"
+  @send external pause: stdInput => unit = "pause"
+  @send external resume: stdInput => unit = "resume"
+  @send external unshift: (stdInput, string) => unit = "unshift"
   @send external write: (stdOutput, string) => bool = "write"
 }
 
@@ -96,7 +101,10 @@ module Util = {
     config?: string,
     stats?: bool,
     version?: bool,
+    examples?: bool,
     @as("no-headers") noHeaders?: bool,
+    @as("no-stream") noStream?: bool,
+    stream?: bool,
     @as("list-set-keys") listSetKeys?: bool,
     @as("list-set-keys-format") listSetKeysFormat?: string,
   }
@@ -145,6 +153,7 @@ module TableExtractor = {
 module StreamMode = {
   type config = {
     inputPath: string,
+    inputFormat: string,
     outputPath: string,
     outputFormat: string,
     delimiter: string,

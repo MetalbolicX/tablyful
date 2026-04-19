@@ -8,6 +8,6 @@ let main = (): unit => {
         `Failed to start CLI: ${error->JsExn.message->Option.getOr("unknown error")}`,
       ),
     )
-    Bindings.Process.exit(1)
+    Bindings.Process.exit(CliConstants.exitCodeRuntimeError)
   }
 }

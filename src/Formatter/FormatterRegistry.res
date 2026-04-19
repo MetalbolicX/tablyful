@@ -55,6 +55,11 @@ let all: array<formatterEntry> = [
     extension: Yaml.extension,
     format: Yaml.format,
   },
+  {
+    name: Ndjson.name,
+    extension: Ndjson.extension,
+    format: Ndjson.format,
+  },
 ]
 
 // Get formatter by name

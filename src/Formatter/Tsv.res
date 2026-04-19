@@ -13,25 +13,6 @@ let escapeValue = (value: string, ~quote: string="\"", ~escape: string="\\", ())
   }
 }
 
-let jsonToString = (json: JSON.t): string => {
-  if json === JSON.Encode.null {
-    ""
-  } else {
-    switch JSON.Decode.string(json) {
-    | Some(str) => str
-    | None =>
-      switch JSON.Decode.float(json) {
-      | Some(n) => n->Float.toString
-      | None =>
-        switch JSON.Decode.bool(json) {
-        | Some(b) => b->Bool.toString
-        | None => JSON.stringify(json)
-        }
-      }
-    }
-  }
-}
-
 let formatImpl = (data: TableData.t, options: t): string => {
   let opts = Defaults.getTsvOptions(options)
 
@@ -48,13 +29,13 @@ let formatImpl = (data: TableData.t, options: t): string => {
 
   data.rows->Array.forEach(row => {
     let values = data.headers->Array.map(header => {
-      let value = row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToString
+      let value = row->Dict.get(header)->Option.getOr(JSON.Encode.null)->FormatterCommon.jsonToString
       escapeValue(value, ())
     })
     lines->Array.push(values->Array.join(delimiter))
   })
 
-  lines->Array.join(Defaults.defaultCsvOptions.lineBreak)
+  lines->Array.join("\n")
 }
 
 include FormatterMake.Make({

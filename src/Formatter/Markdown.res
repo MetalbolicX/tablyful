@@ -9,26 +9,6 @@ let escapePipe = (str: string): string => {
   str->String.replaceAll("|", "\\|")
 }
 
-// Convert JSON value to string
-let jsonToString = (json: JSON.t): string => {
-  if json === JSON.Encode.null {
-    ""
-  } else {
-    switch JSON.Decode.string(json) {
-    | Some(str) => str->escapePipe
-    | None =>
-      switch JSON.Decode.float(json) {
-      | Some(n) => n->Float.toString
-      | None =>
-        switch JSON.Decode.bool(json) {
-        | Some(b) => b->Bool.toString
-        | None => JSON.stringify(json)->escapePipe
-        }
-      }
-    }
-  }
-}
-
 // Calculate column widths for alignment
 let calculateColumnWidths = (data: TableData.t): array<int> => {
   data.headers->Array.mapWithIndex((header, _idx) => {
@@ -38,7 +18,7 @@ let calculateColumnWidths = (data: TableData.t): array<int> => {
         row
         ->Dict.get(header)
         ->Option.getOr(JSON.Encode.null)
-        ->jsonToString
+        ->FormatterCommon.jsonToString(~escapeString=escapePipe, ~escapeJsonFallback=escapePipe)
         ->String.length
       max > value ? max : value
     })
@@ -104,7 +84,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
           row
           ->Dict.get(header)
           ->Option.getOr(JSON.Encode.null)
-          ->jsonToString
+          ->FormatterCommon.jsonToString(~escapeString=escapePipe, ~escapeJsonFallback=escapePipe)
         let width = widths->Array.get(idx)->Option.getOr(value->String.length)
         " " ++ padToWidth(value, width, ~align=opts.align, ()) ++ " "
       })
@@ -112,7 +92,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
     lines->Array.push("|" ++ rowStr ++ "|")
   })
 
-  lines->Array.join("\\n")
+  lines->Array.join("\n")
 }
 
 // Create formatter using functor

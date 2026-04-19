@@ -86,7 +86,7 @@ test("Core: pipeline json conversion succeeds", () => {
   })
 })
 
-test("Core: pipeline sql conversion succeeds", () => {
+test("Core: pipeline sql conversion emits literals", () => {
   let options: Types.t = {
     ...Defaults.t,
     outputFormat: Sql,
@@ -95,7 +95,7 @@ test("Core: pipeline sql conversion succeeds", () => {
 
   expectConverted(~format="sql", ~options, ~expected="SQL conversion to succeed", sql => {
     expectTrue(sql->String.includes("CREATE TABLE \"users\""))
-    expectTrue(sql->String.includes("VALUES (?, ?)"))
+    expectTrue(sql->String.includes("VALUES ('Alice', 30)"))
   })
 })
 

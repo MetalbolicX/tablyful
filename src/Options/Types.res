@@ -13,6 +13,7 @@ type format =
   | Latex
   | Sql
   | Yaml
+  | Ndjson
 
 // CSV options
 type csvOptions = {
@@ -82,6 +83,11 @@ type yamlOptions = {
   lineBreak: string,
 }
 
+// NDJSON options
+type ndjsonOptions = {
+  lineBreak: string,
+}
+
 // Format options variant
 type formatOptions =
   | CsvOptions(csvOptions)
@@ -93,6 +99,7 @@ type formatOptions =
   | LatexOptions(latexOptions)
   | SqlOptions(sqlOptions)
   | YamlOptions(yamlOptions)
+  | NdjsonOptions(ndjsonOptions)
 
 // Main options type
 type t = {
@@ -118,6 +125,7 @@ let formatToString = (format: format): string => {
   | Latex => "latex"
   | Sql => "sql"
   | Yaml => "yaml"
+  | Ndjson => "ndjson"
   }
 }
 
@@ -133,6 +141,7 @@ let formatFromString = (str: string): option<format> => {
   | "latex" => Some(Latex)
   | "sql" => Some(Sql)
   | "yaml" => Some(Yaml)
+  | "ndjson" => Some(Ndjson)
   | _ => None
   }
 }
