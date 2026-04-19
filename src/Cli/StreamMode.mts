@@ -335,28 +335,12 @@ const buildObjectRow = (
     return row;
   }, Object.create(null) as Row);
 
-/**
- * Validates that both header arrays are initialized and returns them as non-null arrays.
- *
- * @param sourceHeaders - The source headers array, or `null` if not initialized.
- * @param outputHeaders - The output headers array, or `null` if not initialized.
- * @returns An object containing `sourceHeaders` and `outputHeaders` guaranteed to be non-null `string[]`.
- * @throws {StreamCliError} If either `sourceHeaders` or `outputHeaders` is `null`. The error is raised with code "STREAM_ERROR" and message `ERR_HEADERS_NOT_INIT`.
- */
-const ensureInitializedHeaders = (
-  sourceHeaders: string[] | null,
-  outputHeaders: string[] | null,
-): { sourceHeaders: string[]; outputHeaders: string[] } => {
-  if (!sourceHeaders || !outputHeaders) {
-    throw new StreamCliError(
-      "STREAM_ERROR",
-      ERR_HEADERS_NOT_INIT,
-      EXIT_RUNTIME_ERROR,
-    );
-  }
-
-  return { sourceHeaders, outputHeaders };
-};
+interface InputStreamSetup {
+  input: Readable;
+  output: Writable;
+  cleanupOutputFile: () => void;
+  sigintHandler: () => void;
+}
 
 /**
  * Build a Row from a parsed input value according to the detected shape.
@@ -866,6 +850,57 @@ const finalizeSuccessfulRun = async ({
   process.exit(EXIT_OK);
 };
 
+const createInputStream = (config: StreamCliConfig): InputStreamSetup => {
+  const hasInputPath = Boolean(config.inputPath);
+  const hasOutputPath = Boolean(config.outputPath);
+
+  if (hasInputPath && !fs.existsSync(config.inputPath)) {
+    throw new StreamCliError(
+      "IO_ERROR",
+      ERR_IO_ENOENT(config.inputPath),
+      EXIT_RUNTIME_ERROR,
+    );
+  }
+
+  const input: Readable = hasInputPath
+    ? fs.createReadStream(config.inputPath, { encoding: "utf8" })
+    : process.stdin;
+  const output: Writable = hasOutputPath
+    ? fs.createWriteStream(config.outputPath, { encoding: "utf8" })
+    : process.stdout;
+
+  const cleanupOutputFile = (): void => {
+    if (!hasOutputPath) return;
+    try {
+      if (output instanceof fs.WriteStream) {
+        output.destroy();
+      }
+    } catch {
+      // Best-effort cleanup only.
+    }
+
+    try {
+      if (fs.existsSync(config.outputPath)) {
+        fs.unlinkSync(config.outputPath);
+      }
+    } catch {
+      // Best-effort cleanup only.
+    }
+  };
+
+  const sigintHandler = (): void => {
+    cleanupOutputFile();
+    process.exit(EXIT_SIGINT);
+  };
+  process.on("SIGINT", sigintHandler);
+
+  if (!hasInputPath) {
+    process.stdin.setEncoding("utf8");
+  }
+
+  return { input, output, cleanupOutputFile, sigintHandler };
+};
+
 /**
  * Stream-processes newline- or file-based JSON input and writes a tabular export.
  *
@@ -910,52 +945,9 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     : [];
   const lineBreak = normalizeLineBreak(config.lineBreak);
 
-  const hasInputPath = Boolean(config.inputPath);
+  const { input, output, cleanupOutputFile, sigintHandler } =
+    createInputStream(config);
   const hasOutputPath = Boolean(config.outputPath);
-
-  if (hasInputPath && !fs.existsSync(config.inputPath)) {
-    throw new StreamCliError(
-      "IO_ERROR",
-      ERR_IO_ENOENT(config.inputPath),
-      EXIT_RUNTIME_ERROR,
-    );
-  }
-
-  const input = hasInputPath
-    ? fs.createReadStream(config.inputPath, { encoding: "utf8" })
-    : process.stdin;
-  const output = hasOutputPath
-    ? fs.createWriteStream(config.outputPath, { encoding: "utf8" })
-    : process.stdout;
-
-  const cleanupOutputFile = (): void => {
-    if (!hasOutputPath) return;
-    try {
-      if (output instanceof fs.WriteStream) {
-        output.destroy();
-      }
-    } catch {
-      // Best-effort cleanup only.
-    }
-
-    try {
-      if (fs.existsSync(config.outputPath)) {
-        fs.unlinkSync(config.outputPath);
-      }
-    } catch {
-      // Best-effort cleanup only.
-    }
-  };
-
-  const sigintHandler = (): void => {
-    cleanupOutputFile();
-    process.exit(EXIT_SIGINT);
-  };
-  process.on("SIGINT", sigintHandler);
-
-  if (!hasInputPath) {
-    process.stdin.setEncoding("utf8");
-  }
 
   let parseNdjsonRowNumber = 0;
   const parseNdjsonLine = (line: string): unknown => {
@@ -1059,10 +1051,15 @@ const run = async (config: StreamCliConfig): Promise<void> => {
       );
     }
 
-    const { sourceHeaders: sh, outputHeaders: oh } = ensureInitializedHeaders(
-      sourceHeaders,
-      outputHeaders,
-    );
+    if (!sourceHeaders || !outputHeaders) {
+      throw new StreamCliError(
+        "STREAM_ERROR",
+        ERR_HEADERS_NOT_INIT,
+        EXIT_RUNTIME_ERROR,
+      );
+    }
+    const sh = sourceHeaders;
+    const oh = outputHeaders;
     const wasProcessed = await processRowValue(
       value,
       sh,

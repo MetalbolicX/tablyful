@@ -289,6 +289,25 @@ let applyNdjsonSetOverride = (
   }
 }
 
+type setOverrideHandler = (t, ~field: string, ~fullKey: string, string) => Common.result<t>
+
+let formatHandlers: Dict.t<setOverrideHandler> = {
+  let dict = Dict.make()
+  dict->Dict.set("csv", applyCsvSetOverride)
+  dict->Dict.set("tsv", applyTsvSetOverride)
+  dict->Dict.set("psv", applyPsvSetOverride)
+  dict->Dict.set("json", applyJsonSetOverride)
+  dict->Dict.set("markdown", applyMarkdownSetOverride)
+  dict->Dict.set("html", applyHtmlSetOverride)
+  dict->Dict.set("latex", applyLatexSetOverride)
+  dict->Dict.set("sql", applySqlSetOverride)
+  dict->Dict.set("yaml", applyYamlSetOverride)
+  dict->Dict.set("ndjson", applyNdjsonSetOverride)
+  dict
+}
+
+let supportedFormats = "csv, tsv, psv, json, markdown, html, latex, sql, yaml, ndjson"
+
 let applySetOverride = (options: t, ((key, value): (string, string))): Common.result<t> => {
   let parts = key->String.split(".")
   if parts->Array.length !== 2 {
@@ -300,20 +319,11 @@ let applySetOverride = (options: t, ((key, value): (string, string))): Common.re
     let field = parts->Array.getUnsafe(1)
     let fullKey = `${section}.${field}`
 
-    switch section {
-    | "csv" => applyCsvSetOverride(options, ~field, ~fullKey, value)
-    | "tsv" => applyTsvSetOverride(options, ~field, ~fullKey, value)
-    | "psv" => applyPsvSetOverride(options, ~field, ~fullKey, value)
-    | "json" => applyJsonSetOverride(options, ~field, ~fullKey, value)
-    | "markdown" => applyMarkdownSetOverride(options, ~field, ~fullKey, value)
-    | "html" => applyHtmlSetOverride(options, ~field, ~fullKey, value)
-    | "latex" => applyLatexSetOverride(options, ~field, ~fullKey, value)
-    | "sql" => applySqlSetOverride(options, ~field, ~fullKey, value)
-    | "yaml" => applyYamlSetOverride(options, ~field, ~fullKey, value)
-    | "ndjson" => applyNdjsonSetOverride(options, ~field, ~fullKey, value)
-    | _ =>
+    switch formatHandlers->Dict.get(section) {
+    | Some(handler) => handler(options, ~field, ~fullKey, value)
+    | None =>
       invalidSet(
-        `Unknown --set format: ${section}. Allowed formats: csv, tsv, psv, json, markdown, html, latex, sql, yaml, ndjson.`,
+        `Unknown --set format: ${section}. Allowed formats: ${supportedFormats}.`,
       )
     }
   }
