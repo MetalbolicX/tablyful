@@ -1,8 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
@@ -10,5 +10,5 @@
     "declaration": false,
     "sourceMap": false
   },
-  "include": ["src/Cli/StreamMode.mts", "src/Reader/TableExtractor.mts"]
+  "include": ["src/Cli/StreamHelpers.mts", "src/Cli/StreamMode.mts", "src/Reader/TableExtractor.mts"]
 }

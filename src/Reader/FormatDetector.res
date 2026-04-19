@@ -24,14 +24,24 @@ let fromExtension = (path: string): option<string> => {
 }
 
 let looksLikeNdjson = (trimmed: string): bool => {
-  let lines =
-    trimmed
-    ->String.split("\n")
-    ->Array.map(line => line->String.trim)
-    ->Array.filter(line => line !== "")
+  let lines = trimmed->String.split("\n")
+  let seenNonEmpty = ref(0)
+  let allObjectLines = ref(true)
+  let maxLinesToInspect = 20
 
-  lines->Array.length > 1 &&
-    lines->Array.every(line => line->String.startsWith("{") && line->String.endsWith("}"))
+  lines->Array.forEach(line => {
+    if allObjectLines.contents && seenNonEmpty.contents < maxLinesToInspect {
+      let current = line->String.trim
+      if current !== "" {
+        seenNonEmpty.contents = seenNonEmpty.contents + 1
+        if !(current->String.startsWith("{") && current->String.endsWith("}")) {
+          allObjectLines.contents = false
+        }
+      }
+    }
+  })
+
+  seenNonEmpty.contents > 1 && allObjectLines.contents
 }
 
 // Content sniffing heuristics

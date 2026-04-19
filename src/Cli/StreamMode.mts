@@ -6,19 +6,37 @@ import type { Writable } from "node:stream";
 import type { Readable } from "node:stream";
 import streamArray from "stream-json/streamers/stream-array.js";
 
-type OutputFormat =
-  | "csv"
-  | "tsv"
-  | "psv"
-  | "sql"
-  | "html"
-  | "yaml"
-  | "ndjson";
+import {
+  type OutputFormat,
+  type NormalizedValue,
+  type PredicateOp,
+  type Predicate,
+  normalizeValue,
+  isRecord,
+  isObjectRecord,
+  toComparableString,
+  escapeHtml,
+  toHtmlCell,
+  escapeYamlSingleQuoted,
+  yamlNeedsQuotes,
+  toYamlString,
+  toYamlScalar,
+  quoteIdentifier,
+  toSqlLiteral,
+  escapeDelimitedValue,
+  stripQuotes,
+  parsePredicate,
+  compileLikeExpression,
+  compileLikePattern,
+  processRowValue as processRowValueSync,
+} from "./StreamHelpers.mjs";
 type InputFormat = "json" | "ndjson";
-
-type PredicateOp = "=" | "!=" | ">" | "<" | ">=" | "<=" | "LIKE";
 type DetectedShape = "array-of-arrays" | "array-of-objects";
-
+type ErrorCategory =
+  | "IO_ERROR"
+  | "PARSE_ERROR"
+  | "VALIDATION_ERROR"
+  | "STREAM_ERROR";
 type Row = Record<string, unknown>;
 
 interface StreamArrayItem {
@@ -55,33 +73,39 @@ interface StreamCliConfig {
   stats: boolean;
 }
 
-interface Predicate {
-  column: string;
-  op: PredicateOp;
-  value: string;
-  likePattern?: RegExp;
-}
-
 interface InitializeArgs {
   headers: string[];
   strictValidation: boolean;
+}
+
+interface InitialRowPlan {
+  shape: DetectedShape;
+  headers: string[];
+  strictValidation: boolean;
+  processFirstValue: boolean;
+}
+
+interface FinalizeRunArgs {
+  useSqlBatch: boolean;
+  flushSqlBatch: (force?: boolean) => Promise<void>;
+  config: StreamCliConfig;
+  output: Writable;
+  hasOutputPath: boolean;
+  outputHeaders: string[] | null;
+  writtenRows: number;
+  detectedShape: DetectedShape | null;
+  sigintHandler: () => void;
 }
 
 interface StreamErrorLike extends Error {
   code?: string;
 }
 
-interface ClassifiedError {
-  category: string;
-  message: string;
-  exitCode: number;
-}
-
 class StreamCliError extends Error {
-  category: string;
+  category: ErrorCategory;
   exitCode: number;
 
-  constructor(category: string, message: string, exitCode: number = 1) {
+  constructor(category: ErrorCategory, message: string, exitCode: number = 1) {
     super(message);
     this.name = "StreamCliError";
     this.category = category;
@@ -143,60 +167,9 @@ const SUPPORTED_INPUTS: ReadonlySet<InputFormat> = new Set<InputFormat>([
   "ndjson",
 ]);
 
-/**
- * Type guard that checks whether a value is a non-null object and can be treated as a Record<string, unknown>.
- *
- * This returns true for objects (including arrays and plain objects) but false for null and primitive values.
- *
- * @param value - The value to test.
- * @returns True if the value is an object and not null, otherwise false.
- *
- * @example
- * ```ts
- * isRecord({ a: 1 }); // true
- * isRecord([1, 2, 3]); // true
- * isRecord(null); // false
- * isRecord(42); // false
- * isRecord("hello"); // false
- * ```
- */
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-/**
- * Type guard that checks whether a value is a non-array object record.
- *
- * Returns true when the provided value is a Record<string, unknown> and is not an Array.
- *
- * @param value - The value to check.
- * @returns True if the value is an object record (non-array), otherwise false.
- */
-const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
-  isRecord(value) && !Array.isArray(value);
-
-/**
- * Type guard that determines whether a value conforms to the StreamArrayItem shape.
- *
- * Verifies that the provided value is an object-like record and contains both
- * the "key" and "value" properties. When this function returns true, the
- * TypeScript compiler will narrow the type of `value` to `StreamArrayItem`.
- *
- * @param value - The value to inspect.
- * @returns True if `value` is a StreamArrayItem (has "key" and "value" properties); otherwise false.
- */
 const isStreamArrayItem = (value: unknown): value is StreamArrayItem =>
   isRecord(value) && "value" in value && "key" in value;
 
-/**
- * Writes a string chunk to the provided Writable stream using UTF-8 encoding.
- *
- * Returns a Promise that resolves once the stream's write callback reports success,
- * or rejects with the error provided by the stream's callback if the write fails.
- *
- * @param stream - The Writable stream to which the chunk will be written.
- * @param chunk - The string data to write to the stream.
- * @returns A Promise that resolves when the write completes, or rejects with the underlying error.
- */
 const writeChunk = (stream: Writable, chunk: string): Promise<void> =>
   new Promise((resolve, reject) => {
     stream.write(chunk, "utf8", (error) => {
@@ -208,375 +181,24 @@ const writeChunk = (stream: Writable, chunk: string): Promise<void> =>
     });
   });
 
-/**
- * Convert an arbitrary value into a string suitable for comparison.
- *
- * - null or undefined -> "" (empty string)
- * - string -> returned as-is
- * - number or boolean -> converted using String(value)
- * - other types -> converted using JSON.stringify(value)
- *
- * Intended for producing a simple, comparable textual representation for sorting or equality checks.
- *
- * @param value - The value to convert to a comparable string.
- * @returns A string representation of the input suitable for comparison.
- * @throws {TypeError} If JSON.stringify fails (for example, when the value contains circular references).
- */
-const toComparableString = (value: unknown): string => {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  return JSON.stringify(value);
-};
-
-/**
- * Escapes HTML special characters in the provided string.
- *
- * Replaces the characters: `&`, `<`, `>`, and `"` with their corresponding
- * HTML entities `&amp;`, `&lt;`, `&gt;`, and `&quot;`.
- *
- * @param value - The input string to escape.
- * @returns The escaped string safe for inclusion in HTML text content or attribute values.
- *
- * @example
- * ```ts
- * escapeHtml('<div class="example">Hello & welcome</div>');
- * // => '&lt;div class=&quot;example&quot;&gt;Hello &amp; welcome&lt;/div&gt;'
- * ```
- */
-const escapeHtml = (value: string): string =>
-  value.replace(/[&<>"]/g, (char) => {
-    if (char === "&") return "&amp;";
-    if (char === "<") return "&lt;";
-    if (char === ">") return "&gt;";
-    return "&quot;";
-  });
-
-/**
- * Convert an arbitrary value to a string suitable for insertion into an HTML cell.
- *
- * - `null` or `undefined` => `""`
- * - `string` => escaped with `escapeHtml` to prevent HTML injection
- * - `number` | `boolean` => converted via `String(value)` (no escaping)
- * - other values (objects, arrays, etc.) => `JSON.stringify(value)` and then escaped with `escapeHtml`
- *
- * @param value - The value to convert to an HTML-safe string.
- * @returns A string representation safe for embedding in HTML cells. Returns an empty string for `null` or `undefined`.
- *
- * @remarks
- * This function relies on `escapeHtml` for escaping raw strings and JSON results to reduce HTML injection risk.
- *
- * @example
- * ```ts
- * toHtmlCell('<script>alert("xss")</script>');
- * // => '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;'
- *
- * toHtmlCell({ name: "Alice", age: 30 });
- * // => '{&quot;name&quot;:&quot;Alice&quot;,&quot;age&quot;:30}'
- * ```
- */
-const toHtmlCell = (value: unknown): string => {
-  if (value === null || value === undefined) return "";
-  if (typeof value === "string") return escapeHtml(value);
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  return escapeHtml(JSON.stringify(value));
-};
-
-/**
- * Escapes a string for inclusion in a YAML single-quoted scalar by doubling each single quote.
- *
- * YAML represents a literal single quote inside a single-quoted scalar by using two consecutive
- * single quotes (''). This function replaces every occurrence of "'" with "''".
- *
- * @param value - The input string to escape.
- * @returns The escaped string safe for use inside a YAML single-quoted scalar.
- */
-const escapeYamlSingleQuoted = (value: string): string =>
-  value.replaceAll("'", "''");
-
-/**
- * Determines whether a string should be quoted when emitted as a YAML scalar.
- *
- * Returns true if the value is an empty string, contains characters that YAML
- * treats specially (':' or '#'), contains newline or tab characters, or has
- * leading or trailing whitespace (i.e. value.trim() !== value). This is a
- * heuristic check and does not perform full YAML validation.
- *
- * @param value - The string to evaluate.
- * @returns True if the string should be quoted to be safely represented in YAML.
- */
-const yamlNeedsQuotes = (value: string): boolean => {
-  return (
-    value === "" ||
-    value.includes(":") ||
-    value.includes("#") ||
-    value.includes("\n") ||
-    value.includes("\t") ||
-    value.trim() !== value
-  );
-};
-
-/**
- * Convert a string into a YAML-safe representation.
- *
- * If `quoteStrings` is true or `yamlNeedsQuotes(value)` returns true, the value
- * will be wrapped in single quotes and any internal single quotes will be
- * escaped using `escapeYamlSingleQuoted`. Otherwise the original `value` is
- * returned unchanged.
- *
- * @param value - The input string to format for YAML.
- * @param quoteStrings - Force quoting even if not strictly required.
- * @returns The YAML-safe string, possibly single-quoted and escaped.
- */
-const toYamlString = (value: string, quoteStrings: boolean): string => {
-  if (quoteStrings || yamlNeedsQuotes(value)) {
-    return `'${escapeYamlSingleQuoted(value)}'`;
-  }
-  return value;
-};
-
-/**
- * Convert a value into a YAML-compatible scalar string.
- *
- * Behavior:
- * - `null` or `undefined` => `"null"`
- * - `string` => delegated to `toYamlString(value, quoteStrings)`
- * - `number` or `boolean` => `String(value)`
- * - other types (objects, arrays, symbols, functions, etc.) => `JSON.stringify(value)` then passed through `toYamlString(..., true)` to ensure quoting
- *
- * @param value - The value to convert to a YAML scalar.
- * @param quoteStrings - Whether to quote string values (passed to `toYamlString`). Ignored for non-string inputs.
- * @returns A YAML-safe scalar representation of the input as a string.
- *
- * @example
- * ```ts
- * toYamlScalar(null, false); // "null"
- * toYamlScalar("hello", true); // e.g. "\"hello\"" (depending on toYamlString implementation)
- * toYamlScalar(123, false); // "123"
- * ```
- *
- * @remarks
- * This function relies on an external `toYamlString` helper to handle proper string quoting/escaping.
- */
-const toYamlScalar = (value: unknown, quoteStrings: boolean): string => {
-  if (value === null || value === undefined) return "null";
-  if (typeof value === "string") return toYamlString(value, quoteStrings);
-  if (typeof value === "number" || typeof value === "boolean")
-    return String(value);
-  return toYamlString(JSON.stringify(value), true);
-};
-
-/**
- * Escapes and optionally quotes a value for inclusion in a delimited text field (e.g., CSV).
- *
- * The value is first converted to a comparable string (via `toComparableString`). If the resulting
- * text contains the configured `delimiter`, `lineBreak`, or `quote` character, the text is wrapped
- * with the `quote` and any occurrences of the `quote` character inside the text are escaped by
- * prefixing them with the configured `escape` string.
- *
- * @param value - The value to convert and escape.
- * @param options - Configuration for delimiting and escaping.
- * @param options.delimiter - Field delimiter (for example: ",").
- * @param options.quote - Quote character used to wrap fields (for example: `"`).
- * @param options.escape - String used to escape quote characters inside a field.
- * @param options.lineBreak - Line break sequence to consider (for example: "\n" or "\r\n").
- * @returns The resulting string, escaped and quoted if necessary, ready for delimited output.
- */
-const escapeDelimitedValue = (
-  value: unknown,
-  { delimiter, quote, escape, lineBreak }: { delimiter: string; quote: string; escape: string; lineBreak: string },
-): string => {
-  const text = toComparableString(value);
-  if (
-    text.includes(delimiter) ||
-    text.includes(lineBreak) ||
-    text.includes(quote)
-  ) {
-    return `${quote}${text.replaceAll(quote, `${escape}${quote}`)}${quote}`;
-  }
-  return text;
-};
-
-/**
- * Quote an identifier using the specified quote character, escaping any occurrences of the quote inside the identifier.
- *
- * - If `quote` is falsy, a double quote (") is used.
- * - If `quote` is `"["`, bracket-style quoting is applied: `]` characters inside the identifier are escaped by doubling them (`]]`) and the result is wrapped with `[` and `]`.
- * - Otherwise, occurrences of the provided quote character inside the identifier are escaped by duplicating the quote, and the identifier is wrapped with the quote character.
- *
- * @param identifier - The identifier to be quoted.
- * @param quote - The quote character to use. Use `[` for bracket-style quoting. Defaults to `"`.
- * @returns The quoted and properly escaped identifier.
- *
- * @example
- * ```ts
- * quoteIdentifier('columnName', '"'); // => '"columnName"'
- * quoteIdentifier('column"Name', '"'); // => '"column""Name"'
- * quoteIdentifier('column]Name', '['); // => '[column]]Name]'
- * quoteIdentifier('simpleColumn', ''); // => '"simpleColumn"'
- * ```
- */
-const quoteIdentifier = (identifier: string, quote: string): string => {
-  const actualQuote = quote || '"';
-  if (actualQuote === "[") {
-    return `[${identifier.replaceAll("]", "]]")}]`;
-  }
-  return `${actualQuote}${identifier.replaceAll(actualQuote, `${actualQuote}${actualQuote}`)}${actualQuote}`;
-};
-
-/**
- * Convert a JavaScript value into a SQL literal string suitable for embedding in a SQL statement.
- *
- * - null or undefined -> `NULL` (unquoted)
- * - string -> returned wrapped in single quotes, internal single quotes doubled
- * - number -> returned as-is (no quotes)
- * - boolean -> `TRUE` or `FALSE`
- * - other values -> `JSON.stringify(value)` wrapped in single quotes, internal single quotes doubled
- *
- * Notes:
- * - Top-level non-serializable values (e.g. functions, symbols) become the string `"undefined"` via `JSON.stringify` and will be quoted.
- * - This function produces literal SQL values only and does not perform parameterization or protect against SQL injection. Prefer prepared statements or parameterized queries for untrusted input.
- *
- * @param value - The value to convert to a SQL literal.
- * @returns A string representing the SQL literal for the given value.
- */
-const toSqlLiteral = (value: unknown): string => {
-  if (value === null || value === undefined) return "NULL";
-  if (typeof value === "string") return `'${value.replaceAll("'", "''")}'`;
-  if (typeof value === "number") return String(value);
-  if (typeof value === "boolean") return value ? "TRUE" : "FALSE";
-  return `'${JSON.stringify(value).replaceAll("'", "''")}'`;
-};
-
-/**
- * Trims whitespace from the input and removes matching surrounding single or double quotes.
- *
- * The function first trims leading and trailing whitespace. If the trimmed string has fewer
- * than two characters, it is returned unchanged. If the first and last characters are both
- * single quotes (') or both double quotes ("), those surrounding quotes are removed and
- * the inner substring is returned. Otherwise, the trimmed string is returned as-is.
- *
- * @param value - The string to trim and strip surrounding quotes from.
- * @returns The trimmed string with surrounding matching quotes removed, if present.
- *
- * @example
- * ```ts
- * stripQuotes('  "hello world"  '); // => 'hello world'
- * stripQuotes("  'hello world'  "); // => 'hello world'
- * stripQuotes("  'mismatched\"  "); // => '\'mismatched"'
- * ```
- */
-const stripQuotes = (value: string): string => {
-  const trimmed = value.trim();
-  if (trimmed.length < 2) return trimmed;
-  const first = trimmed.at(0);
-  const last = trimmed.at(-1);
-  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-    return trimmed.slice(1, -1);
-  }
-  return trimmed;
-};
-
-/**
- * Compiles a SQL-like pattern into a JavaScript RegExp.
- *
- * Treats all characters in the input as literals except:
- * - '%' is translated to '.*' (match any sequence of characters)
- * - '_' is translated to '.'  (match any single character)
- *
- * All RegExp metacharacters in the pattern are escaped before translation.
- * The resulting regular expression is anchored with ^ and $ and created
- * with the case-insensitive flag.
- *
- * @param pattern - The SQL-like pattern using '%' and '_' wildcards.
- * @returns A RegExp that matches the entire input string according to the supplied pattern (case-insensitive).
- *
- * @example
- * ```ts
- * compileLikePattern("foo%bar").test("FoobazBAR"); // true
- * compileLikePattern("data_").test("data1"); // true
- * ```
- *
- * @remarks
- * Passing an empty string produces a RegExp that only matches the empty input (/^$/i).
- */
-const compileLikePattern = (pattern: string): RegExp => {
-  const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const source = `^${escaped.replaceAll("%", ".*").replaceAll("_", ".")}$`;
-  return new RegExp(source, "i");
-};
-
-/**
- * Parse a single filter expression string into a Predicate object.
- *
- * Supported forms:
- * - "<column> like <value>" (case-insensitive keyword "like")
- *   - value quotes are stripped; a compiled likePattern is returned in the predicate
- * - "<column><op><value>" where op is one of: >=, <=, !=, =, >, <
- *   - the first operator from that list that appears (with a non-empty LHS) is used
- *   - value quotes are stripped
- *
- * Behavior notes:
- * - Leading/trailing whitespace is ignored.
- * - Quotes around values are removed via stripQuotes before being stored in the Predicate.
- * - For "like" expressions, compileLikePattern(parsedValue) is used to populate likePattern.
- * - A column name must be non-empty and a value must be non-empty for a successful parse.
- *
- * @param expression - The filter expression to parse (e.g. `age >= 30`, `name like "Jo%"`).
- * @returns A Predicate describing the parsed filter. For LIKE expressions the returned object
- *          includes a `likePattern` property in addition to `column`, `op`, and `value`.
- *
- * @throws {StreamCliError} Throws a StreamCliError with code "VALIDATION_ERROR" and:
- *   - ERR_FILTER_EMPTY when the provided expression is empty or only whitespace.
- *   - ERR_INVALID_FILTER(expression) when the expression cannot be parsed into a supported form.
- */
 const parseFilterExpression = (expression: string): Predicate => {
-  const expr = expression.trim();
-  if (!expr) {
+  try {
+    return parsePredicate(expression);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (message.includes("cannot be empty")) {
+      throw new StreamCliError(
+        "VALIDATION_ERROR",
+        ERR_FILTER_EMPTY,
+        EXIT_VALIDATION_ERROR,
+      );
+    }
     throw new StreamCliError(
       "VALIDATION_ERROR",
-      ERR_FILTER_EMPTY,
+      ERR_INVALID_FILTER(expression),
       EXIT_VALIDATION_ERROR,
     );
   }
-
-  const likeMatch = expr.match(/^(.*?)\s+like\s+(.*)$/i);
-  if (likeMatch) {
-    const parsedValue = stripQuotes(likeMatch[2]);
-    return {
-      column: likeMatch[1].trim(),
-      op: "LIKE",
-      value: parsedValue,
-      likePattern: compileLikePattern(parsedValue),
-    };
-  }
-
-  const operators: ReadonlyArray<Exclude<PredicateOp, "LIKE">> = [
-    ">=",
-    "<=",
-    "!=",
-    "=",
-    ">",
-    "<",
-  ];
-  for (const op of operators) {
-    const idx = expr.indexOf(op);
-    if (idx > 0) {
-      const column = expr.slice(0, idx).trim();
-      const value = stripQuotes(expr.slice(idx + op.length));
-      if (column && value) {
-        return { column, op, value };
-      }
-    }
-  }
-
-  throw new StreamCliError(
-    "VALIDATION_ERROR",
-    ERR_INVALID_FILTER(expression),
-    EXIT_VALIDATION_ERROR,
-  );
 };
 
 /**
@@ -996,11 +618,10 @@ const emitRow = async (
   }
 
   if (config.outputFormat === "html") {
-    await writeChunk(stream, "    <tr>\n");
-    for (const header of outputHeaders) {
-      await writeChunk(stream, `      <td>${toHtmlCell(row[header])}</td>\n`);
-    }
-    await writeChunk(stream, "    </tr>\n");
+    const cells = outputHeaders
+      .map((header) => `      <td>${toHtmlCell(row[header])}</td>`)
+      .join("\n");
+    await writeChunk(stream, `    <tr>\n${cells}\n    </tr>\n`);
     return;
   }
 
@@ -1013,17 +634,15 @@ const emitRow = async (
     const indent = Math.max(1, config.yamlIndent || 2);
     const padding = " ".repeat(indent);
     const [firstHeader, ...restHeaders] = outputHeaders;
+    const firstLine = `- ${firstHeader}: ${toYamlScalar(row[firstHeader], config.yamlQuoteStrings)}`;
+    const restLines = restHeaders.map(
+      (header) =>
+        `${padding}${header}: ${toYamlScalar(row[header], config.yamlQuoteStrings)}`,
+    );
     await writeChunk(
       stream,
-      `- ${firstHeader}: ${toYamlScalar(row[firstHeader], config.yamlQuoteStrings)}${config.lineBreak}`,
+      [firstLine, ...restLines].join(config.lineBreak) + config.lineBreak,
     );
-
-    for (const header of restHeaders) {
-      await writeChunk(
-        stream,
-        `${padding}${header}: ${toYamlScalar(row[header], config.yamlQuoteStrings)}${config.lineBreak}`,
-      );
-    }
     return;
   }
 
@@ -1122,6 +741,129 @@ const emitDelimitedHeaderLine = async (
     )
     .join(config.delimiter);
   await writeChunk(output, headerLine + lineBreak);
+};
+
+const createInputIterable = (
+  input: Readable,
+  inputFormat: InputFormat,
+  parseNdjsonLine: (line: string) => unknown,
+): AsyncIterable<unknown> => {
+  if (inputFormat === "ndjson") {
+    return (async function* ndjsonValues(
+      readable: Readable,
+    ): AsyncGenerator<StreamArrayItem> {
+      const rl = readline.createInterface({
+        input: readable,
+        crlfDelay: Infinity,
+      });
+      let index = 0;
+      for await (const line of rl) {
+        const trimmed = line.trim();
+        if (trimmed === "") {
+          continue;
+        }
+        yield { key: index, value: parseNdjsonLine(trimmed) };
+        index += 1;
+      }
+    })(input);
+  }
+
+  return input.pipe(streamArray.withParserAsStream()) as AsyncIterable<unknown>;
+};
+
+const planInitialRow = (
+  value: unknown,
+  inputFormat: InputFormat,
+  hasHeaders: boolean,
+  requestedColumns: ReadonlyArray<string>,
+): InitialRowPlan => {
+  if (inputFormat === "ndjson") {
+    if (!isObjectRecord(value)) {
+      throw new StreamCliError(
+        "PARSE_ERROR",
+        ERR_EXPECT_NDJSON_OBJECTS,
+        EXIT_RUNTIME_ERROR,
+      );
+    }
+
+    const baseHeaders = Object.keys(value);
+    return {
+      shape: "array-of-objects",
+      headers: requestedColumns.length > 0 ? [...requestedColumns] : baseHeaders,
+      strictValidation: false,
+      processFirstValue: true,
+    };
+  }
+
+  if (Array.isArray(value)) {
+    if (hasHeaders) {
+      return {
+        shape: "array-of-arrays",
+        headers: value.map((item) => toComparableString(item)),
+        strictValidation: true,
+        processFirstValue: false,
+      };
+    }
+
+    return {
+      shape: "array-of-arrays",
+      headers:
+        requestedColumns.length > 0
+          ? [...requestedColumns]
+          : value.map((_, idx) => `column${idx + 1}`),
+      strictValidation: false,
+      processFirstValue: true,
+    };
+  }
+
+  if (isObjectRecord(value)) {
+    const baseHeaders = Object.keys(value);
+    return {
+      shape: "array-of-objects",
+      headers: requestedColumns.length > 0 ? [...requestedColumns] : baseHeaders,
+      strictValidation: false,
+      processFirstValue: true,
+    };
+  }
+
+  throw new StreamCliError(
+    "PARSE_ERROR",
+    ERR_EXPECT_ARRAY_ROWS,
+    EXIT_RUNTIME_ERROR,
+  );
+};
+
+const finalizeSuccessfulRun = async ({
+  useSqlBatch,
+  flushSqlBatch,
+  config,
+  output,
+  hasOutputPath,
+  outputHeaders,
+  writtenRows,
+  detectedShape,
+  sigintHandler,
+}: FinalizeRunArgs): Promise<void> => {
+  if (useSqlBatch) {
+    await flushSqlBatch(true);
+  }
+
+  if (config.outputFormat === "html") {
+    await writeChunk(output, "  </tbody>\n</table>\n");
+  }
+
+  await finalizeOutput(output, hasOutputPath);
+
+  if (config.stats) {
+    const columnCount = outputHeaders !== null ? outputHeaders.length : 0;
+    const shape = detectedShape ?? "unknown";
+    process.stderr.write(
+      `[tablyful] rows: ${writtenRows}, columns: ${columnCount}, detected: ${shape}, format: ${config.outputFormat}\n`,
+    );
+  }
+
+  process.off("SIGINT", sigintHandler);
+  process.exit(EXIT_OK);
 };
 
 /**
@@ -1229,28 +971,9 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     }
   };
 
-  const jsonStream =
-    inputFormat === "ndjson"
-      ? (async function* ndjsonValues(
-          readable: Readable,
-        ): AsyncGenerator<StreamArrayItem> {
-          const rl = readline.createInterface({
-            input: readable,
-            crlfDelay: Infinity,
-          });
-          let index = 0;
-          for await (const line of rl) {
-            const trimmed = line.trim();
-            if (trimmed === "") {
-              continue;
-            }
-            yield { key: index, value: parseNdjsonLine(trimmed) };
-            index += 1;
-          }
-        })(input as Readable)
-      : (input.pipe(streamArray.withParserAsStream()) as AsyncIterable<unknown>);
+  const jsonStream = createInputIterable(input as Readable, inputFormat, parseNdjsonLine);
 
-  let detectedShape: DetectedShape | "" = "";
+  let detectedShape: DetectedShape | null = null;
   let sourceHeaders: string[] | null = null;
   let outputHeaders: string[] | null = null;
   let sawAnyItem = false;
@@ -1311,21 +1034,31 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     const quotedHeaders = oh.map((h) =>
       quoteIdentifier(h, config.sqlIdentifierQuote),
     );
-    const rowLiterals = sqlBatch.map(
-      (r) => `(${oh.map((h) => toSqlLiteral(r[h])).join(", ")})`,
-    );
-    await writeChunk(
-      output,
-      `INSERT INTO ${tableName} (${quotedHeaders.join(", ")}) VALUES\n`,
-    );
-    for (let i = 0; i < rowLiterals.length; i++) {
-      const suffix = i < rowLiterals.length - 1 ? "," : ";";
-      await writeChunk(output, `  ${rowLiterals[i]}${suffix}\n`);
-    }
-    sqlBatch.length = 0;
-  };
+  const rowLiterals = sqlBatch.map(
+    (r) => `(${oh.map((h) => toSqlLiteral(r[h])).join(", ")})`,
+  );
+  const valuesBody = rowLiterals
+    .map((literal, index) => {
+      const suffix = index < rowLiterals.length - 1 ? "," : ";";
+      return `  ${literal}${suffix}`;
+    })
+    .join("\n");
+  await writeChunk(
+    output,
+    `INSERT INTO ${tableName} (${quotedHeaders.join(", ")}) VALUES\n${valuesBody}\n`,
+  );
+  sqlBatch.length = 0;
+};
 
   const processItem = async (value: unknown): Promise<void> => {
+    if (detectedShape === null) {
+      throw new StreamCliError(
+        "STREAM_ERROR",
+        ERR_SHAPE_NOT_INIT,
+        EXIT_RUNTIME_ERROR,
+      );
+    }
+
     const { sourceHeaders: sh, outputHeaders: oh } = ensureInitializedHeaders(
       sourceHeaders,
       outputHeaders,
@@ -1334,7 +1067,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
       value,
       sh,
       oh,
-      detectedShape as DetectedShape,
+      detectedShape,
       predicates,
       configWithLineBreak,
       writtenRows + 1,
@@ -1369,70 +1102,22 @@ const run = async (config: StreamCliConfig): Promise<void> => {
       sawAnyItem = true;
 
       if (!initialized) {
-        if (inputFormat === "ndjson") {
-          if (!isObjectRecord(value)) {
-            throw new StreamCliError(
-              "PARSE_ERROR",
-              ERR_EXPECT_NDJSON_OBJECTS,
-              EXIT_RUNTIME_ERROR,
-            );
-          }
-
-          detectedShape = "array-of-objects";
-          const baseHeaders = Object.keys(value);
-          const headers =
-            requestedColumns.length > 0 ? requestedColumns : baseHeaders;
-          await initialize({ headers, strictValidation: false });
-
-          await processItem(value);
-          continue;
-        }
-
-        if (Array.isArray(value)) {
-          const shape: DetectedShape = "array-of-arrays";
-          detectedShape = shape;
-
-          if (config.hasHeaders) {
-            const headers = value.map((item) => toComparableString(item));
-            await initialize({ headers, strictValidation: true });
-            continue;
-          }
-
-          const headers =
-            requestedColumns.length > 0
-              ? requestedColumns
-              : value.map((_, idx) => `column${idx + 1}`);
-          await initialize({ headers, strictValidation: false });
-
-          await processItem(value);
-          continue;
-        }
-
-        if (isObjectRecord(value)) {
-          const shape: DetectedShape = "array-of-objects";
-          detectedShape = shape;
-          const baseHeaders = Object.keys(value);
-          const headers =
-            requestedColumns.length > 0 ? requestedColumns : baseHeaders;
-          await initialize({ headers, strictValidation: false });
-
-          await processItem(value);
-          continue;
-        }
-
-        throw new StreamCliError(
-          "PARSE_ERROR",
-          ERR_EXPECT_ARRAY_ROWS,
-          EXIT_RUNTIME_ERROR,
+        const initialPlan = planInitialRow(
+          value,
+          inputFormat,
+          config.hasHeaders,
+          requestedColumns,
         );
-      }
+        detectedShape = initialPlan.shape;
+        await initialize({
+          headers: initialPlan.headers,
+          strictValidation: initialPlan.strictValidation,
+        });
 
-      if (detectedShape === "") {
-        throw new StreamCliError(
-          "STREAM_ERROR",
-          ERR_SHAPE_NOT_INIT,
-          EXIT_RUNTIME_ERROR,
-        );
+        if (initialPlan.processFirstValue) {
+          await processItem(value);
+        }
+        continue;
       }
 
       if (inputFormat === "ndjson" && !isObjectRecord(value)) {
@@ -1454,26 +1139,17 @@ const run = async (config: StreamCliConfig): Promise<void> => {
       );
     }
 
-    if (useSqlBatch) {
-      await flushSqlBatch(true);
-    }
-
-    if (config.outputFormat === "html") {
-      await writeChunk(output, "  </tbody>\n</table>\n");
-    }
-
-    await finalizeOutput(output, hasOutputPath);
-
-    if (config.stats) {
-      const columnCount =
-        outputHeaders !== null ? (outputHeaders as string[]).length : 0;
-      process.stderr.write(
-        `[tablyful] rows: ${writtenRows}, columns: ${columnCount}, detected: ${detectedShape}, format: ${config.outputFormat}\n`,
-      );
-    }
-
-    process.off("SIGINT", sigintHandler);
-    process.exit(EXIT_OK);
+    await finalizeSuccessfulRun({
+      useSqlBatch,
+      flushSqlBatch,
+      config,
+      output,
+      hasOutputPath,
+      outputHeaders,
+      writtenRows,
+      detectedShape,
+      sigintHandler,
+    });
   } catch (error) {
     cleanupOutputFile();
     process.off("SIGINT", sigintHandler);
@@ -1481,13 +1157,9 @@ const run = async (config: StreamCliConfig): Promise<void> => {
   }
 };
 
-const classifyUnhandledError = (error: unknown): ClassifiedError => {
+const normalizeStreamError = (error: unknown): StreamCliError => {
   if (error instanceof StreamCliError) {
-    return {
-      category: error.category,
-      message: error.message,
-      exitCode: error.exitCode,
-    };
+    return error;
   }
 
   const streamError = error as StreamErrorLike;
@@ -1495,39 +1167,35 @@ const classifyUnhandledError = (error: unknown): ClassifiedError => {
   const errorCode = streamError.code;
 
   if (errorCode === "ENOENT" || message.includes("ENOENT:")) {
-    return {
-      category: "IO_ERROR",
-      message: message.includes("Failed to read input file:")
+    return new StreamCliError(
+      "IO_ERROR",
+      message.includes("Failed to read input file:")
         ? message
         : `Failed to read input file: ${message}`,
-      exitCode: EXIT_RUNTIME_ERROR,
-    };
+      EXIT_RUNTIME_ERROR,
+    );
   }
 
   if (errorCode === "EACCES") {
-    return {
-      category: "IO_ERROR",
-      message: `Permission denied: ${message}`,
-      exitCode: EXIT_RUNTIME_ERROR,
-    };
+    return new StreamCliError(
+      "IO_ERROR",
+      `Permission denied: ${message}`,
+      EXIT_RUNTIME_ERROR,
+    );
   }
 
   if (
     streamError.name === "SyntaxError" ||
     JSON_PARSE_PATTERNS.some((pattern) => pattern.test(message))
   ) {
-    return {
-      category: "PARSE_ERROR",
-      message: "Invalid JSON format",
-      exitCode: EXIT_RUNTIME_ERROR,
-    };
+    return new StreamCliError(
+      "PARSE_ERROR",
+      "Invalid JSON format",
+      EXIT_RUNTIME_ERROR,
+    );
   }
 
-  return {
-    category: "STREAM_ERROR",
-    message,
-    exitCode: EXIT_RUNTIME_ERROR,
-  };
+  return new StreamCliError("STREAM_ERROR", message, EXIT_RUNTIME_ERROR);
 };
 
 /**
@@ -1554,8 +1222,8 @@ const classifyUnhandledError = (error: unknown): ClassifiedError => {
  */
 export function runStreamConversion(config: StreamCliConfig): void {
   void run(config).catch((error: unknown) => {
-    const classified = classifyUnhandledError(error);
-    process.stderr.write(`[${classified.category}] ${classified.message}\n`);
-    process.exit(classified.exitCode);
+    const normalized = normalizeStreamError(error);
+    process.stderr.write(`[${normalized.category}] ${normalized.message}\n`);
+    process.exit(normalized.exitCode);
   });
 }

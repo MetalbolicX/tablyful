@@ -103,6 +103,192 @@ let parseIntSet = (~key: string, value: string): Common.result<int> => {
   }
 }
 
+let unknownSetOption = (~fullKey: string, ~section: string, ~allowed: string): Common.result<'a> => {
+  invalidSet(`Unknown --set option: ${fullKey}. Allowed ${section} options: ${allowed}.`)
+}
+
+let applyCsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
+  let csv = Defaults.getCsvOptions(options)
+  switch field {
+  | "delimiter" => Ok({...options, formatOptions: CsvOptions({...csv, delimiter: value})})
+  | "quote" => Ok({...options, formatOptions: CsvOptions({...csv, quote: value})})
+  | "escape" => Ok({...options, formatOptions: CsvOptions({...csv, escape: value})})
+  | "lineBreak" => Ok({...options, formatOptions: CsvOptions({...csv, lineBreak: value})})
+  | "includeHeaders" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(includeHeaders => {
+      {...options, formatOptions: CsvOptions({...csv, includeHeaders})}
+    })
+  | _ =>
+    unknownSetOption(
+      ~fullKey,
+      ~section="csv",
+      ~allowed="delimiter, quote, escape, lineBreak, includeHeaders",
+    )
+  }
+}
+
+let applyTsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
+  switch field {
+  | "includeHeaders" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(includeHeaders => {
+      {...options, formatOptions: TsvOptions({includeHeaders: includeHeaders})}
+    })
+  | _ => unknownSetOption(~fullKey, ~section="tsv", ~allowed="includeHeaders")
+  }
+}
+
+let applyPsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
+  switch field {
+  | "includeHeaders" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(includeHeaders => {
+      {...options, formatOptions: PsvOptions({includeHeaders: includeHeaders})}
+    })
+  | _ => unknownSetOption(~fullKey, ~section="psv", ~allowed="includeHeaders")
+  }
+}
+
+let applyJsonSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
+  let json = Defaults.getJsonOptions(options)
+  switch field {
+  | "pretty" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(pretty => {
+      {...options, formatOptions: JsonOptions({...json, pretty})}
+    })
+  | "indentSize" =>
+    parseIntSet(~key=fullKey, value)->Result.map(indentSize => {
+      {...options, formatOptions: JsonOptions({...json, indentSize})}
+    })
+  | "asArray" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(asArray => {
+      {...options, formatOptions: JsonOptions({...json, asArray})}
+    })
+  | _ => unknownSetOption(~fullKey, ~section="json", ~allowed="pretty, indentSize, asArray")
+  }
+}
+
+let applyMarkdownSetOverride = (
+  options: t,
+  ~field: string,
+  ~fullKey: string,
+  value: string,
+): Common.result<t> => {
+  let markdown = Defaults.getMarkdownOptions(options)
+  switch field {
+  | "align" => Ok({...options, formatOptions: MarkdownOptions({...markdown, align: value})})
+  | "padding" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(padding => {
+      {...options, formatOptions: MarkdownOptions({...markdown, padding})}
+    })
+  | "githubFlavor" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(githubFlavor => {
+      {...options, formatOptions: MarkdownOptions({...markdown, githubFlavor})}
+    })
+  | _ => unknownSetOption(~fullKey, ~section="markdown", ~allowed="align, padding, githubFlavor")
+  }
+}
+
+let applyHtmlSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
+  let html = Defaults.getHtmlOptions(options)
+  switch field {
+  | "tableClass" => Ok({...options, formatOptions: HtmlOptions({...html, tableClass: value})})
+  | "theadClass" => Ok({...options, formatOptions: HtmlOptions({...html, theadClass: value})})
+  | "tbodyClass" => Ok({...options, formatOptions: HtmlOptions({...html, tbodyClass: value})})
+  | "id" => Ok({...options, formatOptions: HtmlOptions({...html, id: value})})
+  | "caption" => Ok({...options, formatOptions: HtmlOptions({...html, caption: value})})
+  | _ =>
+    unknownSetOption(
+      ~fullKey,
+      ~section="html",
+      ~allowed="tableClass, theadClass, tbodyClass, id, caption",
+    )
+  }
+}
+
+let applyLatexSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
+  let latex = Defaults.getLatexOptions(options)
+  switch field {
+  | "tableEnvironment" =>
+    Ok({...options, formatOptions: LatexOptions({...latex, tableEnvironment: value})})
+  | "columnSpec" => Ok({...options, formatOptions: LatexOptions({...latex, columnSpec: value})})
+  | "booktabs" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(booktabs => {
+      {...options, formatOptions: LatexOptions({...latex, booktabs})}
+    })
+  | "caption" => Ok({...options, formatOptions: LatexOptions({...latex, caption: value})})
+  | "label" => Ok({...options, formatOptions: LatexOptions({...latex, label: value})})
+  | "centering" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(centering => {
+      {...options, formatOptions: LatexOptions({...latex, centering})}
+    })
+  | "useTableEnvironment" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(useTableEnvironment => {
+      {...options, formatOptions: LatexOptions({...latex, useTableEnvironment})}
+    })
+  | _ =>
+    unknownSetOption(
+      ~fullKey,
+      ~section="latex",
+      ~allowed="tableEnvironment, columnSpec, booktabs, caption, label, centering, useTableEnvironment",
+    )
+  }
+}
+
+let applySqlSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
+  let sql = Defaults.getSqlOptions(options)
+  switch field {
+  | "tableName" => Ok({...options, formatOptions: SqlOptions({...sql, tableName: value})})
+  | "identifierQuote" => Ok({...options, formatOptions: SqlOptions({...sql, identifierQuote: value})})
+  | "includeCreateTable" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(includeCreateTable => {
+      {...options, formatOptions: SqlOptions({...sql, includeCreateTable})}
+    })
+  | "insertBatchSize" =>
+    parseIntSet(~key=fullKey, value)->Result.flatMap(insertBatchSize => {
+      if insertBatchSize <= 0 {
+        invalidSet(
+          `Invalid --set ${fullKey}: ${value}. Value must be greater than 0.`,
+        )
+      } else {
+        Ok({...options, formatOptions: SqlOptions({...sql, insertBatchSize})})
+      }
+    })
+  | _ =>
+    unknownSetOption(
+      ~fullKey,
+      ~section="sql",
+      ~allowed="tableName, identifierQuote, includeCreateTable, insertBatchSize",
+    )
+  }
+}
+
+let applyYamlSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
+  let yaml = Defaults.getYamlOptions(options)
+  switch field {
+  | "indent" =>
+    parseIntSet(~key=fullKey, value)->Result.map(indent => {
+      {...options, formatOptions: YamlOptions({...yaml, indent})}
+    })
+  | "quoteStrings" =>
+    parseBoolSet(~key=fullKey, value)->Result.map(quoteStrings => {
+      {...options, formatOptions: YamlOptions({...yaml, quoteStrings})}
+    })
+  | "lineBreak" => Ok({...options, formatOptions: YamlOptions({...yaml, lineBreak: value})})
+  | _ => unknownSetOption(~fullKey, ~section="yaml", ~allowed="indent, quoteStrings, lineBreak")
+  }
+}
+
+let applyNdjsonSetOverride = (
+  options: t,
+  ~field: string,
+  ~fullKey: string,
+  value: string,
+): Common.result<t> => {
+  switch field {
+  | "lineBreak" => Ok({...options, formatOptions: NdjsonOptions({lineBreak: value})})
+  | _ => unknownSetOption(~fullKey, ~section="ndjson", ~allowed="lineBreak")
+  }
+}
+
 let applySetOverride = (options: t, ((key, value): (string, string))): Common.result<t> => {
   let parts = key->String.split(".")
   if parts->Array.length !== 2 {
@@ -115,175 +301,16 @@ let applySetOverride = (options: t, ((key, value): (string, string))): Common.re
     let fullKey = `${section}.${field}`
 
     switch section {
-    | "csv" => {
-        let csv = Defaults.getCsvOptions(options)
-        switch field {
-        | "delimiter" => Ok({...options, formatOptions: CsvOptions({...csv, delimiter: value})})
-        | "quote" => Ok({...options, formatOptions: CsvOptions({...csv, quote: value})})
-        | "escape" => Ok({...options, formatOptions: CsvOptions({...csv, escape: value})})
-        | "lineBreak" => Ok({...options, formatOptions: CsvOptions({...csv, lineBreak: value})})
-        | "includeHeaders" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(includeHeaders => {
-            {...options, formatOptions: CsvOptions({...csv, includeHeaders})}
-          })
-        | _ =>
-          invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed csv options: delimiter, quote, escape, lineBreak, includeHeaders.`,
-          )
-        }
-      }
-    | "tsv" => {
-        switch field {
-        | "includeHeaders" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(includeHeaders => {
-            {...options, formatOptions: TsvOptions({includeHeaders: includeHeaders})}
-          })
-        | _ =>
-          invalidSet(`Unknown --set option: ${fullKey}. Allowed tsv options: includeHeaders.`)
-        }
-      }
-    | "psv" => {
-        switch field {
-        | "includeHeaders" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(includeHeaders => {
-            {...options, formatOptions: PsvOptions({includeHeaders: includeHeaders})}
-          })
-        | _ =>
-          invalidSet(`Unknown --set option: ${fullKey}. Allowed psv options: includeHeaders.`)
-        }
-      }
-    | "json" => {
-        let json = Defaults.getJsonOptions(options)
-        switch field {
-        | "pretty" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(pretty => {
-            {...options, formatOptions: JsonOptions({...json, pretty})}
-          })
-        | "indentSize" =>
-          parseIntSet(~key=fullKey, value)->Result.map(indentSize => {
-            {...options, formatOptions: JsonOptions({...json, indentSize})}
-          })
-        | "asArray" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(asArray => {
-            {...options, formatOptions: JsonOptions({...json, asArray})}
-          })
-        | _ =>
-          invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed json options: pretty, indentSize, asArray.`,
-          )
-        }
-      }
-    | "markdown" => {
-        let markdown = Defaults.getMarkdownOptions(options)
-        switch field {
-        | "align" => Ok({...options, formatOptions: MarkdownOptions({...markdown, align: value})})
-        | "padding" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(padding => {
-            {...options, formatOptions: MarkdownOptions({...markdown, padding})}
-          })
-        | "githubFlavor" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(githubFlavor => {
-            {...options, formatOptions: MarkdownOptions({...markdown, githubFlavor})}
-          })
-        | _ =>
-          invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed markdown options: align, padding, githubFlavor.`,
-          )
-        }
-      }
-    | "html" => {
-        let html = Defaults.getHtmlOptions(options)
-        switch field {
-        | "tableClass" => Ok({...options, formatOptions: HtmlOptions({...html, tableClass: value})})
-        | "theadClass" => Ok({...options, formatOptions: HtmlOptions({...html, theadClass: value})})
-        | "tbodyClass" => Ok({...options, formatOptions: HtmlOptions({...html, tbodyClass: value})})
-        | "id" => Ok({...options, formatOptions: HtmlOptions({...html, id: value})})
-        | "caption" => Ok({...options, formatOptions: HtmlOptions({...html, caption: value})})
-        | _ =>
-          invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed html options: tableClass, theadClass, tbodyClass, id, caption.`,
-          )
-        }
-      }
-    | "latex" => {
-        let latex = Defaults.getLatexOptions(options)
-        switch field {
-        | "tableEnvironment" =>
-          Ok({...options, formatOptions: LatexOptions({...latex, tableEnvironment: value})})
-        | "columnSpec" => Ok({...options, formatOptions: LatexOptions({...latex, columnSpec: value})})
-        | "booktabs" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(booktabs => {
-            {...options, formatOptions: LatexOptions({...latex, booktabs})}
-          })
-        | "caption" => Ok({...options, formatOptions: LatexOptions({...latex, caption: value})})
-        | "label" => Ok({...options, formatOptions: LatexOptions({...latex, label: value})})
-        | "centering" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(centering => {
-            {...options, formatOptions: LatexOptions({...latex, centering})}
-          })
-        | "useTableEnvironment" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(useTableEnvironment => {
-            {...options, formatOptions: LatexOptions({...latex, useTableEnvironment})}
-          })
-        | _ =>
-          invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed latex options: tableEnvironment, columnSpec, booktabs, caption, label, centering, useTableEnvironment.`,
-          )
-        }
-      }
-    | "sql" => {
-        let sql = Defaults.getSqlOptions(options)
-        switch field {
-        | "tableName" => Ok({...options, formatOptions: SqlOptions({...sql, tableName: value})})
-        | "identifierQuote" =>
-          Ok({...options, formatOptions: SqlOptions({...sql, identifierQuote: value})})
-        | "includeCreateTable" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(includeCreateTable => {
-            {...options, formatOptions: SqlOptions({...sql, includeCreateTable})}
-          })
-        | "insertBatchSize" =>
-          parseIntSet(~key=fullKey, value)->Result.flatMap(insertBatchSize => {
-            if insertBatchSize <= 0 {
-              invalidSet(
-                `Invalid --set ${fullKey}: ${value}. Value must be greater than 0.`,
-              )
-            } else {
-              Ok({...options, formatOptions: SqlOptions({...sql, insertBatchSize})})
-            }
-          })
-        | _ =>
-          invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed sql options: tableName, identifierQuote, includeCreateTable, insertBatchSize.`,
-          )
-        }
-      }
-    | "yaml" => {
-        let yaml = Defaults.getYamlOptions(options)
-        switch field {
-        | "indent" =>
-          parseIntSet(~key=fullKey, value)->Result.map(indent => {
-            {...options, formatOptions: YamlOptions({...yaml, indent})}
-          })
-        | "quoteStrings" =>
-          parseBoolSet(~key=fullKey, value)->Result.map(quoteStrings => {
-            {...options, formatOptions: YamlOptions({...yaml, quoteStrings})}
-          })
-        | "lineBreak" => Ok({...options, formatOptions: YamlOptions({...yaml, lineBreak: value})})
-        | _ =>
-          invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed yaml options: indent, quoteStrings, lineBreak.`,
-          )
-        }
-      }
-    | "ndjson" => {
-        switch field {
-        | "lineBreak" => Ok({...options, formatOptions: NdjsonOptions({lineBreak: value})})
-        | _ =>
-          invalidSet(
-            `Unknown --set option: ${fullKey}. Allowed ndjson options: lineBreak.`,
-          )
-        }
-      }
+    | "csv" => applyCsvSetOverride(options, ~field, ~fullKey, value)
+    | "tsv" => applyTsvSetOverride(options, ~field, ~fullKey, value)
+    | "psv" => applyPsvSetOverride(options, ~field, ~fullKey, value)
+    | "json" => applyJsonSetOverride(options, ~field, ~fullKey, value)
+    | "markdown" => applyMarkdownSetOverride(options, ~field, ~fullKey, value)
+    | "html" => applyHtmlSetOverride(options, ~field, ~fullKey, value)
+    | "latex" => applyLatexSetOverride(options, ~field, ~fullKey, value)
+    | "sql" => applySqlSetOverride(options, ~field, ~fullKey, value)
+    | "yaml" => applyYamlSetOverride(options, ~field, ~fullKey, value)
+    | "ndjson" => applyNdjsonSetOverride(options, ~field, ~fullKey, value)
     | _ =>
       invalidSet(
         `Unknown --set format: ${section}. Allowed formats: csv, tsv, psv, json, markdown, html, latex, sql, yaml, ndjson.`,

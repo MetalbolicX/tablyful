@@ -219,16 +219,8 @@ let knownTopLevelKeys = [
   "ndjson",
 ]
 
-let knownCsvKeys = ["delimiter", "quote", "escape", "lineBreak", "includeHeaders"]
-let knownTsvKeys = ["includeHeaders"]
-let knownPsvKeys = ["includeHeaders"]
-let knownJsonKeys = ["pretty", "indentSize", "asArray"]
-let knownMarkdownKeys = ["align", "padding", "githubFlavor"]
-let knownHtmlKeys = ["tableClass", "theadClass", "tbodyClass", "id", "caption"]
-let knownLatexKeys = ["tableEnvironment", "columnSpec", "booktabs", "caption", "label", "centering", "useTableEnvironment"]
-let knownSqlKeys = ["tableName", "identifierQuote", "includeCreateTable", "insertBatchSize"]
-let knownYamlKeys = ["indent", "quoteStrings", "lineBreak"]
-let knownNdjsonKeys = ["lineBreak"]
+let knownSectionKeys = (sectionName: string): array<string> =>
+  FormatKeys.getConfigKeysBySectionName(sectionName)
 
 let warnUnknownConfigKeys = (~scope: string, ~keys: array<string>): unit => {
   if keys->Array.length > 0 {
@@ -293,7 +285,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("csv")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(csvDict => {
-      warnUnknownSectionKeys(~sectionName="csv", csvDict, knownCsvKeys)
+      warnUnknownSectionKeys(~sectionName="csv", csvDict, knownSectionKeys("csv"))
       parseCsvOptions(csvDict)
     })
     ->Option.map(csv => CsvOptions(csv))
@@ -303,7 +295,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("tsv")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(tsvDict => {
-      warnUnknownSectionKeys(~sectionName="tsv", tsvDict, knownTsvKeys)
+      warnUnknownSectionKeys(~sectionName="tsv", tsvDict, knownSectionKeys("tsv"))
       parseTsvOptions(tsvDict)
     })
     ->Option.map(tsv => TsvOptions(tsv))
@@ -313,7 +305,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("psv")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(psvDict => {
-      warnUnknownSectionKeys(~sectionName="psv", psvDict, knownPsvKeys)
+      warnUnknownSectionKeys(~sectionName="psv", psvDict, knownSectionKeys("psv"))
       parsePsvOptions(psvDict)
     })
     ->Option.map(psv => PsvOptions(psv))
@@ -323,7 +315,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("json")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(jsonDict => {
-      warnUnknownSectionKeys(~sectionName="json", jsonDict, knownJsonKeys)
+      warnUnknownSectionKeys(~sectionName="json", jsonDict, knownSectionKeys("json"))
       parseJsonOptions(jsonDict)
     })
     ->Option.map(json => JsonOptions(json))
@@ -333,7 +325,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("markdown")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(markdownDict => {
-      warnUnknownSectionKeys(~sectionName="markdown", markdownDict, knownMarkdownKeys)
+      warnUnknownSectionKeys(~sectionName="markdown", markdownDict, knownSectionKeys("markdown"))
       parseMarkdownOptions(markdownDict)
     })
     ->Option.map(md => MarkdownOptions(md))
@@ -343,7 +335,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("html")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(htmlDict => {
-      warnUnknownSectionKeys(~sectionName="html", htmlDict, knownHtmlKeys)
+      warnUnknownSectionKeys(~sectionName="html", htmlDict, knownSectionKeys("html"))
       parseHtmlOptions(htmlDict)
     })
     ->Option.map(html => HtmlOptions(html))
@@ -353,7 +345,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("latex")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(latexDict => {
-      warnUnknownSectionKeys(~sectionName="latex", latexDict, knownLatexKeys)
+      warnUnknownSectionKeys(~sectionName="latex", latexDict, knownSectionKeys("latex"))
       parseLatexOptions(latexDict)
     })
     ->Option.map(latex => LatexOptions(latex))
@@ -363,7 +355,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("sql")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(sqlDict => {
-      warnUnknownSectionKeys(~sectionName="sql", sqlDict, knownSqlKeys)
+      warnUnknownSectionKeys(~sectionName="sql", sqlDict, knownSectionKeys("sql"))
       parseSqlOptions(sqlDict)
     })
     ->Option.map(sql => SqlOptions(sql))
@@ -373,7 +365,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("yaml")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(yamlDict => {
-      warnUnknownSectionKeys(~sectionName="yaml", yamlDict, knownYamlKeys)
+      warnUnknownSectionKeys(~sectionName="yaml", yamlDict, knownSectionKeys("yaml"))
       parseYamlOptions(yamlDict)
     })
     ->Option.map(yaml => YamlOptions(yaml))
@@ -383,7 +375,7 @@ let parseOptions = (dict: dict<JSON.t>): t => {
     ->Dict.get("ndjson")
     ->Option.flatMap(JSON.Decode.object)
     ->Option.map(ndjsonDict => {
-      warnUnknownSectionKeys(~sectionName="ndjson", ndjsonDict, knownNdjsonKeys)
+      warnUnknownSectionKeys(~sectionName="ndjson", ndjsonDict, knownSectionKeys("ndjson"))
       parseNdjsonOptions(ndjsonDict)
     })
     ->Option.map(ndjson => NdjsonOptions(ndjson))

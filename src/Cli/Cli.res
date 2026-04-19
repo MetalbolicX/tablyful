@@ -138,21 +138,127 @@ let showVersion = (): unit => {
   CliIo.writeStdout(`${version}\n`)
 }
 
-let printSetKeys = (filter: option<Types.format>): unit => {
-  let csv = Defaults.defaultCsvOptions
-  let tsv = Defaults.defaultTsvOptions
-  let psv = Defaults.defaultPsvOptions
-  let json = Defaults.defaultJsonOptions
-  let markdown = Defaults.defaultMarkdownOptions
-  let html = Defaults.defaultHtmlOptions
-  let latex = Defaults.defaultLatexOptions
-  let sql = Defaults.defaultSqlOptions
-  let yaml = Defaults.defaultYamlOptions
-  let ndjson = Defaults.defaultNdjsonOptions
-  let displayLiteral = (value: string): string => {
-    value->String.replaceAll("\n", "\\n")->String.replaceAll("\t", "\\t")
-  }
+let displayLiteral = (value: string): string => {
+  value->String.replaceAll("\n", "\\n")->String.replaceAll("\t", "\\t")
+}
 
+let buildDisplayEntries = (format: Types.format): array<string> => {
+  let name = switch format {
+  | Csv => "csv"
+  | Tsv => "tsv"
+  | Psv => "psv"
+  | Json => "json"
+  | Markdown => "markdown"
+  | Html => "html"
+  | Latex => "latex"
+  | Sql => "sql"
+  | Yaml => "yaml"
+  | Ndjson => "ndjson"
+  }
+  FormatKeys.getKnownKeys(format)->Array.map(((key, description)) => {
+    switch format {
+    | Csv => {
+        let d = Defaults.getCsvOptions(Defaults.t)
+        switch key {
+        | "includeHeaders" =>
+          `${name}.${key} (boolean) - ${description} (default: ${d.includeHeaders->Bool.toString})`
+        | "lineBreak" => `${name}.${key} (string) - ${description} (default: ${d.lineBreak->displayLiteral})`
+        | "delimiter" => `${name}.${key} (string) - ${description} (default: ${d.delimiter})`
+        | "quote" => `${name}.${key} (string) - ${description} (default: ${d.quote})`
+        | "escape" => `${name}.${key} (string) - ${description} (default: ${d.escape})`
+        | _ => `${name}.${key} - ${description}`
+        }
+      }
+    | Tsv => {
+        let d = Defaults.getTsvOptions(Defaults.t)
+        `${name}.${key} (boolean) - ${description} (default: ${d.includeHeaders->Bool.toString})`
+      }
+    | Psv => {
+        let d = Defaults.getPsvOptions(Defaults.t)
+        `${name}.${key} (boolean) - ${description} (default: ${d.includeHeaders->Bool.toString})`
+      }
+    | Json => {
+        let d = Defaults.getJsonOptions(Defaults.t)
+        switch key {
+        | "pretty" | "asArray" =>
+          let b = if key == "pretty" {d.pretty} else {d.asArray}
+          `${name}.${key} (boolean) - ${description} (default: ${b->Bool.toString})`
+        | "indentSize" => `${name}.${key} (int) - ${description} (default: ${d.indentSize->Int.toString})`
+        | _ => `${name}.${key} - ${description}`
+        }
+      }
+    | Markdown => {
+        let d = Defaults.getMarkdownOptions(Defaults.t)
+        switch key {
+        | "align" => `${name}.${key} (string) - ${description} (default: ${d.align})`
+        | "padding" =>
+          `${name}.${key} (boolean) - ${description} (default: ${d.padding->Bool.toString})`
+        | "githubFlavor" =>
+          `${name}.${key} (boolean) - ${description} (default: ${d.githubFlavor->Bool.toString})`
+        | _ => `${name}.${key} - ${description}`
+        }
+      }
+    | Html => {
+        let d = Defaults.getHtmlOptions(Defaults.t)
+        switch key {
+        | "tableClass" => `${name}.${key} (string) - ${description} (default: ${d.tableClass})`
+        | "theadClass" => `${name}.${key} (string) - ${description} (default: ${d.theadClass})`
+        | "tbodyClass" => `${name}.${key} (string) - ${description} (default: ${d.tbodyClass})`
+        | "id" => `${name}.${key} (string) - ${description} (default: ${d.id})`
+        | "caption" => `${name}.${key} (string) - ${description} (default: ${d.caption})`
+        | _ => `${name}.${key} - ${description}`
+        }
+      }
+    | Latex => {
+        let d = Defaults.getLatexOptions(Defaults.t)
+        switch key {
+        | "tableEnvironment" => `${name}.${key} (string) - ${description} (default: ${d.tableEnvironment})`
+        | "columnSpec" => `${name}.${key} (string) - ${description} (default: ${d.columnSpec})`
+        | "caption" => `${name}.${key} (string) - ${description} (default: ${d.caption})`
+        | "label" => `${name}.${key} (string) - ${description} (default: ${d.label})`
+        | "booktabs" =>
+          `${name}.${key} (boolean) - ${description} (default: ${d.booktabs->Bool.toString})`
+        | "centering" =>
+          `${name}.${key} (boolean) - ${description} (default: ${d.centering->Bool.toString})`
+        | "useTableEnvironment" =>
+          `${name}.${key} (boolean) - ${description} (default: ${d.useTableEnvironment->Bool.toString})`
+        | _ => `${name}.${key} - ${description}`
+        }
+      }
+    | Sql => {
+        let d = Defaults.getSqlOptions(Defaults.t)
+        switch key {
+        | "tableName" => `${name}.${key} (string) - ${description} (default: ${d.tableName})`
+        | "identifierQuote" => `${name}.${key} (string) - ${description} (default: ${d.identifierQuote})`
+        | "includeCreateTable" =>
+          `${name}.${key} (boolean) - ${description} (default: ${d.includeCreateTable->Bool.toString})`
+        | "insertBatchSize" =>
+          `${name}.${key} (int) - ${description} (default: ${d.insertBatchSize->Int.toString})`
+        | _ => `${name}.${key} - ${description}`
+        }
+      }
+    | Yaml => {
+        let d = Defaults.getYamlOptions(Defaults.t)
+        switch key {
+        | "indent" => `${name}.${key} (int) - ${description} (default: ${d.indent->Int.toString})`
+        | "quoteStrings" =>
+          `${name}.${key} (boolean) - ${description} (default: ${d.quoteStrings->Bool.toString})`
+        | "lineBreak" => `${name}.${key} (string) - ${description} (default: ${d.lineBreak->displayLiteral})`
+        | _ => `${name}.${key} - ${description}`
+        }
+      }
+    | Ndjson => {
+        let d = Defaults.getNdjsonOptions(Defaults.t)
+        switch key {
+        | "lineBreak" => `${name}.${key} (string) - ${description} (default: ${d.lineBreak->displayLiteral})`
+        | _ => `${name}.${key} - ${description}`
+        }
+      }
+    }
+  })
+}
+
+let printSetKeys = (filter: option<Types.format>): unit => {
   let printSection = (name: string, entries: array<string>): unit => {
     CliIo.writeStdout(`${name} options:\n`)
     entries->Array.forEach(entry => {
@@ -161,107 +267,26 @@ let printSetKeys = (filter: option<Types.format>): unit => {
     CliIo.writeStdout("\n")
   }
 
-  let printCsv = () => {
-    printSection("csv", [
-      `csv.delimiter (string) - field delimiter (default: ${csv.delimiter})`,
-      `csv.quote (string) - quote char (default: ${csv.quote})`,
-      `csv.escape (string) - escape char (default: ${csv.escape})`,
-      `csv.lineBreak (string) - line break (default: ${csv.lineBreak->displayLiteral})`,
-      `csv.includeHeaders (boolean) - include headers (default: ${csv.includeHeaders->Bool.toString})`,
-    ])
-  }
-
-  let printJson = () => {
-    printSection("json", [
-      `json.pretty (boolean) - pretty print JSON (default: ${json.pretty->Bool.toString})`,
-      `json.indentSize (int) - indent size (default: ${json.indentSize->Int.toString})`,
-      `json.asArray (boolean) - output arrays (default: ${json.asArray->Bool.toString})`,
-    ])
-  }
-
-  let printTsv = () => {
-    printSection("tsv", [
-      `tsv.includeHeaders (boolean) - include headers (default: ${tsv.includeHeaders->Bool.toString})`,
-    ])
-  }
-
-  let printPsv = () => {
-    printSection("psv", [
-      `psv.includeHeaders (boolean) - include headers (default: ${psv.includeHeaders->Bool.toString})`,
-    ])
-  }
-
-  let printMarkdown = () => {
-    printSection("markdown", [
-      `markdown.align (string) - alignment (default: ${markdown.align})`,
-      `markdown.padding (boolean) - pad columns (default: ${markdown.padding->Bool.toString})`,
-      `markdown.githubFlavor (boolean) - GitHub flavor output (default: ${markdown.githubFlavor->Bool.toString})`,
-    ])
-  }
-
-  let printHtml = () => {
-    printSection("html", [
-      `html.tableClass (string) - table class (default: ${html.tableClass})`,
-      `html.theadClass (string) - thead class (default: ${html.theadClass})`,
-      `html.tbodyClass (string) - tbody class (default: ${html.tbodyClass})`,
-      `html.id (string) - table id (default: ${html.id})`,
-      `html.caption (string) - caption text (default: ${html.caption})`,
-    ])
-  }
-
-  let printLatex = () => {
-    printSection("latex", [
-      `latex.tableEnvironment (string) - environment name (default: ${latex.tableEnvironment})`,
-      `latex.columnSpec (string) - column spec (default: ${latex.columnSpec})`,
-      `latex.booktabs (boolean) - use booktabs (default: ${latex.booktabs->Bool.toString})`,
-      `latex.caption (string) - caption text (default: ${latex.caption})`,
-      `latex.label (string) - table label (default: ${latex.label})`,
-      `latex.centering (boolean) - center table (default: ${latex.centering->Bool.toString})`,
-      `latex.useTableEnvironment (boolean) - wrap in table env (default: ${latex.useTableEnvironment->Bool.toString})`,
-    ])
-  }
-
-  let printSql = () => {
-    printSection("sql", [
-      `sql.tableName (string) - table name (default: ${sql.tableName})`,
-      `sql.identifierQuote (string) - identifier quote (default: ${sql.identifierQuote})`,
-      `sql.includeCreateTable (boolean) - include CREATE TABLE (default: ${sql.includeCreateTable->Bool.toString})`,
-      `sql.insertBatchSize (int) - rows per INSERT statement (default: ${sql.insertBatchSize->Int.toString})`,
-    ])
-  }
-
-  let printYaml = () => {
-    printSection("yaml", [
-      `yaml.indent (int) - indentation spaces (default: ${yaml.indent->Int.toString})`,
-      `yaml.quoteStrings (boolean) - quote all strings (default: ${yaml.quoteStrings->Bool.toString})`,
-      `yaml.lineBreak (string) - line break (default: ${yaml.lineBreak->displayLiteral})`,
-    ])
-  }
-
-  let printNdjson = () => {
-    printSection("ndjson", [
-      `ndjson.lineBreak (string) - line break (default: ${ndjson.lineBreak->displayLiteral})`,
-    ])
-  }
-
-  let printByFormat = (format: Types.format): unit => {
-    switch format {
-    | Csv => printCsv()
-    | Tsv => printTsv()
-    | Psv => printPsv()
-    | Json => printJson()
-    | Markdown => printMarkdown()
-    | Html => printHtml()
-    | Latex => printLatex()
-    | Sql => printSql()
-    | Yaml => printYaml()
-    | Ndjson => printNdjson()
+  let printFormat = (format: Types.format): unit => {
+    let name = switch format {
+    | Csv => "csv"
+    | Tsv => "tsv"
+    | Psv => "psv"
+    | Json => "json"
+    | Markdown => "markdown"
+    | Html => "html"
+    | Latex => "latex"
+    | Sql => "sql"
+    | Yaml => "yaml"
+    | Ndjson => "ndjson"
     }
+    printSection(name, buildDisplayEntries(format))
   }
 
+  let allFormats: array<Types.format> = [Csv, Tsv, Psv, Json, Markdown, Html, Latex, Sql, Yaml, Ndjson]
   switch filter {
-  | None => [Csv, Tsv, Psv, Json, Markdown, Html, Latex, Sql, Yaml, Ndjson]->Array.forEach(printByFormat)
-  | Some(format) => printByFormat(format)
+  | None => allFormats->Array.forEach(printFormat)
+  | Some(format) => printFormat(format)
   }
 }
 

@@ -287,3 +287,21 @@ test("Reader: ndjson with scalar row returns parse error", () => {
   read(~format="ndjson", ~input="{\"name\":\"Alice\"}\n42\n")
   ->expectParseErrorContains(~contains="must be a JSON object")
 })
+
+test("Reader: format detector resolves known file extensions", () => {
+  expectTrue(FormatDetector.fromExtension("data.csv") == Some("csv"))
+  expectTrue(FormatDetector.fromExtension("data.yaml") == Some("yaml"))
+  expectTrue(FormatDetector.fromExtension("data.ndjson") == Some("ndjson"))
+  expectTrue(FormatDetector.fromExtension("data.json") == Some("json"))
+  expectTrue(FormatDetector.fromExtension("data.unknown") == None)
+})
+
+test("Reader: format detector distinguishes ndjson from json by content", () => {
+  let ndjsonContent = "{\"name\":\"Alice\"}\n{\"name\":\"Bob\"}\n"
+  let jsonContent = "[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]"
+  let jsonObjectContent = "{\"name\":\"Alice\",\"age\":30}"
+
+  expectTrue(FormatDetector.fromContent(ndjsonContent) == Some("ndjson"))
+  expectTrue(FormatDetector.fromContent(jsonContent) == Some("json"))
+  expectTrue(FormatDetector.fromContent(jsonObjectContent) == Some("json"))
+})
