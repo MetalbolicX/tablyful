@@ -21,8 +21,8 @@ let makeTableData = (
   let columns = TableData.inferColumns(headers, rows)
   let metadata =
     makeMetadata(
-      ~rowCount=rows->Array.length,
-      ~columnCount=headers->Array.length,
+      ~rowCount=rows->Bindings.Iter.fromArray->Bindings.Iter.reduce((count, _) => count + 1, 0),
+      ~columnCount=headers->Bindings.Iter.fromArray->Bindings.Iter.reduce((count, _) => count + 1, 0),
       ~hasRowNumbers=options.hasRowNumbers,
       ~sourceFormat,
     )
@@ -31,25 +31,25 @@ let makeTableData = (
 }
 
 let rowsFromExtracted = (headers: array<string>, extractedRows: array<dict<string>>): array<TableData.row> => {
-  extractedRows->Array.map(row => {
+  extractedRows->Bindings.Iter.fromArray->Bindings.Iter.map(row => {
     let dict: TableData.row = Dict.make()
-    headers->Array.forEach(header => {
+    headers->Bindings.Iter.fromArray->Bindings.Iter.forEach(header => {
       let value = row->Dict.get(header)->Option.getOr("")
       dict->Dict.set(header, JSON.Encode.string(value))
     })
     dict
-  })
+  })->Bindings.Iter.toArray
 }
 
 let rowsFromCells = (headers: array<string>, parsedRows: array<array<string>>): array<TableData.row> => {
-  parsedRows->Array.map(cells => {
+  parsedRows->Bindings.Iter.fromArray->Bindings.Iter.map(cells => {
     let dict: TableData.row = Dict.make()
-    headers->Array.forEachWithIndex((header, idx) => {
+    Bindings.Iter.entries(headers)->Bindings.Iter.forEach(((idx, header)) => {
       let value = cells->Array.get(idx)->Option.getOr("")
       dict->Dict.set(header, JSON.Encode.string(value))
     })
     dict
-  })
+  })->Bindings.Iter.toArray
 }
 
 let readExtractedTable = (

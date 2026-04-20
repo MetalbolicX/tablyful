@@ -25,16 +25,22 @@ let format = (
   if includeHeaders {
     let headerLine =
       data.headers
-      ->Array.map(header => escapeValue(header, ~delimiter, ~quote, ~escape))
+      ->Bindings.Iter.fromArray
+      ->Bindings.Iter.map(header => escapeValue(header, ~delimiter, ~quote, ~escape))
+      ->Bindings.Iter.toArray
       ->Array.join(delimiter)
     lines->Array.push(headerLine)
   }
 
-  data.rows->Array.forEach(row => {
-    let values = data.headers->Array.map(header => {
-      let value = row->Dict.get(header)->Option.getOr(JSON.Encode.null)->FormatterCommon.jsonToString
-      escapeValue(value, ~delimiter, ~quote, ~escape)
-    })
+  data.rows->Bindings.Iter.fromArray->Bindings.Iter.forEach(row => {
+    let values =
+      data.headers
+      ->Bindings.Iter.fromArray
+      ->Bindings.Iter.map(header => {
+        let value = row->Dict.get(header)->Option.getOr(JSON.Encode.null)->FormatterCommon.jsonToString
+        escapeValue(value, ~delimiter, ~quote, ~escape)
+      })
+      ->Bindings.Iter.toArray
     lines->Array.push(values->Array.join(delimiter))
   })
 

@@ -7,23 +7,32 @@ open Types
 // Format as array of arrays
 let formatAsArray = (data: TableData.t): JSON.t => {
   let rows =
-    data.rows->Array.map(row =>
+    data.rows->Bindings.Iter.fromArray->Bindings.Iter.map(row =>
       data.headers
-      ->Array.map(header => row->Dict.get(header)->Option.getOr(JSON.Encode.null))
+      ->Bindings.Iter.fromArray
+      ->Bindings.Iter.map(header => row->Dict.get(header)->Option.getOr(JSON.Encode.null))
+      ->Bindings.Iter.toArray
       ->JSON.Encode.array
     )
+    ->Bindings.Iter.toArray
 
-  JSON.Encode.array(
-    Array.concat([data.headers->Array.map(JSON.Encode.string)->JSON.Encode.array], rows),
-  )
+  let headerRow =
+    data.headers
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.map(JSON.Encode.string)
+    ->Bindings.Iter.toArray
+    ->JSON.Encode.array
+
+  JSON.Encode.array(Array.concat([headerRow], rows))
 }
 
 // Format as array of objects
 let formatAsObjects = (data: TableData.t): JSON.t => {
   data.rows
-  ->Array.map(row => {
+  ->Bindings.Iter.fromArray
+  ->Bindings.Iter.map(row => {
     let dict = Dict.make()
-    data.headers->Array.forEach(header => {
+    data.headers->Bindings.Iter.fromArray->Bindings.Iter.forEach(header => {
       row
       ->Dict.get(header)
       ->Option.forEach(
@@ -34,6 +43,7 @@ let formatAsObjects = (data: TableData.t): JSON.t => {
     })
     dict->JSON.Encode.object
   })
+  ->Bindings.Iter.toArray
   ->JSON.Encode.array
 }
 

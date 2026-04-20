@@ -73,7 +73,10 @@ let getKnownKeys = (format: format): array<(string, string)> => {
 }
 
 let getConfigKeys = (format: format): array<string> => {
-  getKnownKeys(format)->Array.map(((key, _)) => key)
+  getKnownKeys(format)
+  ->Bindings.Iter.fromArray
+  ->Bindings.Iter.map(((key, _)) => key)
+  ->Bindings.Iter.toArray
 }
 
 let getConfigKeysBySectionName = (sectionName: string): array<string> => {

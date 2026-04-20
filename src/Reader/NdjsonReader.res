@@ -28,8 +28,10 @@ let read = (input: string, options: Types.t): TablyfulError.result<TableData.t> 
     let lines =
       input
       ->String.split("\n")
-      ->Array.map(line => line->String.trim)
-      ->Array.filter(line => line !== "")
+      ->Bindings.Iter.fromArray
+      ->Bindings.Iter.map(line => line->String.trim)
+      ->Bindings.Iter.filter(line => line !== "")
+      ->Bindings.Iter.toArray
 
     if lines->Array.length === 0 {
       TablyfulError.parseError("NDJSON input has no rows.")->TablyfulError.toResult
@@ -38,7 +40,7 @@ let read = (input: string, options: Types.t): TablyfulError.result<TableData.t> 
       let headerSet = ref(Belt.Set.String.empty)
       let hasError = ref(None)
 
-      lines->Array.forEachWithIndex((line, index) => {
+      Bindings.Iter.entries(lines)->Bindings.Iter.forEach(((index, line)) => {
         switch hasError.contents {
         | Some(_) => ()
         | None =>
@@ -46,7 +48,7 @@ let read = (input: string, options: Types.t): TablyfulError.result<TableData.t> 
           | Error(error) => hasError.contents = Some(error)
           | Ok(parsed) =>
             let row: TableData.row = Dict.make()
-            parsed->Dict.keysToArray->Array.forEach(key => {
+            parsed->Dict.keysToArray->Bindings.Iter.fromArray->Bindings.Iter.forEach(key => {
               headerSet.contents = headerSet.contents->Belt.Set.String.add(key)
               row->Dict.set(key, parsed->Dict.get(key)->Option.getOr(JSON.Encode.null))
             })
@@ -62,13 +64,13 @@ let read = (input: string, options: Types.t): TablyfulError.result<TableData.t> 
         if headers->Array.length === 0 {
           TablyfulError.parseError("NDJSON input has no object keys.")->TablyfulError.toResult
         } else {
-          let normalizedRows = rows->Array.map(row => {
-            let dict: TableData.row = Dict.make()
-            headers->Array.forEach(header => {
-              dict->Dict.set(header, row->Dict.get(header)->Option.getOr(JSON.Encode.null))
-            })
-            dict
-          })
+           let normalizedRows = rows->Bindings.Iter.fromArray->Bindings.Iter.map(row => {
+             let dict: TableData.row = Dict.make()
+             headers->Bindings.Iter.fromArray->Bindings.Iter.forEach(header => {
+               dict->Dict.set(header, row->Dict.get(header)->Option.getOr(JSON.Encode.null))
+             })
+             dict
+           })->Bindings.Iter.toArray
 
           ReaderCommon.makeTableData(~headers, ~rows=normalizedRows, ~options, ~sourceFormat=name)
         }

@@ -6,7 +6,7 @@ open Types
 
 let rowToObject = (row: TableData.row, headers: array<string>): JSON.t => {
   let dict = Dict.make()
-  headers->Array.forEach(header => {
+  headers->Bindings.Iter.fromArray->Bindings.Iter.forEach(header => {
     row
     ->Dict.get(header)
     ->Option.forEach(value => {
@@ -20,7 +20,9 @@ let formatImpl = (data: TableData.t, options: t): string => {
   let opts = Defaults.getNdjsonOptions(options)
 
   data.rows
-  ->Array.map(row => rowToObject(row, data.headers)->JSON.stringify)
+  ->Bindings.Iter.fromArray
+  ->Bindings.Iter.map(row => rowToObject(row, data.headers)->JSON.stringify)
+  ->Bindings.Iter.toArray
   ->Array.join(opts.lineBreak)
 }
 

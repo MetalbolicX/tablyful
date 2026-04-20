@@ -44,7 +44,11 @@ let formatImpl = (data: TableData.t, options: t): string => {
     opts.columnSpec
   } else {
     // Generate default column spec based on column count
-    data.headers->Array.map(_ => "l")->Array.join("")
+    data.headers
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.map(_ => "l")
+    ->Bindings.Iter.toArray
+    ->Array.join("")
   }
 
   lines->Array.push(`\\begin{${opts.tableEnvironment}}{${colSpec}}`)
@@ -59,7 +63,9 @@ let formatImpl = (data: TableData.t, options: t): string => {
   // Header row
   let headerRow =
     data.headers
-    ->Array.map(h => h->escapeLatex)
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.map(h => h->escapeLatex)
+    ->Bindings.Iter.toArray
     ->Array.join(" & ")
   lines->Array.push(`  ${headerRow} \\\\`)
 
@@ -71,15 +77,17 @@ let formatImpl = (data: TableData.t, options: t): string => {
   }
 
   // Data rows
-  data.rows->Array.forEach(row => {
+  data.rows->Bindings.Iter.fromArray->Bindings.Iter.forEach(row => {
     let rowStr =
       data.headers
-      ->Array.map(header => {
+      ->Bindings.Iter.fromArray
+      ->Bindings.Iter.map(header => {
         row
         ->Dict.get(header)
         ->Option.getOr(JSON.Encode.null)
         ->FormatterCommon.jsonToString(~escapeString=escapeLatex, ~escapeJsonFallback=escapeLatex)
       })
+      ->Bindings.Iter.toArray
       ->Array.join(" & ")
     lines->Array.push(`  ${rowStr} \\\\`)
   })

@@ -50,7 +50,11 @@ let formatImpl = (data: TableData.t, options: t): string => {
   let opts = Defaults.getSqlOptions(options)
   let quote = opts.identifierQuote
   let tableName = quoteIdentifier(opts.tableName, quote)
-  let headerNames = data.headers->Array.map(header => quoteIdentifier(header, quote))
+  let headerNames =
+    data.headers
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.map(header => quoteIdentifier(header, quote))
+    ->Bindings.Iter.toArray
 
   let lines = []
 
@@ -59,14 +63,16 @@ let formatImpl = (data: TableData.t, options: t): string => {
 
     let columnDefs =
       data.columns
-      ->Array.map(col => {
+      ->Bindings.Iter.fromArray
+      ->Bindings.Iter.map(col => {
         let columnName = quoteIdentifier(col.name, quote)
         let columnType = sqlTypeForColumn(col)
         `  ${columnName} ${columnType}`
       })
+      ->Bindings.Iter.toArray
 
     let defsLen = columnDefs->Array.length
-    columnDefs->Array.forEachWithIndex((line, idx) => {
+    Bindings.Iter.entries(columnDefs)->Bindings.Iter.forEach(((idx, line)) => {
       let suffix = idx < defsLen - 1 ? "," : ""
       lines->Array.push(line ++ suffix)
     })
@@ -90,25 +96,29 @@ let formatImpl = (data: TableData.t, options: t): string => {
       let row = batchRows->Array.getUnsafe(0)
       let values =
         data.headers
-        ->Array.map(header =>
+        ->Bindings.Iter.fromArray
+        ->Bindings.Iter.map(header =>
           row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToSqlLiteral
         )
+        ->Bindings.Iter.toArray
         ->Array.join(", ")
       lines->Array.push(`INSERT INTO ${tableName} (${headerLine}) VALUES (${values});`)
     } else {
-      let rowLiterals = batchRows->Array.map(row => {
+      let rowLiterals = batchRows->Bindings.Iter.fromArray->Bindings.Iter.map(row => {
         let vals =
           data.headers
-          ->Array.map(header =>
+          ->Bindings.Iter.fromArray
+          ->Bindings.Iter.map(header =>
             row->Dict.get(header)->Option.getOr(JSON.Encode.null)->jsonToSqlLiteral
           )
+          ->Bindings.Iter.toArray
           ->Array.join(", ")
         `(${vals})`
-      })
+      })->Bindings.Iter.toArray
       lines->Array.push(`-- VALUES: ${rowLiterals->Array.join(", ")}`)
       lines->Array.push(`INSERT INTO ${tableName} (${headerLine}) VALUES`)
       let lastIdx = rowLiterals->Array.length - 1
-      rowLiterals->Array.forEachWithIndex((literal, idx) => {
+      Bindings.Iter.entries(rowLiterals)->Bindings.Iter.forEach(((idx, literal)) => {
         let suffix = idx < lastIdx ? "," : ";"
         lines->Array.push(`  ${literal}${suffix}`)
       })

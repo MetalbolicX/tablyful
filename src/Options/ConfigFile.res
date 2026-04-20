@@ -177,13 +177,15 @@ let rec mergeDicts = (base: dict<JSON.t>, override: dict<JSON.t>): dict<JSON.t> 
 
   base
   ->Dict.keysToArray
-  ->Array.forEach(key => {
+  ->Bindings.Iter.fromArray
+  ->Bindings.Iter.forEach(key => {
     base->Dict.get(key)->Option.forEach(value => merged->Dict.set(key, value))
   })
 
   override
   ->Dict.keysToArray
-  ->Array.forEach(key => {
+  ->Bindings.Iter.fromArray
+  ->Bindings.Iter.forEach(key => {
     switch (base->Dict.get(key), override->Dict.get(key)) {
     | (Some(baseJson), Some(overJson)) =>
       switch (JSON.Decode.object(baseJson), JSON.Decode.object(overJson)) {
@@ -237,7 +239,9 @@ let warnUnknownSectionKeys = (~sectionName: string, dict: dict<JSON.t>, knownKey
   let unknown =
     dict
     ->Dict.keysToArray
-    ->Array.filter(key => !(knownKeys->Array.includes(key)))
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.filter(key => !(knownKeys->Array.includes(key)))
+    ->Bindings.Iter.toArray
 
   warnUnknownConfigKeys(~scope=`${sectionName} config`, ~keys=unknown)
 }
@@ -246,7 +250,9 @@ let warnUnknownKeys = (dict: dict<JSON.t>): unit => {
   let unknown =
     dict
     ->Dict.keysToArray
-    ->Array.filter(key => !(knownTopLevelKeys->Array.includes(key)))
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.filter(key => !(knownTopLevelKeys->Array.includes(key)))
+    ->Bindings.Iter.toArray
 
   warnUnknownConfigKeys(~scope="config", ~keys=unknown)
 }

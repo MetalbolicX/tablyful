@@ -6,7 +6,7 @@ let streamableOutputFormats = "csv, tsv, psv, sql, html, yaml, ndjson"
 let streamableOutputFormatsList: array<format> = [Csv, Tsv, Psv, Sql, Html, Yaml, Ndjson]
 
 let isStreamableOutputFormat = (format: format): bool => {
-  streamableOutputFormatsList->Array.some(value => value == format)
+  streamableOutputFormatsList->Bindings.Iter.fromArray->Bindings.Iter.some(value => value == format)
 }
 
 let streamUnsupportedOutputMessage =

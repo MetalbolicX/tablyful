@@ -16,7 +16,7 @@ let canParse = (json: JSON.t): bool => {
       if keys->Array.length === 0 {
         false
       } else {
-        keys->Array.every(key =>
+        keys->Bindings.Iter.fromArray->Bindings.Iter.every(key =>
           obj
           ->Dict.get(key)
           ->Option.map(v => JSON.Decode.array(v)->Option.isSome)
@@ -48,12 +48,12 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
 
     // Transpose: columns -> rows
     let rows = Array.fromInitializer(~length=rowCount, rowIdx => {
-      keys->Array.map(key => {
+      keys->Bindings.Iter.fromArray->Bindings.Iter.map(key => {
         data
         ->Dict.get(key)
         ->Option.flatMap(arr => arr->Array.get(rowIdx))
         ->Option.getOr(JSON.Encode.null)
-      })
+      })->Bindings.Iter.toArray
     })
 
     Ok((keys, rows))
@@ -64,10 +64,11 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
 let convertRows = (rows: array<array<JSON.t>>, headers: array<string>, _options: t): Common.result<
   array<TableData.row>,
 > => {
-  rows
-  ->Array.map(row => {
+    rows
+  ->Bindings.Iter.fromArray
+  ->Bindings.Iter.map(row => {
     let dict = Dict.make()
-    headers->Array.forEachWithIndex((header, idx) => {
+    Bindings.Iter.entries(headers)->Bindings.Iter.forEach(((idx, header)) => {
       switch row->Array.get(idx) {
       | Some(value) => dict->Dict.set(header, value)
       | None => dict->Dict.set(header, JSON.Encode.null)
@@ -75,6 +76,7 @@ let convertRows = (rows: array<array<JSON.t>>, headers: array<string>, _options:
     })
     dict
   })
+  ->Bindings.Iter.toArray
   ->Ok
 }
 

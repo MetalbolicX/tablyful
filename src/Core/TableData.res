@@ -53,7 +53,8 @@ let addRowNumbers = (table: t, ~header="#", ()): t => {
     let copied = Dict.make()
     inputRow
     ->Dict.keysToArray
-    ->Array.forEach(key => {
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.forEach(key => {
       inputRow
       ->Dict.get(key)
       ->Option.forEach(value => {
@@ -100,7 +101,7 @@ let applyHeaders = (table: t, newHeaders: array<string>): Common.result<t> => {
 
     let newRows = table.rows->Array.map(row => {
       let newRow = Dict.make()
-      table.headers->Array.forEach(oldHeader => {
+      table.headers->Bindings.Iter.fromArray->Bindings.Iter.forEach(oldHeader => {
         let newHeader = headerMap->Dict.get(oldHeader)->Option.getOr(oldHeader)
         row
         ->Dict.get(oldHeader)
@@ -127,8 +128,8 @@ let applyHeaders = (table: t, newHeaders: array<string>): Common.result<t> => {
 }
 
 let inferColumns = (headers: array<string>, rows: array<row>): array<column> => {
-  headers->Array.map(header => {
-    let values = rows->Array.map(row => row->Dict.get(header))->Belt.Array.keepMap(v => v)
+  headers->Bindings.Iter.fromArray->Bindings.Iter.map(header => {
+    let values = rows->Bindings.Iter.fromArray->Bindings.Iter.map(row => row->Dict.get(header))->Bindings.Iter.toArray->Belt.Array.keepMap(v => v)
     let nullable = values->Array.length < rows->Array.length
 
     let nonNullValues = values->Array.filter(v => v !== JSON.Encode.null)
@@ -146,5 +147,5 @@ let inferColumns = (headers: array<string>, rows: array<row>): array<column> => 
     }
 
     {name: header, dataType, nullable}
-  })
+  })->Bindings.Iter.toArray
 }

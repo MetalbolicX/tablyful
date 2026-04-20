@@ -16,7 +16,11 @@ let all: array<parserEntry> = [
     parse: (json, opts) => {
       switch JSON.Decode.array(json) {
       | Some(arr) => {
-          let arrays = arr->Array.map(row => row->JSON.Decode.array->Option.getOr([]))
+          let arrays =
+            arr
+            ->Bindings.Iter.fromArray
+            ->Bindings.Iter.map(row => row->JSON.Decode.array->Option.getOr([]))
+            ->Bindings.Iter.toArray
           ArrayParser.parse(arrays, opts)
         }
       | None => TablyfulError.parseError("Failed to decode array")->TablyfulError.toResult
@@ -29,7 +33,11 @@ let all: array<parserEntry> = [
     parse: (json, opts) => {
       switch JSON.Decode.array(json) {
       | Some(arr) => {
-          let objects = arr->Array.map(obj => obj->JSON.Decode.object->Option.getOr(Dict.make()))
+          let objects =
+            arr
+            ->Bindings.Iter.fromArray
+            ->Bindings.Iter.map(obj => obj->JSON.Decode.object->Option.getOr(Dict.make()))
+            ->Bindings.Iter.toArray
           ObjectParser.parse(objects, opts)
         }
       | None =>
@@ -46,7 +54,8 @@ let all: array<parserEntry> = [
           let dict = Dict.make()
           obj
           ->Dict.keysToArray
-          ->Array.forEach(key => {
+          ->Bindings.Iter.fromArray
+          ->Bindings.Iter.forEach(key => {
             let value = obj->Dict.get(key)->Option.getOr(JSON.Encode.null)
             dict->Dict.set(key, value->JSON.Decode.array->Option.getOr([]))
           })
@@ -66,7 +75,8 @@ let all: array<parserEntry> = [
           let dict = Dict.make()
           obj
           ->Dict.keysToArray
-          ->Array.forEach(key => {
+          ->Bindings.Iter.fromArray
+          ->Bindings.Iter.forEach(key => {
             let value = obj->Dict.get(key)->Option.getOr(JSON.Encode.null)
             dict->Dict.set(key, value->JSON.Decode.object->Option.getOr(Dict.make()))
           })

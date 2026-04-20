@@ -158,7 +158,7 @@ let buildDisplayEntries = (format: Types.format): array<string> => {
   | Yaml => "yaml"
   | Ndjson => "ndjson"
   }
-  FormatKeys.getKnownKeys(format)->Array.map(((key, description)) => {
+  FormatKeys.getKnownKeys(format)->Bindings.Iter.fromArray->Bindings.Iter.map(((key, description)) => {
     switch format {
     | Csv => {
         let d = Defaults.getCsvOptions(Defaults.t)
@@ -258,13 +258,13 @@ let buildDisplayEntries = (format: Types.format): array<string> => {
         }
       }
     }
-  })
+  })->Bindings.Iter.toArray
 }
 
 let printSetKeys = (filter: option<Types.format>): unit => {
   let printSection = (name: string, entries: array<string>): unit => {
     CliIo.writeStdout(`${name} options:\n`)
-    entries->Array.forEach(entry => {
+    Bindings.Iter.fromArray(entries)->Bindings.Iter.forEach(entry => {
       CliIo.writeStdout(`  ${entry}\n`)
     })
     CliIo.writeStdout("\n")
@@ -288,7 +288,7 @@ let printSetKeys = (filter: option<Types.format>): unit => {
 
   let allFormats: array<Types.format> = [Csv, Tsv, Psv, Json, Markdown, Html, Latex, Sql, Yaml, Ndjson]
   switch filter {
-  | None => allFormats->Array.forEach(printFormat)
+  | None => Bindings.Iter.fromArray(allFormats)->Bindings.Iter.forEach(printFormat)
   | Some(format) => printFormat(format)
   }
 }

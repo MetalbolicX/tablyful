@@ -11,7 +11,7 @@ type parserInput = array<array<JSON.t>>
 let canParse = (json: JSON.t): bool => {
   switch JSON.Decode.array(json) {
   | Some(arr) if arr->Array.length > 0 =>
-    arr->Array.every(row => JSON.Decode.array(row)->Option.isSome)
+    arr->Bindings.Iter.fromArray->Bindings.Iter.every(row => JSON.Decode.array(row)->Option.isSome)
   | _ => false
   }
 }
@@ -31,12 +31,14 @@ let extractHeaders = (data: parserInput, options: t): Common.result<(
       // First row is headers
       let headers =
         firstRow
-        ->Array.map(val =>
+        ->Bindings.Iter.fromArray
+        ->Bindings.Iter.map(val =>
           switch JSON.Decode.string(val) {
           | Some(str) => str->String.trim
           | None => ""
           }
         )
+        ->Bindings.Iter.toArray
         ->Array.mapWithIndex((val, idx) =>
           if val === "" {
             `Column_${(idx + 1)->Int.toString}`
@@ -48,15 +50,15 @@ let extractHeaders = (data: parserInput, options: t): Common.result<(
       let dataRows = data->Array.slice(~start=1)
 
       // Normalize row lengths
-      let normalizedRows = dataRows->Array.map(row => {
-        if row->Array.length < columnCount {
-          Array.concat(row, Array.make(~length=columnCount - row->Array.length, JSON.Encode.null))
-        } else if row->Array.length > columnCount {
-          row->Array.slice(~start=0, ~end=columnCount)
-        } else {
-          row
-        }
-      })
+       let normalizedRows = dataRows->Bindings.Iter.fromArray->Bindings.Iter.map(row => {
+         if row->Array.length < columnCount {
+           Array.concat(row, Array.make(~length=columnCount - row->Array.length, JSON.Encode.null))
+         } else if row->Array.length > columnCount {
+           row->Array.slice(~start=0, ~end=columnCount)
+         } else {
+           row
+         }
+       })->Bindings.Iter.toArray
 
       Ok((headers, normalizedRows))
     } else {
@@ -66,15 +68,15 @@ let extractHeaders = (data: parserInput, options: t): Common.result<(
       )
 
       // Normalize all rows
-      let normalizedRows = data->Array.map(row => {
-        if row->Array.length < columnCount {
-          Array.concat(row, Array.make(~length=columnCount - row->Array.length, JSON.Encode.null))
-        } else if row->Array.length > columnCount {
-          row->Array.slice(~start=0, ~end=columnCount)
-        } else {
-          row
-        }
-      })
+       let normalizedRows = data->Bindings.Iter.fromArray->Bindings.Iter.map(row => {
+         if row->Array.length < columnCount {
+           Array.concat(row, Array.make(~length=columnCount - row->Array.length, JSON.Encode.null))
+         } else if row->Array.length > columnCount {
+           row->Array.slice(~start=0, ~end=columnCount)
+         } else {
+           row
+         }
+       })->Bindings.Iter.toArray
 
       Ok((headers, normalizedRows))
     }
@@ -86,16 +88,18 @@ let convertRows = (rows: array<array<JSON.t>>, headers: array<string>, _options:
   array<TableData.row>,
 > => {
   rows
-  ->Array.mapWithIndex((row, _rowIdx) => {
+  ->Bindings.Iter.fromArray
+  ->Bindings.Iter.map(row => {
     let dict = Dict.make()
-    headers->Array.forEachWithIndex((header, colIdx) => {
-      switch row->Array.get(colIdx) {
+    Bindings.Iter.entries(headers)->Bindings.Iter.forEach(((idx, header)) => {
+      switch row->Array.get(idx) {
       | Some(value) => dict->Dict.set(header, value)
       | None => dict->Dict.set(header, JSON.Encode.null)
       }
     })
     dict
   })
+  ->Bindings.Iter.toArray
   ->Ok
 }
 

@@ -33,7 +33,7 @@ let uniqueStrings = (values: array<string>): array<string> => {
   let seen: dict<bool> = Dict.make()
   let unique = ref(list{})
 
-  values->Array.forEach(value => {
+  values->Bindings.Iter.fromArray->Bindings.Iter.forEach(value => {
     if seen->Dict.get(value)->Option.isNone {
       seen->Dict.set(value, true)
       unique.contents = list{value, ...unique.contents}
@@ -203,36 +203,40 @@ let evaluatePredicate = (row: TableData.row, pred: predicate): bool => {
 let selectColumns = (table: TableData.t, requestedColumns: array<string>): Common.result<TableData.t> => {
   let selected =
     requestedColumns
-    ->Array.map(column => column->String.trim)
-    ->Array.filter(column => column !== "")
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.map(column => column->String.trim)
+    ->Bindings.Iter.filter(column => column !== "")
+    ->Bindings.Iter.toArray
     ->uniqueStrings
 
   if selected->Array.length === 0 {
     invalidTransform("--columns requires at least one column name.")
   } else {
-    let missing = selected->Array.filter(column => !(table.headers->Array.includes(column)))
+    let missing = selected->Bindings.Iter.fromArray->Bindings.Iter.filter(column => !(table.headers->Array.includes(column)))->Bindings.Iter.toArray
     if missing->Array.length > 0 {
       invalidTransform(
         `Unknown column(s) in --columns: ${missing->Array.join(", ")}. Available columns: ${table.headers
           ->Array.join(", ")}.`,
       )
     } else {
-      let rows = table.rows->Array.map(row => {
+      let rows = table.rows->Bindings.Iter.fromArray->Bindings.Iter.map(row => {
         let newRow = Dict.make()
-        selected->Array.forEach(column => {
+        selected->Bindings.Iter.fromArray->Bindings.Iter.forEach(column => {
           newRow->Dict.set(column, row->Dict.get(column)->Option.getOr(JSON.Encode.null))
         })
         newRow
-      })
+      })->Bindings.Iter.toArray
 
       let columns =
         selected
-        ->Array.map(name => {
+        ->Bindings.Iter.fromArray
+        ->Bindings.Iter.map(name => {
           switch table.columns->Array.find(col => col.name === name) {
           | Some(column) => column
           | None => {name, dataType: Common.Unknown, nullable: true}
           }
         })
+        ->Bindings.Iter.toArray
 
       Ok({
         headers: selected,
@@ -268,9 +272,11 @@ let applyFilters = (table: TableData.t, expressions: array<string>): Common.resu
     parsePredicates()->Result.flatMap(predicates => {
       let missingColumns =
         predicates
-        ->Array.map(predicate => predicate.column)
+        ->Bindings.Iter.fromArray
+        ->Bindings.Iter.map(predicate => predicate.column)
+        ->Bindings.Iter.toArray
         ->uniqueStrings
-        ->Array.filter(column => !(table.headers->Array.includes(column)))
+        ->Bindings.Iter.fromArray->Bindings.Iter.filter(column => !(table.headers->Array.includes(column)))->Bindings.Iter.toArray
 
       if missingColumns->Array.length > 0 {
         invalidTransform(
@@ -278,7 +284,15 @@ let applyFilters = (table: TableData.t, expressions: array<string>): Common.resu
             ->Array.join(", ")}.`,
         )
       } else {
-        let rows = table.rows->Array.filter(row => predicates->Array.every(pred => evaluatePredicate(row, pred)))
+        let rows =
+          table.rows
+          ->Bindings.Iter.fromArray
+          ->Bindings.Iter.filter(row =>
+            predicates
+            ->Bindings.Iter.fromArray
+            ->Bindings.Iter.every(pred => evaluatePredicate(row, pred))
+          )
+          ->Bindings.Iter.toArray
         Ok({
           ...table,
           rows,

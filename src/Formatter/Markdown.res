@@ -11,19 +11,22 @@ let escapePipe = (str: string): string => {
 
 // Calculate column widths for alignment
 let calculateColumnWidths = (data: TableData.t): array<int> => {
-  data.headers->Array.mapWithIndex((header, _idx) => {
+  data.headers->Bindings.Iter.fromArray->Bindings.Iter.map(header => {
     let headerLen = header->String.length
-    let maxDataLen = data.rows->Array.reduce(0, (max, row) => {
-      let value =
-        row
-        ->Dict.get(header)
-        ->Option.getOr(JSON.Encode.null)
-        ->FormatterCommon.jsonToString(~escapeString=escapePipe, ~escapeJsonFallback=escapePipe)
-        ->String.length
-      max > value ? max : value
-    })
+    let maxDataLen =
+      data.rows
+      ->Bindings.Iter.fromArray
+      ->Bindings.Iter.reduce((max, row) => {
+        let value =
+          row
+          ->Dict.get(header)
+          ->Option.getOr(JSON.Encode.null)
+          ->FormatterCommon.jsonToString(~escapeString=escapePipe, ~escapeJsonFallback=escapePipe)
+          ->String.length
+        max > value ? max : value
+      }, 0)
     headerLen > maxDataLen ? headerLen : maxDataLen
-  })
+  })->Bindings.Iter.toArray
 }
 
 // Pad string to width
@@ -53,18 +56,20 @@ let formatImpl = (data: TableData.t, options: t): string => {
 
   // Header row
   let headerRow =
-    data.headers
-    ->Array.mapWithIndex((header, idx) => {
+    Bindings.Iter.entries(data.headers)
+    ->Bindings.Iter.map(((idx, header)) => {
       let width = widths->Array.get(idx)->Option.getOr(header->String.length)
       " " ++ padToWidth(header, width, ~align=opts.align, ()) ++ " "
     })
+    ->Bindings.Iter.toArray
     ->Array.join("|")
   lines->Array.push("|" ++ headerRow ++ "|")
 
   // Separator row
   let separator =
     widths
-    ->Array.map(w => {
+    ->Bindings.Iter.fromArray
+    ->Bindings.Iter.map(w => {
       let dashCount = w + 2 // +2 for padding spaces
       switch opts.align {
       | "center" => ":" ++ "-"->String.repeat(dashCount - 2) ++ ":"
@@ -72,14 +77,15 @@ let formatImpl = (data: TableData.t, options: t): string => {
       | _ => "-"->String.repeat(dashCount)
       }
     })
+    ->Bindings.Iter.toArray
     ->Array.join("|")
   lines->Array.push("|" ++ separator ++ "|")
 
   // Data rows
-  data.rows->Array.forEach(row => {
+  data.rows->Bindings.Iter.fromArray->Bindings.Iter.forEach(row => {
     let rowStr =
-      data.headers
-      ->Array.mapWithIndex((header, idx) => {
+      Bindings.Iter.entries(data.headers)
+      ->Bindings.Iter.map(((idx, header)) => {
         let value =
           row
           ->Dict.get(header)
@@ -88,6 +94,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
         let width = widths->Array.get(idx)->Option.getOr(value->String.length)
         " " ++ padToWidth(value, width, ~align=opts.align, ()) ++ " "
       })
+      ->Bindings.Iter.toArray
       ->Array.join("|")
     lines->Array.push("|" ++ rowStr ++ "|")
   })

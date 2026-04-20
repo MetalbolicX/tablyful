@@ -48,7 +48,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
   let padding = " "->String.repeat(indent)
   let lines = []
 
-  data.rows->Array.forEach(row => {
+  data.rows->Bindings.Iter.fromArray->Bindings.Iter.forEach(row => {
     switch data.headers->Array.get(0) {
     | None => lines->Array.push("- {}")
     | Some(firstHeader) => {
@@ -61,7 +61,8 @@ let formatImpl = (data: TableData.t, options: t): string => {
 
         data.headers
         ->Array.slice(~start=1)
-        ->Array.forEach(header => {
+        ->Bindings.Iter.fromArray
+        ->Bindings.Iter.forEach(header => {
           let value =
             row
             ->Dict.get(header)

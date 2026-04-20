@@ -43,7 +43,7 @@ let formatImpl = (data: TableData.t, options: t): string => {
   lines->Array.push(theadAttrs)
   lines->Array.push("    <tr>")
 
-  data.headers->Array.forEach(header => {
+  data.headers->Bindings.Iter.fromArray->Bindings.Iter.forEach(header => {
     lines->Array.push(`      <th>${header->escapeHtml}</th>`)
   })
 
@@ -57,9 +57,9 @@ let formatImpl = (data: TableData.t, options: t): string => {
   }
   lines->Array.push(tbodyAttrs)
 
-  data.rows->Array.forEach(row => {
+  data.rows->Bindings.Iter.fromArray->Bindings.Iter.forEach(row => {
     lines->Array.push("    <tr>")
-    data.headers->Array.forEach(header => {
+    data.headers->Bindings.Iter.fromArray->Bindings.Iter.forEach(header => {
       let value =
         row
         ->Dict.get(header)

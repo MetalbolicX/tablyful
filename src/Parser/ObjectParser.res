@@ -11,7 +11,7 @@ type parserInput = array<dict<JSON.t>>
 let canParse = (json: JSON.t): bool => {
   switch JSON.Decode.array(json) {
   | Some(arr) if arr->Array.length > 0 =>
-    arr->Array.every(row => JSON.Decode.object(row)->Option.isSome)
+    arr->Bindings.Iter.fromArray->Bindings.Iter.every(row => JSON.Decode.object(row)->Option.isSome)
   | _ => false
   }
 }
@@ -25,16 +25,16 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
     TablyfulError.validationError("Array of objects cannot be empty")->TablyfulError.toResult
   } else {
     // Collect all unique keys from all objects
-    let headerSet = data->Array.reduce(Belt.Set.String.empty, (acc, obj) => {
-      obj->Dict.keysToArray->Array.reduce(acc, (acc, key) => acc->Belt.Set.String.add(key))
-    })
+    let headerSet = data->Bindings.Iter.fromArray->Bindings.Iter.reduce((acc, obj) => {
+      obj->Dict.keysToArray->Bindings.Iter.fromArray->Bindings.Iter.reduce((acc2, key) => acc2->Belt.Set.String.add(key), acc)
+    }, Belt.Set.String.empty)
 
     let headers = headerSet->Belt.Set.String.toArray
 
     // Convert objects to arrays based on headers
-    let rows = data->Array.map(obj => {
+    let rows = data->Bindings.Iter.fromArray->Bindings.Iter.map(obj => {
       headers->Array.map(header => obj->Dict.get(header)->Option.getOr(JSON.Encode.null))
-    })
+    })->Bindings.Iter.toArray
 
     Ok((headers, rows))
   }
@@ -45,9 +45,10 @@ let convertRows = (rows: array<array<JSON.t>>, headers: array<string>, _options:
   array<TableData.row>,
 > => {
   rows
-  ->Array.map(row => {
+  ->Bindings.Iter.fromArray
+    ->Bindings.Iter.map(row => {
     let dict = Dict.make()
-    headers->Array.forEachWithIndex((header, idx) => {
+    Bindings.Iter.entries(headers)->Bindings.Iter.forEach(((idx, header)) => {
       switch row->Array.get(idx) {
       | Some(value) => dict->Dict.set(header, value)
       | None => dict->Dict.set(header, JSON.Encode.null)
@@ -55,6 +56,7 @@ let convertRows = (rows: array<array<JSON.t>>, headers: array<string>, _options:
     })
     dict
   })
+  ->Bindings.Iter.toArray
   ->Ok
 }
 

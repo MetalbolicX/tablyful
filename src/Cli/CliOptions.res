@@ -51,8 +51,10 @@ let parseColumnsArg = (raw: option<string>): Common.result<option<array<string>>
       let columns =
         value
         ->String.split(",")
-        ->Array.map(column => column->String.trim)
-        ->Array.filter(column => column !== "")
+        ->Bindings.Iter.fromArray
+        ->Bindings.Iter.map(column => column->String.trim)
+        ->Bindings.Iter.filter(column => column !== "")
+        ->Bindings.Iter.toArray
 
       if columns->Array.length === 0 {
         invalidSet("Invalid --columns value. Provide one or more comma-separated column names.")
@@ -69,8 +71,10 @@ let parseFilterExprs = (raw: option<array<string>>): Common.result<array<string>
   | Some(entries) => {
       let filters =
         entries
-        ->Array.map(entry => entry->String.trim)
-        ->Array.filter(entry => entry !== "")
+        ->Bindings.Iter.fromArray
+        ->Bindings.Iter.map(entry => entry->String.trim)
+        ->Bindings.Iter.filter(entry => entry !== "")
+        ->Bindings.Iter.toArray
 
       if filters->Array.length !== entries->Array.length {
         invalidSet("Invalid --filter value. Expressions cannot be empty.")
@@ -330,9 +334,9 @@ let applySetOverride = (options: t, ((key, value): (string, string))): Common.re
 }
 
 let applySetOverrides = (options: t, pairs: array<(string, string)>): Common.result<t> => {
-  pairs->Array.reduce(Ok(options), (acc, pair) => {
-    acc->Result.flatMap(opts => applySetOverride(opts, pair))
-  })
+  pairs
+  ->Bindings.Iter.fromArray
+  ->Bindings.Iter.reduce((acc, pair) => acc->Result.flatMap(opts => applySetOverride(opts, pair)), Ok(options))
 }
 
 let overrideWithCliFlags = (options: t, flags: flags): Common.result<t> => {
