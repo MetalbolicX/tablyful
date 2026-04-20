@@ -144,3 +144,29 @@ module StreamMode: {
 
   let run: config => unit
 }
+
+module Iter: {
+  type t<'a> = Iterator.t<'a>
+
+  let fromArray: array<'a> => t<'a>
+  let fromSet: Set.t<'a> => t<'a>
+  let fromMap: Map.t<'k, 'v> => t<('k, 'v)>
+
+  let values: array<'a> => t<'a>
+  let entries: array<'a> => t<(int, 'a)>
+  let keys: array<'a> => t<int>
+
+  // Lazy pipeline methods
+  let map: (t<'a>, 'a => 'b) => t<'b>
+  let filter: (t<'a>, 'a => bool) => t<'a>
+  let take: (t<'a>, int) => t<'a>
+  let drop: (t<'a>, int) => t<'a>
+  let forEach: (t<'a>, 'a => unit) => unit
+  let toArray: t<'a> => array<'a>
+  let every: (t<'a>, 'a => bool) => bool
+  let some: (t<'a>, 'a => bool) => bool
+  let reduce: (t<'a>, ('b, 'a) => 'b, 'b) => 'b
+  let reduce1: (t<'a>, ('a, 'a) => 'a) => 'a
+  let find: (t<'a>, 'a => bool) => option<'a>
+  let flatMap: (t<'a>, 'a => t<'b>) => t<'b>
+}
