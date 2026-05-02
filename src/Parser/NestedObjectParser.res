@@ -16,7 +16,7 @@ let canParse = (json: JSON.t): bool => {
       if keys->Array.length === 0 {
         false
       } else {
-        keys->Bindings.Iter.fromArray->Bindings.Iter.every(key =>
+        keys->Array.every(key =>
           obj
           ->Dict.get(key)
           ->Option.map(v => JSON.Decode.object(v)->Option.isSome)
@@ -39,10 +39,10 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
     TablyfulError.validationError("Object of objects cannot be empty")->TablyfulError.toResult
   } else {
     // Collect all column names from all inner objects
-    let columnSet = rowIds->Bindings.Iter.fromArray->Bindings.Iter.reduce((acc, rowId) => {
+    let columnSet = rowIds->Array.reduce((acc, rowId) => {
       switch data->Dict.get(rowId) {
       | Some(innerObj) =>
-        innerObj->Dict.keysToArray->Bindings.Iter.fromArray->Bindings.Iter.reduce((acc2, key) => acc2->Belt.Set.String.add(key), acc)
+        innerObj->Dict.keysToArray->Array.reduce((innerAcc, key) => innerAcc->Belt.Set.String.add(key), acc)
       | None => acc
       }
     }, Belt.Set.String.empty)
@@ -50,10 +50,10 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
     let columns = columnSet->Belt.Set.String.toArray
 
     // Convert to rows with row ID as first column
-    let rows = rowIds->Bindings.Iter.fromArray->Bindings.Iter.map(rowId => {
+    let rows = rowIds->Array.map(rowId => {
       let innerObj = data->Dict.get(rowId)->Option.getOr(Dict.make())
       columns->Array.map(col => innerObj->Dict.get(col)->Option.getOr(JSON.Encode.null))
-    })->Bindings.Iter.toArray
+    })
 
     Ok((columns, rows))
   }
@@ -64,8 +64,7 @@ let convertRows = (rows: array<array<JSON.t>>, headers: array<string>, _options:
   array<TableData.row>,
 > => {
   rows
-  ->Bindings.Iter.fromArray
-    ->Bindings.Iter.map(row => {
+  ->Array.map(row => {
     let dict = Dict.make()
     Bindings.Iter.entries(headers)->Bindings.Iter.forEach(((idx, header)) => {
       switch row->Array.get(idx) {
@@ -75,7 +74,6 @@ let convertRows = (rows: array<array<JSON.t>>, headers: array<string>, _options:
     })
     dict
   })
-  ->Bindings.Iter.toArray
   ->Ok
 }
 

@@ -21,8 +21,8 @@ let makeTableData = (
   let columns = TableData.inferColumns(headers, rows)
   let metadata =
     makeMetadata(
-      ~rowCount=rows->Bindings.Iter.fromArray->Bindings.Iter.reduce((count, _) => count + 1, 0),
-      ~columnCount=headers->Bindings.Iter.fromArray->Bindings.Iter.reduce((count, _) => count + 1, 0),
+      ~rowCount=rows->Array.length,
+      ~columnCount=headers->Array.length,
       ~hasRowNumbers=options.hasRowNumbers,
       ~sourceFormat,
     )
