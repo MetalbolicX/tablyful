@@ -1,3 +1,8 @@
+/**
+ * CLI type definitions for command-line interface.
+ * Represents all parsed flags from CLI arguments.
+ */
+
 type flags = {
   formatArg: option<string>,
   inputArg: option<string>,

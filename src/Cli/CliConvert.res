@@ -1,7 +1,18 @@
+/**
+ * CLI conversion logic - orchestrates parsing, transformation, and formatting.
+ * Handles JSON parsing, table processing, and output writing.
+ */
+
 open Types
 
 type flags = CliTypes.flags
 
+/**
+ * Parses JSON input string to JSON.t.
+ * Validates input is not empty before parsing.
+ * @param inputText - Raw input string
+ * @returns Ok(JSON) or Error with validation
+ */
 let parseJsonInput = (inputText: string): Common.result<JSON.t> => {
   if inputText->String.trim === "" {
     TablyfulError.validationError(
@@ -12,6 +23,12 @@ let parseJsonInput = (inputText: string): Common.result<JSON.t> => {
   }
 }
 
+/**
+ * Applies column selection to table data.
+ * @param tableData - Source table
+ * @param columnsArg - Optional columns to select
+ * @returns Ok(TableData) or Error
+ */
 let applyColumnSelection = (
   tableData: TableData.t,
   columnsArg: option<array<string>>,
@@ -22,6 +39,12 @@ let applyColumnSelection = (
   }
 }
 
+/**
+ * Formats table data to output string using formatter registry.
+ * @param tableData - Table to format
+ * @param options - Formatting options
+ * @returns Ok((TableData, outputString)) or Error
+ */
 let formatTableData = (tableData: TableData.t, options: t): Common.result<(TableData.t, string)> => {
   let formatName = options.outputFormat->Types.formatToString
   FormatterRegistry.format(formatName, tableData, options)->Result.map(output => {
@@ -29,6 +52,13 @@ let formatTableData = (tableData: TableData.t, options: t): Common.result<(Table
   })
 }
 
+/**
+ * Processes table data: applies filters, selects columns, formats.
+ * @param tableData - Table to process
+ * @param flags - CLI flags for filtering/selection
+ * @param options - Processing options
+ * @returns Ok((TableData, output)) or Error
+ */
 let processTableData = (
   tableData: TableData.t,
   flags: flags,
@@ -39,6 +69,12 @@ let processTableData = (
   ->Result.flatMap(finalData => formatTableData(finalData, options))
 }
 
+/**
+ * Writes output to file or stdout.
+ * @param outputPath - Optional output file path
+ * @param output - Formatted output string
+ * @returns Ok(unit) or Error
+ */
 let writeOutput = (outputPath: option<string>, output: string): Common.result<unit> => {
   switch outputPath {
   | Some(path) =>
@@ -57,6 +93,11 @@ let writeOutput = (outputPath: option<string>, output: string): Common.result<un
   }
 }
 
+/**
+ * Prints conversion statistics to stderr.
+ * @param tableData - Processed table data
+ * @param options - Output options
+ */
 let printStats = (tableData: TableData.t, options: t): unit => {
   let formatName = options.outputFormat->Types.formatToString
   CliIo.writeStderr(
@@ -66,6 +107,14 @@ let printStats = (tableData: TableData.t, options: t): unit => {
   )
 }
 
+/**
+ * Finalizes conversion: optionally prints stats, writes output.
+ * @param tableData - Processed table
+ * @param output - Formatted output
+ * @param flags - CLI flags
+ * @param options - Processing options
+ * @returns Ok(unit) or Error
+ */
 let finalizeConversion = (
   tableData: TableData.t,
   output: string,

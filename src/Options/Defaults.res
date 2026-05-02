@@ -1,9 +1,15 @@
 /**
- * Default options and option merging
+ * Default options and option merging for all formats.
+ * Provides sensible defaults that can be overridden via config or CLI.
  */
+
 open Types
 
 // Default format options
+
+/**
+ * Default CSV/DSV options with RFC 4180 compliance.
+ */
 let defaultCsvOptions: csvOptions = {
   delimiter: ",",
   quote: "\"",

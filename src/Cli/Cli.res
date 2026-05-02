@@ -1,10 +1,22 @@
-open Types
+/**
+ * CLI module for tablyful - handles command-line argument parsing, validation, and routing.
+ * Provides functions for displaying help, version, and managing input/output processing.
+ */
 
+/**
+ * External version string injected at build time.
+ * @returns The current version of tablyful
+ */
 @val
 external version: string = "__VERSION__"
 
 let defaultMaxFileSizeBytes = 500 * 1024 * 1024
 
+/**
+ * Parses the max-file-size CLI option with validation.
+ * @param raw - Optional raw string value from CLI
+ * @returns Ok(sizeInBytes) or Error with validation message
+ */
 let parseMaxFileSizeBytes = (raw: option<string>): Common.result<int> => {
   switch raw {
   | None => Ok(defaultMaxFileSizeBytes)
@@ -19,6 +31,12 @@ let parseMaxFileSizeBytes = (raw: option<string>): Common.result<int> => {
   }
 }
 
+/**
+ * Validates input file exists and is within size limit.
+ * Exits with error if file exceeds maxBytes or cannot be inspected.
+ * @param path - Optional input file path
+ * @param maxBytes - Maximum allowed file size in bytes
+ */
 let ensureInputFileWithinLimit = (~path: option<string>, ~maxBytes: int): unit => {
   switch path {
   | None => ()
@@ -52,6 +70,9 @@ let ensureInputFileWithinLimit = (~path: option<string>, ~maxBytes: int): unit =
   }
 }
 
+/**
+ * Displays CLI usage information and supported options to stdout.
+ */
 let showHelp = (): unit => {
   CliIo.writeStdout(`
 Usage: tablyful [options] [file]
@@ -91,6 +112,9 @@ Use --examples to see usage examples.
   )
 }
 
+/**
+ * Displays usage examples to stdout.
+ */
 let showExamples = (): unit => {
   CliIo.writeStdout(`
 Examples:
@@ -118,6 +142,12 @@ Examples:
   )
 }
 
+/**
+ * Creates a string-type CLI option configuration.
+ * @param short - Optional short flag (e.g., "-f")
+ * @param multiple - Whether option can be repeated multiple times
+ * @returns Flat config for argument parser
+ */
 let makeStringOption = (~short=?, ~multiple=false): Bindings.Util.flatConfig => {
   switch (short, multiple) {
   | (Some(value), true) => {type_: "string", short: value, multiple: true}
@@ -127,6 +157,11 @@ let makeStringOption = (~short=?, ~multiple=false): Bindings.Util.flatConfig => 
   }
 }
 
+/**
+ * Creates a boolean-type CLI option configuration.
+ * @param short - Optional short flag (e.g., "-h")
+ * @returns Flat config for argument parser
+ */
 let makeBoolOption = (~short=?): Bindings.Util.flatConfig => {
   switch short {
   | Some(value) => {type_: "boolean", short: value}
@@ -134,10 +169,18 @@ let makeBoolOption = (~short=?): Bindings.Util.flatConfig => {
   }
 }
 
+/**
+ * Outputs version string to stdout.
+ */
 let showVersion = (): unit => {
   CliIo.writeStdout(`${version}\n`)
 }
 
+/**
+ * Escapes special characters in string literals for display (newlines, tabs, backslashes).
+ * @param value - Raw string to escape
+ * @returns Escaped string safe for display in documentation
+ */
 let displayLiteral = (value: string): string => {
   value
   ->String.replaceAll("\\", "\\\\")
@@ -145,6 +188,11 @@ let displayLiteral = (value: string): string => {
   ->String.replaceAll("\t", "\\t")
 }
 
+/**
+ * Builds formatted display entries for --set keys and their defaults.
+ * @param format - Output format to get keys for
+ * @returns Array of formatted "format.key (type) - description (default: value)" strings
+ */
 let buildDisplayEntries = (format: Types.format): array<string> => {
   let name = switch format {
   | Csv => "csv"
@@ -261,6 +309,10 @@ let buildDisplayEntries = (format: Types.format): array<string> => {
   })->Bindings.Iter.toArray
 }
 
+/**
+ * Prints all --set keys, optionally filtered by format.
+ * @param filter - Optional format to limit output to
+ */
 let printSetKeys = (filter: option<Types.format>): unit => {
   let printSection = (name: string, entries: array<string>): unit => {
     CliIo.writeStdout(`${name} options:\n`)
@@ -293,6 +345,10 @@ let printSetKeys = (filter: option<Types.format>): unit => {
   }
 }
 
+/**
+ * Builds the parse options configuration for argument parser.
+ * @returns Dictionary of flat configs for all supported CLI options
+ */
 let makeParseOptions = (): dict<Bindings.Util.flatConfig> => {
   Dict.fromArray([
     ("format", makeStringOption(~short="f")),
@@ -318,6 +374,14 @@ let makeParseOptions = (): dict<Bindings.Util.flatConfig> => {
 
 type flags = CliTypes.flags
 
+/**
+ * Determines whether stdin should be read in streaming mode.
+ * Considers explicit flags, output format support, and input content hints.
+ * @param firstChunk - First piece of stdin data for content detection
+ * @param flags - Parsed CLI flags
+ * @param streamOptions - Resolved streaming options
+ * @returns true if streaming mode should be used
+ */
 let shouldStreamStdin = (firstChunk: string, flags: flags, streamOptions: option<t>): bool => {
   switch flags.stream {
   | Some(true) =>
@@ -353,6 +417,11 @@ let shouldStreamStdin = (firstChunk: string, flags: flags, streamOptions: option
   }
 }
 
+/**
+ * Reads input from stdin, handling both buffered and streaming modes.
+ * @param flags - Parsed CLI flags
+ * @param streamOptions - Optional resolved streaming options
+ */
 let readInputFromStdin = (flags: flags, ~streamOptions=?,): unit => {
   let stdin = Bindings.Process.stdin
   Bindings.Stream.setEncoding(stdin, "utf8")
@@ -402,10 +471,21 @@ let readInputFromStdin = (flags: flags, ~streamOptions=?,): unit => {
   })
 }
 
+/**
+ * Checks if stdin is piped (not connected to a TTY).
+ * @returns true if stdin is piped from another process
+ */
 let isStdinPiped = (): bool => {
   Bindings.Process.stdin.isTTY !== Some(true)
 }
 
+/**
+ * Resolves the input format for routing decisions.
+ * Uses explicit --input flag first, then falls back to file extension detection.
+ * @param normalizedInputArg - Normalized input format argument
+ * @param inputPath - Input file path for extension detection
+ * @returns Resolved format string or None
+ */
 let resolveRoutingInputFormat = (
   normalizedInputArg: option<string>,
   inputPath: option<string>,
@@ -420,6 +500,12 @@ let resolveRoutingInputFormat = (
   }
 }
 
+/**
+ * Determines if batch mode should be forced based on input format.
+ * JSON and NDJSON can stream; all other formats require batch mode reading.
+ * @param normalizedInputArg - Normalized input format argument
+ * @returns true if batch mode should be enforced
+ */
 let shouldForceBatchFromInputArg = (normalizedInputArg: option<string>): bool => {
   switch normalizedInputArg {
   | Some("json") => false
@@ -429,6 +515,14 @@ let shouldForceBatchFromInputArg = (normalizedInputArg: option<string>): bool =>
   }
 }
 
+/**
+ * Determines if batch mode should be used based on multiple routing signals.
+ * @param flags - Parsed CLI flags
+ * @param forceBatchFromInputArg - Whether input format forces batch mode
+ * @param isReaderInput - Whether input format has a registered reader
+ * @param isNdjsonInput - Whether input format is NDJSON
+ * @returns true if batch mode should be used
+ */
 let shouldRouteBatchMode = (
   flags: flags,
   ~forceBatchFromInputArg: bool,
@@ -442,6 +536,10 @@ let shouldRouteBatchMode = (
   }
 }
 
+/**
+ * Parses command-line arguments or exits with error and help message.
+ * @returns Parsed arguments result with values and positionals
+ */
 let parseArgsOrExit = (): Bindings.Util.parseArgsResult => {
   try {
     Bindings.Util.parseArgs({
@@ -466,6 +564,11 @@ let parseArgsOrExit = (): Bindings.Util.parseArgsResult => {
   }
 }
 
+/**
+ * Parses max-file-size option or exits with validation error.
+ * @param raw - Optional raw string from CLI
+ * @returns Parsed size in bytes
+ */
 let parseMaxFileSizeOrExit = (raw: option<string>): int => {
   switch parseMaxFileSizeBytes(raw) {
   | Ok(size) => size
@@ -477,6 +580,11 @@ let parseMaxFileSizeOrExit = (raw: option<string>): int => {
   }
 }
 
+/**
+ * Parses --set key=value pairs or exits with validation error.
+ * @param raw - Optional array of raw pair strings
+ * @returns Array of parsed (key, value) tuples
+ */
 let parseSetPairsOrExit = (raw: option<array<string>>): array<(string, string)> => {
   switch CliOptions.parseSetPairs(raw) {
   | Ok(pairs) => pairs
@@ -488,6 +596,11 @@ let parseSetPairsOrExit = (raw: option<array<string>>): array<(string, string)> 
   }
 }
 
+/**
+ * Parses --columns argument or exits with validation error.
+ * @param raw - Optional raw column names string
+ * @returns Array of column names or None
+ */
 let parseColumnsArgOrExit = (raw: option<string>): option<array<string>> => {
   switch CliOptions.parseColumnsArg(raw) {
   | Ok(columns) => columns
@@ -499,6 +612,11 @@ let parseColumnsArgOrExit = (raw: option<string>): option<array<string>> => {
   }
 }
 
+/**
+ * Parses --filter expressions or exits with validation error.
+ * @param raw - Optional array of raw filter expressions
+ * @returns Array of parsed filter expressions
+ */
 let parseFilterExprsOrExit = (raw: option<array<string>>): array<string> => {
   switch CliOptions.parseFilterExprs(raw) {
   | Ok(filters) => filters
@@ -510,6 +628,12 @@ let parseFilterExprsOrExit = (raw: option<array<string>>): array<string> => {
   }
 }
 
+/**
+ * Resolves conflicting --stream and --no-stream flags, exiting on invalid combination.
+ * @param stream - Explicit --stream flag
+ * @param noStream - Explicit --no-stream flag
+ * @returns Resolved streaming preference or None
+ */
 let parseStreamFlagOrExit = (stream: option<bool>, noStream: option<bool>): option<bool> => {
   switch (stream, noStream) {
   | (Some(true), Some(true)) =>
@@ -525,6 +649,10 @@ let parseStreamFlagOrExit = (stream: option<bool>, noStream: option<bool>): opti
   }
 }
 
+/**
+ * Main CLI entry point. Parses arguments, validates options, routes to appropriate
+ * processing mode (batch or streaming), and executes the conversion.
+ */
 let main = (): unit => {
   let parsed = parseArgsOrExit()
     let values = parsed.values

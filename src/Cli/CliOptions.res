@@ -1,11 +1,26 @@
+/**
+ * CLI options parsing and resolution.
+ * Handles --set overrides, --columns, --filter, and command-line flag merging.
+ */
+
 open Types
 
 type flags = CliTypes.flags
 
+/**
+ * Creates a validation error result with the given message.
+ * @param message - Validation error message
+ * @returns Error result
+ */
 let invalidSet = (message: string): Common.result<'a> => {
   TablyfulError.validationError(message)->TablyfulError.toResult
 }
 
+/**
+ * Parses a single --set key=value pair.
+ * @param entry - Raw "key=value" string
+ * @returns Ok((key, value)) or Error
+ */
 let parseSetPair = (entry: string): Common.result<(string, string)> => {
   let parts = entry->String.split("=")
   if parts->Array.length < 2 {
@@ -25,6 +40,11 @@ let parseSetPair = (entry: string): Common.result<(string, string)> => {
   }
 }
 
+/**
+ * Parses multiple --set key=value pairs.
+ * @param raw - Optional array of raw pair strings
+ * @returns Ok(array of (key, value) tuples) or Error
+ */
 let parseSetPairs = (raw: option<array<string>>): Common.result<array<(string, string)>> => {
   switch raw {
   | None => Ok([])
@@ -44,6 +64,11 @@ let parseSetPairs = (raw: option<array<string>>): Common.result<array<(string, s
   }
 }
 
+/**
+ * Parses --columns argument into array of column names.
+ * @param raw - Optional comma-separated column string
+ * @returns Ok(Some(columns)) or Ok(None) or Error
+ */
 let parseColumnsArg = (raw: option<string>): Common.result<option<array<string>>> => {
   switch raw {
   | None => Ok(None)
@@ -65,6 +90,11 @@ let parseColumnsArg = (raw: option<string>): Common.result<option<array<string>>
   }
 }
 
+/**
+ * Parses --filter expressions into array of filter strings.
+ * @param raw - Optional array of raw filter expressions
+ * @returns Ok(array of expressions) or Error
+ */
 let parseFilterExprs = (raw: option<array<string>>): Common.result<array<string>> => {
   switch raw {
   | None => Ok([])
@@ -85,6 +115,11 @@ let parseFilterExprs = (raw: option<array<string>>): Common.result<array<string>
   }
 }
 
+/**
+ * Converts string to boolean option.
+ * @param value - String to parse ("true" or "false", case-insensitive)
+ * @returns Some(true), Some(false), or None
+ */
 let parseBoolValue = (value: string): option<bool> => {
   switch value->String.toLowerCase {
   | "true" => Some(true)
@@ -93,6 +128,12 @@ let parseBoolValue = (value: string): option<bool> => {
   }
 }
 
+/**
+ * Parses a boolean --set value.
+ * @param key - Full key for error messages
+ * @param value - String to parse
+ * @returns Ok(bool) or Error
+ */
 let parseBoolSet = (~key: string, value: string): Common.result<bool> => {
   switch parseBoolValue(value) {
   | Some(v) => Ok(v)
@@ -100,6 +141,12 @@ let parseBoolSet = (~key: string, value: string): Common.result<bool> => {
   }
 }
 
+/**
+ * Parses an integer --set value.
+ * @param key - Full key for error messages
+ * @param value - String to parse
+ * @returns Ok(int) or Error
+ */
 let parseIntSet = (~key: string, value: string): Common.result<int> => {
   switch Int.fromString(value) {
   | Some(v) => Ok(v)
@@ -107,10 +154,25 @@ let parseIntSet = (~key: string, value: string): Common.result<int> => {
   }
 }
 
+/**
+ * Creates an error for unknown --set option.
+ * @param fullKey - Complete option key
+ * @param section - Format section name
+ * @param allowed - Comma-separated allowed options
+ * @returns Error result
+ */
 let unknownSetOption = (~fullKey: string, ~section: string, ~allowed: string): Common.result<'a> => {
   invalidSet(`Unknown --set option: ${fullKey}. Allowed ${section} options: ${allowed}.`)
 }
 
+/**
+ * Applies --set overrides for CSV format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyCsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
   let csv = Defaults.getCsvOptions(options)
   switch field {
@@ -131,6 +193,14 @@ let applyCsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: 
   }
 }
 
+/**
+ * Applies --set overrides for TSV format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyTsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
   switch field {
   | "includeHeaders" =>
@@ -141,6 +211,14 @@ let applyTsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: 
   }
 }
 
+/**
+ * Applies --set overrides for PSV format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyPsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
   switch field {
   | "includeHeaders" =>
@@ -151,6 +229,14 @@ let applyPsvSetOverride = (options: t, ~field: string, ~fullKey: string, value: 
   }
 }
 
+/**
+ * Applies --set overrides for JSON format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyJsonSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
   let json = Defaults.getJsonOptions(options)
   switch field {
@@ -170,6 +256,14 @@ let applyJsonSetOverride = (options: t, ~field: string, ~fullKey: string, value:
   }
 }
 
+/**
+ * Applies --set overrides for Markdown format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyMarkdownSetOverride = (
   options: t,
   ~field: string,
@@ -191,6 +285,14 @@ let applyMarkdownSetOverride = (
   }
 }
 
+/**
+ * Applies --set overrides for HTML format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyHtmlSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
   let html = Defaults.getHtmlOptions(options)
   switch field {
@@ -208,6 +310,14 @@ let applyHtmlSetOverride = (options: t, ~field: string, ~fullKey: string, value:
   }
 }
 
+/**
+ * Applies --set overrides for LaTeX format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyLatexSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
   let latex = Defaults.getLatexOptions(options)
   switch field {
@@ -237,6 +347,14 @@ let applyLatexSetOverride = (options: t, ~field: string, ~fullKey: string, value
   }
 }
 
+/**
+ * Applies --set overrides for SQL format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applySqlSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
   let sql = Defaults.getSqlOptions(options)
   switch field {
@@ -265,6 +383,14 @@ let applySqlSetOverride = (options: t, ~field: string, ~fullKey: string, value: 
   }
 }
 
+/**
+ * Applies --set overrides for YAML format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyYamlSetOverride = (options: t, ~field: string, ~fullKey: string, value: string): Common.result<t> => {
   let yaml = Defaults.getYamlOptions(options)
   switch field {
@@ -281,6 +407,14 @@ let applyYamlSetOverride = (options: t, ~field: string, ~fullKey: string, value:
   }
 }
 
+/**
+ * Applies --set overrides for NDJSON format options.
+ * @param options - Current options
+ * @param field - Option field name
+ * @param fullKey - Complete key for errors
+ * @param value - New value
+ * @returns Updated options or Error
+ */
 let applyNdjsonSetOverride = (
   options: t,
   ~field: string,
@@ -293,8 +427,15 @@ let applyNdjsonSetOverride = (
   }
 }
 
+/**
+ * Handler function type for applying --set overrides.
+ * Takes options, field name, full key, and value; returns updated options or error.
+ */
 type setOverrideHandler = (t, ~field: string, ~fullKey: string, string) => Common.result<t>
 
+/**
+ * Dictionary mapping format names to their override handlers.
+ */
 let formatHandlers: Dict.t<setOverrideHandler> = {
   let dict = Dict.make()
   dict->Dict.set("csv", applyCsvSetOverride)
@@ -312,6 +453,12 @@ let formatHandlers: Dict.t<setOverrideHandler> = {
 
 let supportedFormats = "csv, tsv, psv, json, markdown, html, latex, sql, yaml, ndjson"
 
+/**
+ * Applies a single --set override to options.
+ * @param options - Current options
+ * @param key - Key-value pair to apply
+ * @returns Updated options or Error
+ */
 let applySetOverride = (options: t, ((key, value): (string, string))): Common.result<t> => {
   let parts = key->String.split(".")
   if parts->Array.length !== 2 {
@@ -333,12 +480,24 @@ let applySetOverride = (options: t, ((key, value): (string, string))): Common.re
   }
 }
 
+/**
+ * Applies multiple --set overrides to options sequentially.
+ * @param options - Initial options
+ * @param pairs - Array of key-value pairs
+ * @returns Final options or first Error encountered
+ */
 let applySetOverrides = (options: t, pairs: array<(string, string)>): Common.result<t> => {
   pairs
   ->Bindings.Iter.fromArray
   ->Bindings.Iter.reduce((acc, pair) => acc->Result.flatMap(opts => applySetOverride(opts, pair)), Ok(options))
 }
 
+/**
+ * Applies CLI flags to options (format, delimiter, noHeaders).
+ * @param options - Options to modify
+ * @param flags - CLI flags
+ * @returns Updated options or Error
+ */
 let overrideWithCliFlags = (options: t, flags: flags): Common.result<t> => {
   let disableDelimitedHeaders = (opts: t): t => {
     switch opts.outputFormat {
@@ -409,6 +568,11 @@ let overrideWithCliFlags = (options: t, flags: flags): Common.result<t> => {
   })
 }
 
+/**
+ * Loads configuration from file or returns defaults.
+ * @param configPath - Optional path to config file
+ * @returns Options from config or defaults
+ */
 let mergeConfig = (~configPath: option<string>): Common.result<t> => {
   switch configPath {
   | Some(path) => ConfigFile.load(~path, ())
@@ -416,6 +580,11 @@ let mergeConfig = (~configPath: option<string>): Common.result<t> => {
   }
 }
 
+/**
+ * Resolves final options by merging config, --set overrides, and CLI flags.
+ * @param flags - Parsed CLI flags
+ * @returns Final resolved options or Error
+ */
 let resolveOptions = (flags: flags): Common.result<t> => {
   mergeConfig(~configPath=flags.configPath)
   ->Result.flatMap(configOptions => applySetOverrides(configOptions, flags.setPairs))

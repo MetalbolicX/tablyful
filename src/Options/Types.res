@@ -1,7 +1,12 @@
-// Output format type
+/**
+ * Configuration options types for all supported output formats.
+ * Defines format variants and options for CSV, TSV, PSV, JSON, Markdown, HTML, LaTeX, SQL, YAML, and NDJSON.
+ */
+
+// Output format type - discriminated union for all supported formats
 
 /**
- * Configuration options types
+ * All supported output formats for table data conversion.
  */
 type format =
   | Csv
@@ -15,7 +20,9 @@ type format =
   | Yaml
   | Ndjson
 
-// CSV options
+/**
+ * CSV/DSV-specific options with delimiter, quote, and escape characters.
+ */
 type csvOptions = {
   delimiter: string,
   quote: string,
@@ -24,31 +31,41 @@ type csvOptions = {
   includeHeaders: bool,
 }
 
-// TSV options
+/**
+ * TSV (Tab-Separated Values) options.
+ */
 type tsvOptions = {
   includeHeaders: bool,
 }
 
-// PSV options
+/**
+ * PSV (Pipe-Separated Values) options.
+ */
 type psvOptions = {
   includeHeaders: bool,
 }
 
-// JSON options
+/**
+ * JSON output options for formatting and structure.
+ */
 type jsonOptions = {
   pretty: bool,
   indentSize: int,
   asArray: bool,
 }
 
-// Markdown options
+/**
+ * Markdown table options for alignment and flavor.
+ */
 type markdownOptions = {
   align: string, // "left" | "center" | "right"
   padding: bool,
   githubFlavor: bool,
 }
 
-// HTML options
+/**
+ * HTML table options for CSS classes and caption.
+ */
 type htmlOptions = {
   tableClass: string,
   theadClass: string,
@@ -57,7 +74,9 @@ type htmlOptions = {
   caption: string,
 }
 
-// LaTeX options
+/**
+ * LaTeX table options for environment and styling.
+ */
 type latexOptions = {
   tableEnvironment: string,
   columnSpec: string,
@@ -68,7 +87,9 @@ type latexOptions = {
   useTableEnvironment: bool,
 }
 
-// SQL options
+/**
+ * SQL output options for table naming and DDL.
+ */
 type sqlOptions = {
   tableName: string,
   identifierQuote: string,
@@ -76,19 +97,25 @@ type sqlOptions = {
   insertBatchSize: int,
 }
 
-// YAML options
+/**
+ * YAML output options for formatting.
+ */
 type yamlOptions = {
   indent: int,
   quoteStrings: bool,
   lineBreak: string,
 }
 
-// NDJSON options
+/**
+ * NDJSON output options.
+ */
 type ndjsonOptions = {
   lineBreak: string,
 }
 
-// Format options variant
+/**
+ * Format options variant - discriminated union over all format-specific options.
+ */
 type formatOptions =
   | CsvOptions(csvOptions)
   | TsvOptions(tsvOptions)
@@ -101,7 +128,9 @@ type formatOptions =
   | YamlOptions(yamlOptions)
   | NdjsonOptions(ndjsonOptions)
 
-// Main options type
+/**
+ * Main options type combining input and output configuration.
+ */
 type t = {
   // Input
   headers: option<array<string>>,
@@ -113,7 +142,11 @@ type t = {
   formatOptions: formatOptions,
 }
 
-// Format to string
+/**
+ * Converts format to string for CLI display.
+ * @param format - Format variant
+ * @returns String representation (e.g., "csv", "json")
+ */
 let formatToString = (format: format): string => {
   switch format {
   | Csv => "csv"
@@ -129,7 +162,12 @@ let formatToString = (format: format): string => {
   }
 }
 
-// String to format
+// String to format (case-insensitive)
+/**
+ * Parses string to format option.
+ * @param str - String to parse (case-insensitive)
+ * @returns Some(format) or None
+ */
 let formatFromString = (str: string): option<format> => {
   switch str->String.toLowerCase {
   | "csv" => Some(Csv)
