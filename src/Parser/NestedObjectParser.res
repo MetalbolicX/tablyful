@@ -39,13 +39,13 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
     TablyfulError.validationError("Object of objects cannot be empty")->TablyfulError.toResult
   } else {
     // Collect all column names from all inner objects
-    let columnSet = rowIds->Array.reduce((acc, rowId) => {
+    let columnSet = rowIds->Array.reduce(Belt.Set.String.empty, (acc, rowId) => {
       switch data->Dict.get(rowId) {
       | Some(innerObj) =>
-        innerObj->Dict.keysToArray->Array.reduce((innerAcc, key) => innerAcc->Belt.Set.String.add(key), acc)
+        innerObj->Dict.keysToArray->Array.reduce(acc, (innerAcc, key) => innerAcc->Belt.Set.String.add(key))
       | None => acc
       }
-    }, Belt.Set.String.empty)
+    })
 
     let columns = columnSet->Belt.Set.String.toArray
 

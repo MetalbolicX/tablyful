@@ -382,7 +382,7 @@ type flags = CliTypes.flags
  * @param streamOptions - Resolved streaming options
  * @returns true if streaming mode should be used
  */
-let shouldStreamStdin = (firstChunk: string, flags: flags, streamOptions: option<t>): bool => {
+let shouldStreamStdin = (firstChunk: string, flags: flags, streamOptions: option<Types.t>): bool => {
   switch flags.stream {
   | Some(true) =>
     switch streamOptions {

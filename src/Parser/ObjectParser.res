@@ -25,9 +25,9 @@ let extractHeaders = (data: parserInput, _options: t): Common.result<(
     TablyfulError.validationError("Array of objects cannot be empty")->TablyfulError.toResult
   } else {
     // Collect all unique keys from all objects
-    let headerSet = data->Array.reduce((acc, obj) => {
-      obj->Dict.keysToArray->Array.reduce((innerAcc, key) => innerAcc->Belt.Set.String.add(key), acc)
-    }, Belt.Set.String.empty)
+    let headerSet = data->Array.reduce(Belt.Set.String.empty, (acc, obj) => {
+      obj->Dict.keysToArray->Array.reduce(acc, (innerAcc, key) => innerAcc->Belt.Set.String.add(key))
+    })
 
     let headers = headerSet->Belt.Set.String.toArray
 
