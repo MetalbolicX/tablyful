@@ -1,86 +1,224 @@
-# tablyful
+# Tablyful - ReScript Edition
 
-`tablyful` is a CLI-first tool that converts JSON tabular data into `csv`, `tsv`, `psv`, `json`, `markdown`, `html`, `latex`, `sql`, and `yaml`.
+`tablyful` is a CLI-first tool for converting JSON tabular data between `csv`, `tsv`, `psv`, `json`, `markdown`, `html`, `latex`, `sql`, and `yaml`.
 
-![Node.js version](https://img.shields.io/badge/Node.js-%3E%3D22.0.0-blue)
+[![ReScript](https://img.shields.io/badge/ReScript-v12.2.0-red)](https://rescript-lang.org/)
+[![Node.js](https://img.shields.io/badge/Node.js->=22.0.0-blue)](https://nodejs.org/)
 
-## Install
+## Features
+
+- Multiple input shapes: array of arrays, array of objects, object of arrays, object of objects
+- Multiple output formats: CSV, TSV, PSV, JSON, Markdown, HTML, LaTeX, SQL, YAML
+- Unix-friendly CLI (stdin/stdout by default, positional file input supported)
+- Cascading JSON config (`.tablyfulrc.json`)
+- Repeatable `--set format.option=value` overrides for format-specific options
+- Row filtering with SQL-like predicates (`=`, `!=`, `>`, `<`, `>=`, `<=`, `LIKE`)
+- Column projection via `--columns`
+- Conversion diagnostics with `--stats`
+- Automatic streaming for large JSON arrays when output is `csv`, `tsv`, `psv`, `sql`, `html`, or `yaml`
+- Human-readable discoverability with `--list-set-keys`
+
+## Installation
 
 ```bash
 npm install tablyful
 ```
 
-## Quick Usage
+## Quick Start
 
 ```bash
 # stdin -> csv
 cat data.json | tablyful --format csv
 
-# file -> json
+# positional file -> json
 tablyful data.json --format json
 
-# write to file
+# write output to a file
 tablyful data.json --format csv --output out.csv
 
-# automatic streaming for large arrays (csv|tsv|psv|sql|html|yaml|ndjson)
+# automatic streaming for large arrays (csv/tsv/psv/sql/html/yaml)
 cat data.json | tablyful --format csv --output out.csv
 
-# NDJSON stdin -> csv
-cat data.ndjson | tablyful --input ndjson --format csv
+# automatic streaming + filtering + projection
+cat data.json | tablyful --format sql --filter "age>25" --columns name,age
 
-# emit NDJSON (one JSON object per line)
-tablyful data.json --format ndjson --output data.ndjson
+# auto-detect parser, filter rows, and select columns
+cat data.json | tablyful --format yaml --filter 'name LIKE ali%' --columns name,age
 
-# repeatable --set overrides
-tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
-
-# row filtering + column selection
-tablyful data.json --format yaml --filter "name LIKE ali%" --columns name,age
-
-# SQL inserts with optional table creation
+# emit SQL inserts with placeholders
 tablyful data.json --format sql --set sql.tableName=users --set sql.includeCreateTable=true
 
-# conversion diagnostics
-tablyful data.json --format csv --stats
+# force parser and customize csv delimiter
+cat data.json | tablyful --input array-of-objects --format csv --set csv.delimiter=';'
 
-# discover valid --set keys
-tablyful --list-set-keys
-tablyful --list-set-keys-format csv
+# use config and then override one value inline
+tablyful data.json --config ./.tablyfulrc.json --set json.pretty=false --format json
 ```
 
-Streaming & NDJSON
+## CLI Options
 
-tablyful now supports NDJSON (newline-delimited JSON) as both an input and an output format. NDJSON input is parsed line-by-line so it composes well with Unix pipelines and uses constant memory.
+```text
+Usage: tablyful [options] [file]
 
-When stdin is a pipe the CLI decides between streaming and buffered (batch) processing as follows:
+Options:
+  -f, --format <format>           Output format (csv|tsv|psv|json|markdown|html|latex|sql|yaml)
+  -i, --input <format>            Input format (optional; auto-detected when omitted)
+  -o, --output <path>             Write output to file instead of stdout
+      --set <key=value>           Override format option (repeatable, e.g. --set json.pretty=false)
+      --list-set-keys             Print allowed --set keys and defaults
+      --list-set-keys-format <f>  Print allowed --set keys for one format
+  -C, --columns <names>           Comma-separated output columns
+      --filter <expr>             Filter rows (repeatable; supports = != > < >= <= LIKE)
+      --stats                     Print conversion stats to stderr
+  -c, --config <path>             Path to config JSON file
+  -d, --delimiter <char>          CSV delimiter override
+      --no-headers                Omit headers in CSV/TSV/PSV output
+  -h, --help                      Show help
+  -v, --version                   Show version
+```
 
-- If the producer writes a JSON array (input begins with `[`), and the chosen output format is streamable (csv, tsv, psv, sql, html, yaml, ndjson), the CLI will stream the array elements as they arrive (no full buffering).
-- If you pass `--input ndjson` or supply a `.ndjson`/`.jsonl` file, the CLI will stream input line-by-line using NDJSON semantics.
-- If either the input format or the output format is not streamable (for example when you request pretty-printed JSON as a single array), the CLI will fall back to buffered processing (reads entire input before converting).
+Input is read from `[file]` when provided, otherwise from stdin when piped.
+
+Automatic streaming is used for JSON arrays of arrays/objects when output format is: `csv`, `tsv`, `psv`, `sql`, `html`, `yaml`.
+
+To force the legacy batch pipeline for these formats, pass `--input ...` explicitly.
+
+## Configuration
+
+Create a `.tablyfulrc.json` in the current directory (or home directory):
+
+```json
+{
+  "defaultFormat": "csv",
+  "hasHeaders": true,
+  "includeRowNumbers": false,
+  "csv": {
+    "delimiter": ",",
+    "quote": "\"",
+    "escape": "\\",
+    "lineBreak": "\\n",
+    "includeHeaders": true
+  },
+  "tsv": {
+    "includeHeaders": true
+  },
+  "psv": {
+    "includeHeaders": true
+  },
+  "json": {
+    "pretty": true,
+    "indentSize": 2,
+    "asArray": false
+  },
+  "markdown": {
+    "align": "left",
+    "padding": true,
+    "githubFlavor": true
+  },
+  "html": {
+    "tableClass": "tablyful-table",
+    "theadClass": "",
+    "tbodyClass": "",
+    "id": "",
+    "caption": ""
+  },
+  "latex": {
+    "tableEnvironment": "tabular",
+    "columnSpec": "",
+    "booktabs": true,
+    "caption": "",
+    "label": "",
+    "centering": true,
+    "useTableEnvironment": false
+  },
+  "sql": {
+    "tableName": "table",
+    "identifierQuote": "\"",
+    "includeCreateTable": false
+  },
+  "yaml": {
+    "indent": 2,
+    "quoteStrings": false,
+    "lineBreak": "\n"
+  }
+}
+```
+
+Precedence (lowest to highest):
+1. Built-in defaults
+2. Config file(s)
+3. Repeatable `--set` overrides
+4. Explicit shallow CLI flags like `--delimiter` and `--no-headers`
+
+## `--set` Overrides
+
+Use repeatable `--set` values with this syntax:
+
+```text
+--set <format>.<option>=<value>
+```
 
 Examples:
 
-- Stream NDJSON to CSV:
-  cat data.ndjson | tablyful --input ndjson --format csv
-- Produce NDJSON from a JSON file (one object per line):
-  tablyful data.json --format ndjson > data.ndjson
-- Pipe a producer into tablyful and consume immediately (streaming):
-  producer-tool | tablyful --format ndjson | jq '.'
+```bash
+# boolean + int parsing
+tablyful data.json --format json --set json.pretty=false --set json.indentSize=4
 
-Streaming reduces memory usage and enables you to start consuming output before the input producer has finished.
+# string fallback
+tablyful data.json --format csv --set csv.delimiter=';'
 
-## Configuration and Precedence
+# sql format options
+tablyful data.json --format sql --set sql.tableName=users --set sql.identifierQuote='"'
 
-`tablyful` supports `.tablyfulrc.json` config files and CLI overrides.
+# yaml format options
+tablyful data.json --format yaml --set yaml.indent=4 --set yaml.quoteStrings=true
 
-Priority order:
+# explicit CLI flags win over --set
+tablyful data.json --format csv --set csv.delimiter=';' --delimiter ','
+```
 
-1. Built-in defaults
-2. Config file(s)
-3. `--set format.option=value`
-4. Explicit shallow flags (`--delimiter`, `--no-headers`)
+Value parsing:
+- `true`/`false` -> boolean
+- integer strings (for numeric fields) -> int
+- everything else -> string
 
-See `README_RES.md` for full CLI documentation and `examples/cli/` for runnable examples.
+## Filtering and Columns
+
+```bash
+# numeric filter
+tablyful data.json --format csv --filter "age>25"
+
+# case-insensitive LIKE (`%` any substring, `_` any single char)
+tablyful data.json --format csv --filter "name LIKE ali%"
+
+# combine filters (AND semantics)
+tablyful data.json --format csv --filter "age>=25" --filter "name LIKE a%"
+
+# project columns after filtering
+tablyful data.json --format yaml --filter "age>=25" --columns name,age
+```
+
+## Stats
+
+```bash
+tablyful data.json --format csv --stats
+```
+
+Example stderr output:
+
+```text
+[tablyful] rows: 2, columns: 2, detected: array-of-arrays, format: csv
+```
+
+## Discoverability
+
+```bash
+# list all allowed keys for --set
+tablyful --list-set-keys
+
+# list keys for one format
+tablyful --list-set-keys-format csv
+```
 
 ## Development
 
@@ -92,4 +230,4 @@ pnpm test
 
 ## License
 
-Released under [MIT](/LICENSE) by [@MetalbolicX](https://github.com/MetalbolicX).
+MIT © Jose Martinez Santana
