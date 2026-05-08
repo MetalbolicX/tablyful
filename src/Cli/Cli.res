@@ -429,14 +429,14 @@ let readInputFromStdin = (flags: flags, ~streamOptions=?,): unit => {
   let sawData = ref(false)
 
   let runBufferedMode = (firstChunk: string): unit => {
-    let chunks = ref(list{firstChunk})
+    let chunks = ref([firstChunk])
 
     Bindings.Stream.onData(stdin, chunk => {
-      chunks.contents = list{chunk, ...chunks.contents}
+      chunks.contents->Array.push(chunk)->ignore
     })
 
     Bindings.Stream.onEnd(stdin, () => {
-      CliConvert.runConversion(chunks.contents->List.reverse->List.toArray->Array.join(""), flags)
+      CliConvert.runConversion(chunks.contents->Array.join(""), flags)
     })
 
     Bindings.Stream.resume(stdin)

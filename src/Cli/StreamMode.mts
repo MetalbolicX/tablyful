@@ -172,13 +172,13 @@ const isStreamArrayItem = (value: unknown): value is StreamArrayItem =>
 
 const writeChunk = (stream: Writable, chunk: string): Promise<void> =>
   new Promise((resolve, reject) => {
-    stream.write(chunk, "utf8", (error) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve();
-      }
-    });
+    const canContinue = stream.write(chunk, "utf8");
+    if (!canContinue) {
+      stream.once("drain", resolve);
+      stream.once("error", reject);
+    } else {
+      resolve();
+    }
   });
 
 const parseFilterExpression = (expression: string): Predicate => {
@@ -338,6 +338,7 @@ const buildObjectRow = (
 interface InputStreamSetup {
   input: Readable;
   output: Writable;
+  cleanupInputStream: () => void;
   cleanupOutputFile: () => void;
   sigintHandler: () => void;
 }
@@ -741,13 +742,17 @@ const createInputIterable = (
         crlfDelay: Infinity,
       });
       let index = 0;
-      for await (const line of rl) {
-        const trimmed = line.trim();
-        if (trimmed === "") {
-          continue;
+      try {
+        for await (const line of rl) {
+          const trimmed = line.trim();
+          if (trimmed === "") {
+            continue;
+          }
+          yield { key: index, value: parseNdjsonLine(trimmed) };
+          index += 1;
         }
-        yield { key: index, value: parseNdjsonLine(trimmed) };
-        index += 1;
+      } finally {
+        rl.close();
       }
     })(input);
   }
@@ -896,7 +901,20 @@ const createInputStream = (config: StreamCliConfig): InputStreamSetup => {
     }
   };
 
+  const cleanupInputStream = (): void => {
+    if (!hasInputPath) return;
+    try {
+      if (input instanceof fs.ReadStream) {
+        input.destroy();
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logCleanupWarning(`failed to destroy input stream: ${message}`);
+    }
+  };
+
   const sigintHandler = (): void => {
+    cleanupInputStream();
     cleanupOutputFile();
     process.exit(EXIT_SIGINT);
   };
@@ -906,7 +924,7 @@ const createInputStream = (config: StreamCliConfig): InputStreamSetup => {
     process.stdin.setEncoding("utf8");
   }
 
-  return { input, output, cleanupOutputFile, sigintHandler };
+  return { input, output, cleanupInputStream, cleanupOutputFile, sigintHandler };
 };
 
 /**
@@ -953,7 +971,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
     : [];
   const lineBreak = normalizeLineBreak(config.lineBreak);
 
-  const { input, output, cleanupOutputFile, sigintHandler } =
+  const { input, output, cleanupInputStream, cleanupOutputFile, sigintHandler } =
     createInputStream(config);
   const hasOutputPath = Boolean(config.outputPath);
 
@@ -1156,6 +1174,7 @@ const run = async (config: StreamCliConfig): Promise<void> => {
       sigintHandler,
     });
   } catch (error) {
+    cleanupInputStream();
     cleanupOutputFile();
     process.off("SIGINT", sigintHandler);
     throw error;

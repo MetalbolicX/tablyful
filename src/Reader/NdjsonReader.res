@@ -36,7 +36,7 @@ let read = (input: string, options: Types.t): TablyfulError.result<TableData.t> 
     if lines->Array.length === 0 {
       TablyfulError.parseError("NDJSON input has no rows.")->TablyfulError.toResult
     } else {
-      let rows = []
+      let rows: array<TableData.row> = []
       let headerSet = ref(Belt.Set.String.empty)
       let hasError = ref(None)
 
@@ -64,15 +64,7 @@ let read = (input: string, options: Types.t): TablyfulError.result<TableData.t> 
         if headers->Array.length === 0 {
           TablyfulError.parseError("NDJSON input has no object keys.")->TablyfulError.toResult
         } else {
-           let normalizedRows = rows->Bindings.Iter.fromArray->Bindings.Iter.map(row => {
-             let dict: TableData.row = Dict.make()
-             headers->Bindings.Iter.fromArray->Bindings.Iter.forEach(header => {
-               dict->Dict.set(header, row->Dict.get(header)->Option.getOr(JSON.Encode.null))
-             })
-             dict
-           })->Bindings.Iter.toArray
-
-          ReaderCommon.makeTableData(~headers, ~rows=normalizedRows, ~options, ~sourceFormat=name)
+          ReaderCommon.makeTableData(~headers, ~rows, ~options, ~sourceFormat=name)
         }
       }
     }
