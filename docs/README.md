@@ -1,51 +1,99 @@
+
 # tablyful
 
-Welcome to the `tablyful` documentation. This project is CLI-first and focuses on converting semi-structured data into common table formats used in data pipelines and reporting.
+Hey there! 👋
 
-## What problem does tablyful solve?
+If you've ever wrestled with messy JSON files and spent too many hours writing brittle scripts to turn them into CSVs, Markdown tables, SQL inserts, or HTML reports — you're in the right place. tablyful is the smart alternative that makes those repetitive, flaky transformations simple, reliable, and pipeline-friendly.
 
-`tablyful` solves a simple but common problem: converting semi-structured tabular data into the wide range of textual table formats used in reporting, shell scripts, and data pipelines. Instead of writing ad-hoc scripts to transform JSON into CSV, SQL, Markdown, HTML, LaTeX or YAML, `tablyful` provides a single CLI that understands several JSON shapes and produces consistent, configurable output.
+## What Problem Does tablyful Solve?
 
-Why CLI-first?
+Current state: people repeatedly craft brittle ad-hoc scripts, copy-paste transformations, or force heavy frameworks to do simple table conversions. It slows you down and leaks edge cases into production.
 
-- Shell-friendly: designed to be used in pipelines (`stdin` → `tablyful` → `stdout`) and in scripts.
-- Discoverable: small command surface with `--list-set-keys` to explore configurable options.
-- Reproducible: project-level `.tablyfulrc.json` files make conversions repeatable across environments.
+Common (but flawed) alternatives:
 
-## Features
+1. Write custom scripts for each dataset — quick at first, unmaintainable and error-prone as soon as data shapes change.
+2. Use general JSON tools (jq) — powerful but verbose and awkward for producing polished tabular textual formats.
+3. Pull in heavyweight toolchains (Python libraries, ETL frameworks) — works but is overkill for small conversions and adds maintenance burden.
 
-`tablyful` is a CLI-first tool focused on fast, predictable conversion of JSON tabular data into common table formats. Key features:
+The solution: tablyful is a lightweight, CLI-first tool that normalizes multiple JSON input shapes into a consistent tabular model and formats them into a wide range of textual table outputs. Core concept: JSON-first normalization + configurable formatters for common reporting formats.
 
-- Multiple input shapes: array of arrays, array of objects, object of arrays, object of objects
-- Multiple output formats: csv, tsv, psv, json, markdown, html, latex, sql, yaml
-- Unix-friendly CLI: stdin/stdout by default, positional file input supported
-- Cascading JSON config (`.tablyfulrc.json`) with repeatable `--set` overrides
-- Row filtering with SQL-like predicates (`=`, `!=`, `>`, `<`, `>=`, `<=`, `LIKE`)
-- Column projection via `--columns`
-- Conversion diagnostics via `--stats`
-- Automatic streaming for large JSON arrays when output is one of: csv, tsv, psv, sql, html, yaml
-- Discoverability helpers: `--list-set-keys` and `--list-set-keys-format`
-
-## General workflow
+## The Magic: Input → tablyful → Output
 
 ```mermaid
 flowchart LR
-  A["Input: file | stdin"] --> B["Parser (auto-detect input shape)"]
-  B --> C[Normalized TableData]
-  C --> D["Formatter (csv|json|markdown|html|latex|sql|yaml|...)"]
-  D --> E["Output: stdout | file"]
+  subgraph input [Input]
+    direction TB
+    A[file or stdin: JSON]:::in
+    A --> A2[shapes: array of objects | array of arrays | object of arrays | object of objects]:::in
+  end
+
+  subgraph process [tablyful]
+    direction TB
+    P1[Parser — auto-detect & normalize]:::proc
+    P2[TableData — normalized rows & columns]:::proc
+    P3[Formatter — csv | markdown | html | sql | yaml | latex | json]:::proc
+  end
+
+  subgraph output [Output]
+    direction TB
+    O[stdout or file — clean, streamable textual tables]:::out
+  end
+
+  A2 --> P1 --> P2 --> P3 --> O
+
+  classDef in fill:#f9f,stroke:#333,stroke-width:1px,color:#222;
+  classDef proc fill:#fffbcc,stroke:#aa8800,stroke-width:1px,color:#222;
+  classDef out fill:#e6ffed,stroke:#0a7f3b,stroke-width:1px,color:#052;
 ```
 
-## Tech Stack
+Why this workflow is beautiful: it separates responsibilities (detect → normalize → format) so small pieces are predictable, testable, and streamable. Examples:
+
+- Turn a nested JSON array of objects into a Markdown report for README consumption.
+- Stream a very large JSON array to CSV without loading everything into memory.
+
+## Why We Built It This Way
+
+### JSON-First Normalization for Every Use Case
+
+tablyful handles a variety of real-world scenarios:
+
+- Converting API dump JSON into CSV for quick analysis.
+- Generating Markdown tables for documentation or CHANGELOGs.
+- Emitting SQL INSERT statements for small data migrations.
+- Producing HTML tables for lightweight reporting dashboards.
+- Streaming ETL-style conversion of very large JSON arrays into columnar formats.
+
+Built-in features that make this possible:
+
+- Auto-detecting several JSON input shapes and normalizing them to a single TableData model.
+- Multiple formatter backends (csv, markdown, html, latex, sql, yaml, json).
+- Streaming mode for memory-efficient large-file processing.
+- Config-driven behavior via `.tablyfulrc.json` and `--set` overrides for reproducibility.
 
 ### Why ReScript?
 
-ReScript offers stronger compile-time guarantees and a terse syntax that compiles to predictable JavaScript. The CLI benefits from:
+Why this language/stack matters to you:
 
-- Type-safety for the parser/formatter logic (fewer runtime surprises when handling many input shapes).
+- Type safety reduces runtime surprises when parsing many input shapes.
+- Small, predictable JS output that runs everywhere Node runs (CLI portability).
+- Excellent interop with the npm ecosystem for packaging and distribution.
+- Fast developer iteration with simple, explicit codegen to JS.
 
-## How does it compare to alternatives?
+## How Does It Compare?
 
-- jq: excellent for JSON queries and transformations, but not focused on producing tabular textual formats (csv/markdown/sql) and has a steeper query language for table-style projections.
-- csvkit: a mature Python toolkit focused on CSV manipulation; tablyful differs by accepting multiple JSON input shapes and providing many output formats out of the box with streaming.
-- Miller (mlr): great for columnar transformations and streaming; tablyful complements it by providing broader output formats (markdown, html, latex, sql) and a JSON-first parsing model.
+Competitive landscape:
+
+- jq — great for querying JSON, but not focused on polished table outputs or easy column projection for reports.
+- csvkit — mature CSV-first toolkit; tablyful accepts multiple JSON shapes and produces a broader set of textual formats out of the box.
+- Miller (mlr) — excels at streaming columnar ops; tablyful complements it by focusing on JSON-first normalization and rich output formats (Markdown, HTML, LaTeX, SQL).
+
+The differentiator: Unlike jq, tablyful is opinionated about turning JSON into tables with minimal friction. Compared to csvkit or mlr, tablyful is JSON-native and supplies many textual formatter backends without pulling in a heavy stack.
+
+## Ready to Dive In?
+
+- 📖 **Getting Started**(getting-started.md) — Installation and your first run.
+- 💡 **Examples**(examples.md) — Real-world patterns and sample commands.
+- ⚙️ **CLI Reference**(cli.md) — All flags, config options, and examples.
+- 🛠️ **Configuration**(.tablyfulrc.md) — How to make conversions reproducible across projects.
+
+Let's start building! 🚀
