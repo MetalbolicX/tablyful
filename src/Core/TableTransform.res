@@ -212,7 +212,7 @@ let selectColumns = (table: TableData.t, requestedColumns: array<string>): Commo
   if selected->Array.length === 0 {
     invalidTransform("--columns requires at least one column name.")
   } else {
-    let missing = selected->Bindings.Iter.fromArray->Bindings.Iter.filter(column => !(table.headers->Array.includes(column)))->Bindings.Iter.toArray
+    let missing = selected->Array.filter(column => !(table.headers->Array.includes(column)))
     if missing->Array.length > 0 {
       invalidTransform(
         `Unknown column(s) in --columns: ${missing->Array.join(", ")}. Available columns: ${table.headers
@@ -276,7 +276,7 @@ let applyFilters = (table: TableData.t, expressions: array<string>): Common.resu
         ->Bindings.Iter.map(predicate => predicate.column)
         ->Bindings.Iter.toArray
         ->uniqueStrings
-        ->Bindings.Iter.fromArray->Bindings.Iter.filter(column => !(table.headers->Array.includes(column)))->Bindings.Iter.toArray
+        ->Array.filter(column => !(table.headers->Array.includes(column)))
 
       if missingColumns->Array.length > 0 {
         invalidTransform(

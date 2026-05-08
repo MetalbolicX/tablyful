@@ -128,8 +128,8 @@ let applyHeaders = (table: t, newHeaders: array<string>): Common.result<t> => {
 }
 
 let inferColumns = (headers: array<string>, rows: array<row>): array<column> => {
-  headers->Bindings.Iter.fromArray->Bindings.Iter.map(header => {
-    let values = rows->Bindings.Iter.fromArray->Bindings.Iter.map(row => row->Dict.get(header))->Bindings.Iter.toArray->Belt.Array.keepMap(v => v)
+  headers->Array.map(header => {
+    let values = rows->Array.map(row => row->Dict.get(header))->Belt.Array.keepMap(v => v)
     let nullable = values->Array.length < rows->Array.length
 
     let nonNullValues = values->Array.filter(v => v !== JSON.Encode.null)
@@ -147,5 +147,5 @@ let inferColumns = (headers: array<string>, rows: array<row>): array<column> => 
     }
 
     {name: header, dataType, nullable}
-  })->Bindings.Iter.toArray
+  })
 }

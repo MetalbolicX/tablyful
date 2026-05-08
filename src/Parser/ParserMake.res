@@ -29,7 +29,7 @@ module Make = (
 
         // Create metadata
         let metadata: TableData.metadata = {
-          rowCount: rows->Bindings.Iter.fromArray->Bindings.Iter.reduce((count, _) => count + 1, 0),
+          rowCount: rows->Array.length,
           columnCount: headers->Array.length,
           hasRowNumbers: false,
           sourceFormat: Config.name,
