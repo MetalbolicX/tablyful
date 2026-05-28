@@ -793,3 +793,83 @@ test("CLI: --help includes --examples flag", () => {
   assert.equal(result.code, 0);
   assert.match(result.stdout, /--examples/);
 });
+
+test("CLI: stdin to csv outputs CSV", () => {
+  const result = runCli({
+    args: ["--format", "csv"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 0);
+  assert.match(result.stdout, /name,age/);
+  assert.match(result.stdout, /Alice,30/);
+});
+
+test("CLI: positional file input without stdin", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-positional-"));
+  const filePath = join(tempDir, "input.json");
+
+  try {
+    writeFileSync(filePath, sampleArrayOfArrays, "utf8");
+    const result = runCli({ args: [filePath, "--format", "csv"] });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /name,age/);
+    assert.match(result.stdout, /Alice,30/);
+    assert.match(result.stdout, /Bob,25/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: config defaultFormat sets csv when --format absent", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-config-default-"));
+  const configPath = join(tempDir, "config.json");
+
+  try {
+    writeFileSync(configPath, JSON.stringify({ defaultFormat: "csv" }), "utf8");
+    const result = runCli({
+      args: ["--config", configPath],
+      input: sampleArrayOfArrays,
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /name,age/);
+    assert.match(result.stdout, /Alice,30/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: --set overrides config csv.delimiter", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "tablyful-cli-config-override-"));
+  const configPath = join(tempDir, "config.json");
+
+  try {
+    writeFileSync(
+      configPath,
+      JSON.stringify({ defaultFormat: "csv", csv: { delimiter: "," } }),
+      "utf8",
+    );
+    const result = runCli({
+      args: ["--config", configPath, "--set", "csv.delimiter=;"],
+      input: sampleArrayOfArrays,
+    });
+
+    assert.equal(result.code, 0);
+    assert.match(result.stdout, /name;age/);
+    assert.match(result.stdout, /Alice;30/);
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("CLI: invalid --filter exits 2", () => {
+  const result = runCli({
+    args: ["--filter", "age!!!!20"],
+    input: sampleArrayOfArrays,
+  });
+
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /Invalid filter expression/);
+});
