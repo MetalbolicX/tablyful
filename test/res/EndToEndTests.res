@@ -245,3 +245,118 @@ test("E2E: options hasRowNumbers adds row number column", () => {
     },
   )
 })
+
+test("E2E: objectOfObjects to CSV produces correct shape", () => {
+  expectConverted(
+    ~input=objectOfObjectsInput(),
+    ~format="csv",
+    ~expected="CSV conversion to succeed for objectOfObjects",
+    csv => {
+      expectTrue(csv->String.includes("name") && csv->String.includes("age"))
+      expectTrue(csv->String.includes("Alice"))
+      expectTrue(csv->String.includes("30"))
+    },
+  )
+})
+
+test("E2E: objectOfObjects to SQL produces CREATE TABLE with column definitions", () => {
+  let options: Types.t = {
+    ...Defaults.t,
+    outputFormat: Sql,
+    formatOptions: SqlOptions({...Defaults.defaultSqlOptions, tableName: "users", includeCreateTable: true}),
+  }
+
+  expectConverted(
+    ~input=objectOfObjectsInput(),
+    ~format="sql",
+    ~options,
+    ~expected="SQL conversion to succeed for objectOfObjects",
+    sql => {
+      expectTrue(sql->String.includes("CREATE TABLE \"users\""))
+      expectTrue(sql->String.includes("name"))
+      expectTrue(sql->String.includes("age"))
+    },
+  )
+})
+
+test("E2E: NDJSON input roundtrip produces correct CSV rows", () => {
+  let ndjsonInput = "{\"name\":\"Alice\",\"age\":30}\n{\"name\":\"Bob\",\"age\":25}\n"
+
+  ReaderRegistry.read(~format="ndjson", ndjsonInput, Defaults.t)
+  ->Result.flatMap(tableData => FormatterRegistry.format("csv", tableData, Defaults.t))
+  ->expectOk(~expected="NDJSON roundtrip to succeed", ~assertOk=csv => {
+    expectTrue(csv->String.includes("name") && csv->String.includes("age"))
+    expectTrue(csv->String.includes("Alice"))
+    expectTrue(csv->String.includes("30"))
+    expectTrue(csv->String.includes("Bob"))
+    expectTrue(csv->String.includes("25"))
+  })
+})
+
+test("E2E: HTML input roundtrip produces correct CSV output", () => {
+  let sampleHtml = "<table>\n  <thead>\n    <tr><th>name</th><th>age</th></tr>\n  </thead>\n  <tbody>\n    <tr><td>Alice</td><td>30</td></tr>\n    <tr><td>Bob</td><td>25</td></tr>\n  </tbody>\n</table>\n"
+
+  ReaderRegistry.read(~format="html", sampleHtml, Defaults.t)
+  ->Result.flatMap(tableData => FormatterRegistry.format("csv", tableData, Defaults.t))
+  ->expectOk(~expected="HTML roundtrip to succeed", ~assertOk=csv => {
+    expectTrue(csv->String.includes("name,age"))
+    expectTrue(csv->String.includes("Alice"))
+    expectTrue(csv->String.includes("30"))
+    expectTrue(csv->String.includes("Bob"))
+    expectTrue(csv->String.includes("25"))
+  })
+})
+
+test("E2E: hasRowNumbers with includeHeaders=false shows row numbers but no header", () => {
+  let options: Types.t = {
+    ...Defaults.t,
+    hasRowNumbers: true,
+    rowNumberHeader: "#",
+    formatOptions: CsvOptions({...Defaults.defaultCsvOptions, includeHeaders: false}),
+  }
+
+  expectConverted(
+    ~input=arrayOfArraysInput(),
+    ~format="csv",
+    ~options,
+    ~expected="CSV with row numbers but no header",
+    csv => {
+      expectTrue(!(csv->String.includes("name,age")))
+      expectTrue(csv->String.includes("1,"))
+      expectTrue(csv->String.includes("2,"))
+      expectTrue(csv->String.includes("Alice,30"))
+    },
+  )
+})
+
+test("E2E: filter predicate in pipeline keeps only matching rows", () => {
+  let fourRowsInput = (): JSON.t =>
+    JSON.Encode.array([
+      JSON.Encode.object(Dict.fromArray([("name", JSON.Encode.string("Alice")), ("age", JSON.Encode.float(30.0))])),
+      JSON.Encode.object(Dict.fromArray([("name", JSON.Encode.string("Bob")), ("age", JSON.Encode.float(25.0))])),
+      JSON.Encode.object(Dict.fromArray([("name", JSON.Encode.string("Carol")), ("age", JSON.Encode.float(28.0))])),
+      JSON.Encode.object(Dict.fromArray([("name", JSON.Encode.string("Dave")), ("age", JSON.Encode.float(22.0))])),
+    ])
+
+  ParserRegistry.parse(fourRowsInput(), Defaults.t)
+  ->Result.flatMap(tableData => TableTransform.applyFilters(tableData, ["age > 25"]))
+  ->Result.flatMap(filtered => FormatterRegistry.format("csv", filtered, Defaults.t))
+  ->expectOk(~expected="Filter pipeline to succeed", ~assertOk=csv => {
+    expectTrue(csv->String.includes("Alice") && csv->String.includes("30"))
+    expectTrue(csv->String.includes("Carol") && csv->String.includes("28"))
+    expectTrue(!(csv->String.includes("Bob")))
+    expectTrue(!(csv->String.includes("Dave")))
+  })
+})
+
+test("E2E: column projection in pipeline outputs only selected columns", () => {
+  ParserRegistry.parse(arrayOfObjectsInput(), Defaults.t)
+  ->Result.flatMap(tableData => TableTransform.selectColumns(tableData, ["name"]))
+  ->Result.flatMap(selected => FormatterRegistry.format("csv", selected, Defaults.t))
+  ->expectOk(~expected="Column projection to succeed", ~assertOk=csv => {
+    expectTrue(csv->String.includes("name"))
+    expectTrue(!(csv->String.includes("age")))
+    expectTrue(csv->String.includes("Alice"))
+    expectTrue(csv->String.includes("Bob"))
+  })
+})
